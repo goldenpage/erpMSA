@@ -1,0 +1,55 @@
+spring:
+  application:
+    name: AccountService #name은 필수임
+
+  datasource:
+    url: "${DB_URL:jdbc:mariadb://localhost:3307/account_service}"
+    driver-class-name: org.mariadb.jdbc.Driver
+    username: "${DB_USERNAME:account}"
+    password: "${DB_PASSWORD:account}"
+    hikari:
+      connection-timeout: 3000
+      maximum-pool-size: 10
+
+  jpa:
+    hibernate:
+      ddl-auto: "${JPA_DDL_AUTO:create}"
+    show-sql: "${JPA_SHOW_SQL:true}"
+    properties:
+      hibernate:
+        format_sql: true
+
+  data:
+    redis:
+      host: "${REDIS_HOST:localhost}"
+      port: "${REDIS_PORT:3308}"
+      database: "${REDIS_DATABASE:0}"
+      username: "${REDIS_USERNAME:}"
+      password: "${REDIS_PASSWORD:}"
+      connect-timeout: 2s
+      timeout: 2s
+
+eureka:
+  instance:
+    instance-id: ${spring.application.name}:${spring.application.instance_id:${random.value}} #application 이름을 가져올때 instance_Id를 랜덤으로 지정
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: http://127.0.0.1:8761/eureka #8761  포트에 적용 eureka 서버가 있어야 안정적으로 돌아감
+
+user:
+  message: AccountService Message #공통 메세지
+
+server:
+  port: 7071
+  #포트가 0이면 서버 실행시 vm이 비어있는 포트 실행해줌 유레카가 해주는 역할은 같은 인스턴스면 정보를 관리하지만
+  #다 설정할수도 없고 설정할때마다 입력해줘야하니 0으로 설정시 자동으로 설정해줌
+app:
+  auth:
+    issuer: kosta-erp-account
+    audience: kosta-erp-api
+    secret-base64: ${JWT_SECRET_BASE64}
+    access-ttl: 15m
+    refresh-ttl: 14d
+    secure-cookie: ${COOKIE_SECURE:false}
