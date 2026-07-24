@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: gatewayServer
+  threads:
+    virtual:
+      enabled: true # Tomcat 기반의 동기 처리를 극대화하는 가상 스레드 활성화
+  cloud:
+    gateway:
+      mvc:
+        routes:                        # GatewayRouteConfig 파일을 4.1에서 만들어야한다.
+          - id: Account-service
+            uri: lb://AccountService #Eureka 서비스에 등록된 이름만 사용 가능 -> 같은 컴퓨터는 가능
+            #uri: http://localhost:7001 # .before(uri("http://localhost:7001"))
+            predicates:
+              - Path=/account/**         # .GET("/users/**")
+          #filters:
+          #- StripPrefix=1 mapping하는 네이미을 같이하기에 안씀   # .before(stripPrefix(1))매핑
+          - id: item-service
+            uri: lb://ITEMSERVICE
+            predicates:
+              - Path=/items/**
+          #            filters:
+          #              - StripPrefix=1
+          - id: order-service
+            uri: lb://ORDERSERVICE
+            predicates:
+              - Path=/orders/**
+#            filters:
+#              - StripPrefix=1
+
+eureka:
+  instance:
+    instance-id: ${spring.application.name}:${spring.application.instance_id:${random.value}}
+  client:
+    register-with-eureka: false
+    fetch-registry: true
+    service-url:
+      defaultZone: http://127.0.0.1:8761/eureka
+
+server:
+  port: 7070
+

@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: eurekaServer
+server:
+  port: 8761
+
+eureka:
+  #  instance:
+  #    instance-id: ${spring.application.name}:${spring.application.instance_id:${random.value}} #application 이름을 가져올때 instance_Id를 랜덤으로 지정
+  client:
+    register-with-eureka: false #자기 자신을 등록하지 않는다.
+    fetch-registry: false # 자기 자신을 등록하지 않는다.

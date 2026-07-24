@@ -1,0 +1,15 @@
+.DS_Store
+
+**/.gradle/
+**/build/
+**/.idea/
+**/out/
+**/.vscode/
+**/*.iml
+
+**/.env
+**/.env.*
+!**/.env.example
+
+**/application-local.yml
+**/application-local.yaml
