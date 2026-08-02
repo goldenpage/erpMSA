@@ -14,7 +14,7 @@ import lombok.Data;
 public class RefreshTokenEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private String tokenId;
+    private Long tokenId;
     private String username;
     private String token;
     private LocalDateTime expiryDate;
