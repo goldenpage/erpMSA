@@ -102,8 +102,7 @@ pipeline {
                         '''
                     }
                 }
-
-                stage('Account Test') {
+      stage('Account Test') {
                     steps {
                         sh '''
                             set -a
