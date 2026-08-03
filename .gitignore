@@ -2,6 +2,7 @@
 
 **/.gradle/
 **/build/
+/lib/
 **/.idea/
 **/out/
 **/.vscode/
