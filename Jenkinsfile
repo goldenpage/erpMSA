@@ -8,6 +8,10 @@ pipeline {
         timeout(time: 30, unit: 'MINUTES')
     }
 
+    triggers {
+        pollSCM('H/2 * * * *')
+    }
+
     environment {
         CI_PROJECT_NAME = "erpmsa-ci-${env.BUILD_NUMBER}"
     }
@@ -165,12 +169,53 @@ pipeline {
                     BUSINESS_ID=$(printf '%010d' "$BUILD_NUMBER")
                     TEST_EMAIL="jenkins-${BUILD_NUMBER}@example.com"
 
-                    NO_TOKEN_STATUS=$(curl -sS \
+                    # Gateway가 AccountService를 Eureka에서 조회할 때까지 대기한다.
+                    # AccountService까지 요청이 전달되면 GET /login은 405가 된다.
+                    # Eureka에 아직 등록되지 않았다면 Gateway가 503을 반환한다.
+                    ROUTE_STATUS=000
+
+                    for ATTEMPT in $(seq 1 30); do
+                        ROUTE_STATUS=$(curl \
+                            -sS \
+                            --connect-timeout 2 \
+                            --max-time 5 \
+                            -o /dev/null \
+                            -w '%{http_code}' \
+                            http://gateway-server:7070/account/auth/login \
+                            || true)
+
+                        printf \
+                            'Gateway route check: attempt=%s status=%s\\n' \
+                            "$ATTEMPT" \
+                            "$ROUTE_STATUS"
+
+                        if [ "$ROUTE_STATUS" = "405" ]; then
+                            echo 'Gateway에서 AccountService 라우팅이 준비되었습니다.'
+                            break
+                        fi
+
+                        sleep 2
+                    done
+
+                    if [ "$ROUTE_STATUS" != "405" ]; then
+                        printf \
+                            'Gateway 라우팅 준비 실패: 마지막 HTTP 상태=%s\\n' \
+                            "$ROUTE_STATUS"
+                        exit 1
+                    fi
+
+                    NO_TOKEN_STATUS=$(curl \
+                        -sS \
+                        --connect-timeout 2 \
+                        --max-time 10 \
                         -o /dev/null \
                         -w '%{http_code}' \
                         http://gateway-server:7070/account/auth/me)
 
-                    REGISTER_STATUS=$(curl -sS \
+                    REGISTER_STATUS=$(curl \
+                        -sS \
+                        --connect-timeout 2 \
+                        --max-time 10 \
                         -o /dev/null \
                         -w '%{http_code}' \
                         -H 'Content-Type: application/json' \
@@ -187,7 +232,10 @@ pipeline {
                         }" \
                         http://gateway-server:7070/account/auth/register)
 
-                    LOGIN_STATUS=$(curl -sS \
+                    LOGIN_STATUS=$(curl \
+                        -sS \
+                        --connect-timeout 2 \
+                        --max-time 10 \
                         -c "$COOKIE_FILE" \
                         -o "$LOGIN_FILE" \
                         -w '%{http_code}' \
@@ -198,6 +246,17 @@ pipeline {
                         }" \
                         http://gateway-server:7070/account/auth/login)
 
+                    printf \
+                        'route=%s no_token=%s register=%s login=%s\\n' \
+                        "$ROUTE_STATUS" \
+                        "$NO_TOKEN_STATUS" \
+                        "$REGISTER_STATUS" \
+                        "$LOGIN_STATUS"
+
+                    test "$NO_TOKEN_STATUS" = "401"
+                    test "$REGISTER_STATUS" = "201"
+                    test "$LOGIN_STATUS" = "200"
+
                     ACCESS_TOKEN=$(jq -r \
                         '.accessToken // empty' \
                         "$LOGIN_FILE")
@@ -207,20 +266,29 @@ pipeline {
                         exit 1
                     fi
 
-                    ME_STATUS=$(curl -sS \
+                    ME_STATUS=$(curl \
+                        -sS \
+                        --connect-timeout 2 \
+                        --max-time 10 \
                         -o /dev/null \
                         -w '%{http_code}' \
                         -H "Authorization: Bearer $ACCESS_TOKEN" \
                         http://gateway-server:7070/account/auth/me)
 
-                    REFRESH_STATUS=$(curl -sS \
+                    REFRESH_STATUS=$(curl \
+                        -sS \
+                        --connect-timeout 2 \
+                        --max-time 10 \
                         -b "$COOKIE_FILE" \
                         -o /dev/null \
                         -w '%{http_code}' \
                         -X POST \
                         http://gateway-server:7070/account/auth/refresh)
 
-                    LOGOUT_STATUS=$(curl -sS \
+                    LOGOUT_STATUS=$(curl \
+                        -sS \
+                        --connect-timeout 2 \
+                        --max-time 10 \
                         -b "$COOKIE_FILE" \
                         -o /dev/null \
                         -w '%{http_code}' \
@@ -228,17 +296,11 @@ pipeline {
                         http://gateway-server:7070/account/auth/logout)
 
                     printf \
-                        'no_token=%s register=%s login=%s me=%s refresh=%s logout=%s\\n' \
-                        "$NO_TOKEN_STATUS" \
-                        "$REGISTER_STATUS" \
-                        "$LOGIN_STATUS" \
+                        'me=%s refresh=%s logout=%s\\n' \
                         "$ME_STATUS" \
                         "$REFRESH_STATUS" \
                         "$LOGOUT_STATUS"
 
-                    test "$NO_TOKEN_STATUS" = "401"
-                    test "$REGISTER_STATUS" = "201"
-                    test "$LOGIN_STATUS" = "200"
                     test "$ME_STATUS" = "200"
                     test "$REFRESH_STATUS" = "200"
                     test "$LOGOUT_STATUS" = "204"
