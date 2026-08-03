@@ -3,6 +3,7 @@ pipeline {
 
     options {
         timestamps()
+        skipDefaultCheckout(true)
         disableConcurrentBuilds()
         timeout(time: 30, unit: 'MINUTES')
     }
@@ -91,6 +92,7 @@ pipeline {
                 stage('Gateway Test') {
                     steps {
                         sh '''
+                            set +x
                             set -a
                             . ./.env
                             set +a
@@ -102,9 +104,11 @@ pipeline {
                         '''
                     }
                 }
-      stage('Account Test') {
+
+                stage('Account Test') {
                     steps {
                         sh '''
+                            set +x
                             set -a
                             . ./.env
                             set +a
@@ -114,6 +118,8 @@ pipeline {
                             REDIS_HOST=redis \
                             REDIS_PORT=6379 \
                             EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka \
+                            JPA_DDL_AUTO=update \
+                            JPA_SHOW_SQL=false \
                             COOKIE_SECURE=false \
                             ./AccountService/gradlew \
                                 -p AccountService \
@@ -151,6 +157,7 @@ pipeline {
         stage('Authentication Smoke Test') {
             steps {
                 sh '''
+                    set +x
                     set -eu
 
                     COOKIE_FILE=/tmp/erpmsa-ci-cookie.txt
@@ -191,7 +198,9 @@ pipeline {
                         }" \
                         http://gateway-server:7070/account/auth/login)
 
-                    ACCESS_TOKEN=$(jq -r '.accessToken // empty' "$LOGIN_FILE")
+                    ACCESS_TOKEN=$(jq -r \
+                        '.accessToken // empty' \
+                        "$LOGIN_FILE")
 
                     if [ -z "$ACCESS_TOKEN" ]; then
                         echo 'Access Token이 발급되지 않았습니다.'
@@ -211,21 +220,32 @@ pipeline {
                         -X POST \
                         http://gateway-server:7070/account/auth/refresh)
 
+                    LOGOUT_STATUS=$(curl -sS \
+                        -b "$COOKIE_FILE" \
+                        -o /dev/null \
+                        -w '%{http_code}' \
+                        -X POST \
+                        http://gateway-server:7070/account/auth/logout)
+
                     printf \
-                        'no_token=%s register=%s login=%s me=%s refresh=%s\\n' \
+                        'no_token=%s register=%s login=%s me=%s refresh=%s logout=%s\\n' \
                         "$NO_TOKEN_STATUS" \
                         "$REGISTER_STATUS" \
                         "$LOGIN_STATUS" \
                         "$ME_STATUS" \
-                        "$REFRESH_STATUS"
+                        "$REFRESH_STATUS" \
+                        "$LOGOUT_STATUS"
 
                     test "$NO_TOKEN_STATUS" = "401"
                     test "$REGISTER_STATUS" = "201"
                     test "$LOGIN_STATUS" = "200"
                     test "$ME_STATUS" = "200"
                     test "$REFRESH_STATUS" = "200"
+                    test "$LOGOUT_STATUS" = "204"
 
-                    rm -f "$COOKIE_FILE" "$LOGIN_FILE"
+                    rm -f \
+                        "$COOKIE_FILE" \
+                        "$LOGIN_FILE"
                 '''
             }
         }
