@@ -1,0 +1,36 @@
+services:
+  mariadb:
+    restart: "no"
+    ports: !reset []
+    volumes: !reset []
+    tmpfs:
+      - /var/lib/mysql
+
+  redis:
+    restart: "no"
+    ports: !reset []
+    volumes: !reset []
+    tmpfs:
+      - /data
+
+  eureka-server:
+    image: "${CI_PROJECT_NAME:-erpmsa-ci}/eureka-server:${BUILD_NUMBER:-local}"
+    restart: "no"
+    ports: !reset []
+
+  account-service:
+    image: "${CI_PROJECT_NAME:-erpmsa-ci}/account-service:${BUILD_NUMBER:-local}"
+    restart: "no"
+    ports: !reset []
+
+  gateway-server:
+    image: "${CI_PROJECT_NAME:-erpmsa-ci}/gateway-server:${BUILD_NUMBER:-local}"
+    restart: "no"
+    ports: !reset []
+
+volumes:
+  mariadb-data:
+    name: "${CI_PROJECT_NAME:-erpmsa-ci}-mariadb-data"
+
+  redis-data:
+    name: "${CI_PROJECT_NAME:-erpmsa-ci}-redis-data"
