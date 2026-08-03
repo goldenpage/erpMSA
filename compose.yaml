@@ -1,0 +1,121 @@
+name: erpmsa
+
+services:
+  mariadb:
+    image: mariadb:10.11
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: mydb
+      MARIADB_ROOT_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set in .env}"
+      MARIADB_USER: account
+      MARIADB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set in .env}"
+      TZ: Asia/Seoul
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:3308:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  eureka-server:
+    build:
+      context: ./eurekaServer
+    image: erpmsa/eureka-server:local
+    restart: unless-stopped
+    environment:
+      EUREKA_SERVER_PORT: "8761"
+    ports:
+      - "127.0.0.1:8761:8761"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8761"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
+  account-service:
+    build:
+      context: ./AccountService
+    image: erpmsa/account-service:local
+    restart: unless-stopped
+    environment:
+      ACCOUNT_SERVER_PORT: "7071"
+      DB_URL: jdbc:mariadb://mariadb:3306/mydb
+      DB_USERNAME: account
+      DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set in .env}"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      EUREKA_DEFAULT_ZONE: http://eureka-server:8761/eureka
+      JPA_DDL_AUTO: update
+      JPA_SHOW_SQL: "false"
+      JWT_ISSUER: "${JWT_ISSUER:-kosta-erp-account}"
+      JWT_AUDIENCE: "${JWT_AUDIENCE:-kosta-erp-api}"
+      JWT_SECRET_BASE64: "${JWT_SECRET_BASE64:?JWT_SECRET_BASE64 must be set in .env}"
+      JWT_ACCESS_TTL: "${JWT_ACCESS_TTL:-15m}"
+      JWT_REFRESH_TTL: "${JWT_REFRESH_TTL:-14d}"
+      COOKIE_SECURE: "false"
+      ACCOUNT_USER_MESSAGE: "${ACCOUNT_USER_MESSAGE:-AccountService Message}"
+    ports:
+      - "127.0.0.1:7071:7071"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/7071"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+
+  gateway-server:
+    build:
+      context: ./gatewayServer
+    image: erpmsa/gateway-server:local
+    restart: unless-stopped
+    environment:
+      GATEWAY_SERVER_PORT: "7070"
+      EUREKA_DEFAULT_ZONE: http://eureka-server:8761/eureka
+      JWT_ISSUER: "${JWT_ISSUER:-kosta-erp-account}"
+      JWT_AUDIENCE: "${JWT_AUDIENCE:-kosta-erp-api}"
+      JWT_SECRET_BASE64: "${JWT_SECRET_BASE64:?JWT_SECRET_BASE64 must be set in .env}"
+    ports:
+      - "127.0.0.1:7070:7070"
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      account-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/7070"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
+volumes:
+  mariadb-data:
+    name: erpmsa-mariadb-data
+  redis-data:
+    name: erpmsa-redis-data

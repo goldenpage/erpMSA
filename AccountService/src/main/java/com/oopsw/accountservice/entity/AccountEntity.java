@@ -21,7 +21,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 @Entity
 @Table(name = "account",uniqueConstraints = {
     @UniqueConstraint(name  = "accountEmail", columnNames = "email"),
-    @UniqueConstraint(name = "accountBusinessId", columnNames = "bId")
+    @UniqueConstraint(name = "accountBusinessId", columnNames = "b_id")
 })
 @NoArgsConstructor
 public class AccountEntity {
@@ -32,8 +32,8 @@ public class AccountEntity {
     @Column(nullable = false, length = 255)
     private String email;
 
-    @Column(name = "bId", nullable = false, length = 10)
-    private String bId;
+    @Column(name = "b_id", nullable = false, length = 10)
+    private String businessId;
 
     @Column(name="pwHash", nullable = false, length = 255)
     private String pwHash;
@@ -101,7 +101,7 @@ public class AccountEntity {
         AccountEntity account = new AccountEntity();
 
         account.email = email;
-        account.bId = businessId;
+        account.businessId = businessId;
         account.pwHash = passwordHash;
         account.name = name;
         account.phone = phone;

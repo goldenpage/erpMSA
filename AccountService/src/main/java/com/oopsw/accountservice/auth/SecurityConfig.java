@@ -36,7 +36,8 @@ public class SecurityConfig {
                     "/account/auth/login",
                     "/account/auth/refresh",
                     "/account/auth/logout",
-                    "/actuator/health"
+                    "/actuator/health",
+                    "/error"
                 ).permitAll()
                 .requestMatchers("/account/manager/**").hasRole("MANAGER")
                 .anyRequest().authenticated()

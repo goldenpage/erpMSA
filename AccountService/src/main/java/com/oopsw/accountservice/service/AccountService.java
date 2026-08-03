@@ -37,7 +37,7 @@ public class AccountService {
             );
         }
 
-        if (accountRepository.existsByBId(request.businessId())) {
+        if (accountRepository.existsByBusinessId(request.businessId())) {
             throw new ResponseStatusException(
                 HttpStatus.CONFLICT,
                 "이미 등록된 사업자번호입니다."

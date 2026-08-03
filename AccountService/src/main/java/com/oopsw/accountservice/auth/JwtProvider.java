@@ -79,7 +79,7 @@ public class JwtProvider {
             .withExpiresAt(now.plus(properties.accessTtl()))
             .withClaim(TOKEN_TYPE, ACCESS)
             .withClaim("email", account.getEmail())
-            .withClaim("businessId", account.getBId())
+            .withClaim("businessId", account.getBusinessId())
             .withClaim("role", account.getRole().name())
             .sign(algorithm);
     }
