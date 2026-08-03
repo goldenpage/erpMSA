@@ -54,7 +54,8 @@ public class GatewayJwtFilter extends OncePerRequestFilter {
             || path.equals("/account/auth/login")
             || path.equals("/account/auth/refresh")
             || path.equals("/account/auth/logout")
-            || path.equals("/actuator/health");
+            || path.equals("/actuator/health")
+            || path.equals("/actuator/prometheus");
     }
 
     @Override

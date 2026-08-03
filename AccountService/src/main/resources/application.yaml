@@ -44,6 +44,21 @@ user:
 server:
   port: "${ACCOUNT_SERVER_PORT:7071}"
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,prometheus"
+  endpoint:
+    health:
+      show-details: never
+  metrics:
+    tags:
+      application: "${spring.application.name}"
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
 app:
   auth:
     issuer: "${JWT_ISSUER:kosta-erp-account}"

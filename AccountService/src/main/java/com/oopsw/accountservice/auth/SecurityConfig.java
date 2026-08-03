@@ -37,6 +37,7 @@ public class SecurityConfig {
                     "/account/auth/refresh",
                     "/account/auth/logout",
                     "/actuator/health",
+                    "/actuator/prometheus",
                     "/error"
                 ).permitAll()
                 .requestMatchers("/account/manager/**").hasRole("MANAGER")

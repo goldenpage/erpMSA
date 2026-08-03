@@ -10,3 +10,18 @@ eureka:
   client:
     register-with-eureka: false #자기 자신을 등록하지 않는다.
     fetch-registry: false # 자기 자신을 등록하지 않는다.
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,prometheus"
+  endpoint:
+    health:
+      show-details: never
+  metrics:
+    tags:
+      application: "${spring.application.name}"
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true

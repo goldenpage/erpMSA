@@ -28,9 +28,25 @@ services:
     restart: "no"
     ports: !reset []
 
+  prometheus:
+    image: "${CI_PROJECT_NAME:-erpmsa-ci}/prometheus:${BUILD_NUMBER:-local}"
+    restart: "no"
+    ports: !reset []
+
+  grafana:
+    image: "${CI_PROJECT_NAME:-erpmsa-ci}/grafana:${BUILD_NUMBER:-local}"
+    restart: "no"
+    ports: !reset []
+
 volumes:
   mariadb-data:
     name: "${CI_PROJECT_NAME:-erpmsa-ci}-mariadb-data"
 
   redis-data:
     name: "${CI_PROJECT_NAME:-erpmsa-ci}-redis-data"
+
+  prometheus-data:
+    name: "${CI_PROJECT_NAME:-erpmsa-ci}-prometheus-data"
+
+  grafana-data:
+    name: "${CI_PROJECT_NAME:-erpmsa-ci}-grafana-data"

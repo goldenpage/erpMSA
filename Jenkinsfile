@@ -5,6 +5,10 @@ pipeline {
         timestamps()
         skipDefaultCheckout(true)
         disableConcurrentBuilds()
+        buildDiscarder(logRotator(
+            numToKeepStr: '20',
+            artifactNumToKeepStr: '10'
+        ))
         timeout(time: 30, unit: 'MINUTES')
     }
 
@@ -39,11 +43,21 @@ pipeline {
                         set +x
                         umask 077
 
+                        GRAFANA_CI_ADMIN_PASSWORD=$(openssl rand -hex 32)
+                        GRAFANA_CI_SECRET_KEY=$(openssl rand -hex 32)
+
                         {
                             printf 'DB_PASSWORD=%s\\n' "$ERPMSA_DB_PASSWORD"
                             printf 'JWT_SECRET_BASE64=%s\\n' "$ERPMSA_JWT_SECRET"
                             printf 'JWT_ISSUER=kosta-erp-account\\n'
                             printf 'JWT_AUDIENCE=kosta-erp-api\\n'
+                            printf 'PROMETHEUS_RETENTION_TIME=1d\\n'
+                            printf 'GRAFANA_ADMIN_USER=admin\\n'
+                            printf 'GRAFANA_ADMIN_PASSWORD=%s\\n' \
+                                "$GRAFANA_CI_ADMIN_PASSWORD"
+                            printf 'GRAFANA_SECRET_KEY=%s\\n' \
+                                "$GRAFANA_CI_SECRET_KEY"
+                            printf 'GRAFANA_COOKIE_SECURE=false\\n'
                             printf 'CI_PROJECT_NAME=%s\\n' "$CI_PROJECT_NAME"
                             printf 'BUILD_NUMBER=%s\\n' "$BUILD_NUMBER"
                         } > .env
@@ -154,6 +168,90 @@ pipeline {
                         -f compose.ci.yaml \
                         -p "$CI_PROJECT_NAME" \
                         up -d --wait
+                '''
+            }
+        }
+
+        stage('Monitoring Smoke Test') {
+            steps {
+                sh '''
+                    set +x
+                    set -eu
+                    set -a
+                    . ./.env
+                    set +a
+
+                    PROMETHEUS_FILE=/tmp/erpmsa-ci-prometheus.json
+                    TARGET_COUNT=0
+
+                    PROMETHEUS_STATUS=$(curl \
+                        -sS \
+                        --connect-timeout 2 \
+                        --max-time 10 \
+                        -o /dev/null \
+                        -w '%{http_code}' \
+                        http://prometheus:9090/-/ready)
+
+                    GRAFANA_STATUS=$(curl \
+                        -sS \
+                        --connect-timeout 2 \
+                        --max-time 10 \
+                        -o /dev/null \
+                        -w '%{http_code}' \
+                        http://grafana:3000/api/health)
+
+                    for ATTEMPT in $(seq 1 30); do
+                        if curl \
+                            -sS \
+                            --fail \
+                            --connect-timeout 2 \
+                            --max-time 10 \
+                            --get \
+                            --data-urlencode \
+                            'query=up{job=~"eureka-server|account-service|gateway-server"}' \
+                            -o "$PROMETHEUS_FILE" \
+                            http://prometheus:9090/api/v1/query; then
+
+                            TARGET_COUNT=$(jq \
+                                '[.data.result[] | select(.value[1] == "1")] | length' \
+                                "$PROMETHEUS_FILE")
+                        fi
+
+                        printf \
+                            'Prometheus target check: attempt=%s up=%s/3\n' \
+                            "$ATTEMPT" \
+                            "$TARGET_COUNT"
+
+                        if [ "$TARGET_COUNT" -eq 3 ]; then
+                            break
+                        fi
+
+                        sleep 2
+                    done
+
+                    DASHBOARD_COUNT=$(curl \
+                        -sS \
+                        --fail \
+                        --connect-timeout 2 \
+                        --max-time 10 \
+                        -u "${GRAFANA_ADMIN_USER}:${GRAFANA_ADMIN_PASSWORD}" \
+                        'http://grafana:3000/api/search?query=ErpMSA%20Spring%20Services' \
+                        | jq \
+                            '[.[] | select(.uid == "erpmsa-spring-services")] | length')
+
+                    printf \
+                        'prometheus=%s grafana=%s targets=%s dashboard=%s\n' \
+                        "$PROMETHEUS_STATUS" \
+                        "$GRAFANA_STATUS" \
+                        "$TARGET_COUNT" \
+                        "$DASHBOARD_COUNT"
+
+                    test "$PROMETHEUS_STATUS" = "200"
+                    test "$GRAFANA_STATUS" = "200"
+                    test "$TARGET_COUNT" -eq 3
+                    test "$DASHBOARD_COUNT" -eq 1
+
+                    rm -f "$PROMETHEUS_FILE"
                 '''
             }
         }
@@ -348,7 +446,8 @@ pipeline {
                 rm -f \
                     .env \
                     /tmp/erpmsa-ci-cookie.txt \
-                    /tmp/erpmsa-ci-login.json
+                    /tmp/erpmsa-ci-login.json \
+                    /tmp/erpmsa-ci-prometheus.json
             '''
         }
     }
