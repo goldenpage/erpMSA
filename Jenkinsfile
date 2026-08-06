@@ -443,6 +443,14 @@ pipeline {
                     -p "$CI_PROJECT_NAME" \
                     down -v --remove-orphans || true
 
+                docker image rm \
+                    "${CI_PROJECT_NAME}/eureka-server:${BUILD_NUMBER}" \
+                    "${CI_PROJECT_NAME}/account-service:${BUILD_NUMBER}" \
+                    "${CI_PROJECT_NAME}/gateway-server:${BUILD_NUMBER}" \
+                    "${CI_PROJECT_NAME}/prometheus:${BUILD_NUMBER}" \
+                    "${CI_PROJECT_NAME}/grafana:${BUILD_NUMBER}" \
+                    || true
+
                 rm -f \
                     .env \
                     /tmp/erpmsa-ci-cookie.txt \
