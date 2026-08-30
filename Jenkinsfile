@@ -436,7 +436,7 @@ pipeline {
                             'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" mariadb \
                             --host=127.0.0.1 --user=root \
                             --batch --skip-column-names \
-                            --execute="SELECT COUNT(*) FROM mydb.account_outbox_event WHERE status != '\''PUBLISHED'\'';"')
+                            --execute="SELECT COUNT(*) FROM mydb.account_outbox_event WHERE status != '\\''PUBLISHED'\\'';"')
 
                         printf \
                             'Kafka event check: attempt=%s audit=%s pending=%s\n' \
