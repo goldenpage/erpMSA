@@ -126,20 +126,6 @@ pipeline {
                 stage('Account Test') {
                     steps {
                         sh '''
-                            set +x
-                            set -a
-                            . ./.env
-                            set +a
-
-                            DB_URL=jdbc:mariadb://mariadb:3306/mydb \
-                            DB_USERNAME=account \
-                            REDIS_HOST=redis \
-                            REDIS_PORT=6379 \
-                            EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka \
-                            KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \
-                            FLYWAY_BASELINE_ON_MIGRATE=false \
-                            JPA_DDL_AUTO=validate \
-                            JPA_SHOW_SQL=false \
                             COOKIE_SECURE=false \
                             ./AccountService/gradlew \
                                 -p AccountService \
@@ -475,6 +461,11 @@ pipeline {
 
     post {
         always {
+            junit(
+                testResults: '**/build/test-results/test/*.xml',
+                allowEmptyResults: true
+            )
+
             sh '''
                 docker compose \
                     -f compose.yaml \
