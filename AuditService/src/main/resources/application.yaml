@@ -1,12 +1,12 @@
 spring:
   application:
-    name: AccountService
+    name: AuditService
 
   datasource:
-    url: "${DB_URL:jdbc:mariadb://localhost:3306/account_service}"
+    url: "${AUDIT_DB_URL:jdbc:mariadb://localhost:3306/auditdb}"
     driver-class-name: org.mariadb.jdbc.Driver
-    username: "${DB_USERNAME:account}"
-    password: "${DB_PASSWORD}"
+    username: "${AUDIT_DB_USERNAME:account}"
+    password: "${AUDIT_DB_PASSWORD:${DB_PASSWORD}}"
     hikari:
       connection-timeout: 3000
       maximum-pool-size: 10
@@ -15,35 +15,27 @@ spring:
     hibernate:
       ddl-auto: "${JPA_DDL_AUTO:validate}"
     open-in-view: false
-    show-sql: "${JPA_SHOW_SQL:false}"
     properties:
       hibernate:
         format_sql: true
 
   flyway:
     enabled: true
-    baseline-on-migrate: "${FLYWAY_BASELINE_ON_MIGRATE:false}"
-    baseline-version: 1
 
   kafka:
     bootstrap-servers: "${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}"
+    consumer:
+      group-id: "${KAFKA_AUDIT_GROUP_ID:audit-service-v1}"
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     producer:
       acks: all
-      properties:
-        enable.idempotence: true
-        max.in.flight.requests.per.connection: 5
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
-
-  data:
-    redis:
-      host: "${REDIS_HOST:localhost}"
-      port: "${REDIS_PORT:3308}"
-      database: "${REDIS_DATABASE:0}"
-      username: "${REDIS_USERNAME:}"
-      password: "${REDIS_PASSWORD:}"
-      connect-timeout: 2s
-      timeout: 2s
+    listener:
+      ack-mode: record
 
 eureka:
   instance:
@@ -54,11 +46,8 @@ eureka:
     service-url:
       defaultZone: "${EUREKA_DEFAULT_ZONE:http://127.0.0.1:8761/eureka}"
 
-user:
-  message: "${ACCOUNT_USER_MESSAGE:AccountService Message}"
-
 server:
-  port: "${ACCOUNT_SERVER_PORT:7071}"
+  port: "${AUDIT_SERVER_PORT:7072}"
 
 management:
   endpoints:
@@ -79,14 +68,4 @@ app:
   kafka:
     topics:
       account-lifecycle: "${KAFKA_ACCOUNT_LIFECYCLE_TOPIC:account.lifecycle.v1}"
-    outbox:
-      publish-delay: "${OUTBOX_PUBLISH_DELAY:1s}"
-      retry-delay: "${OUTBOX_RETRY_DELAY:5s}"
-
-  auth:
-    issuer: "${JWT_ISSUER:kosta-erp-account}"
-    audience: "${JWT_AUDIENCE:kosta-erp-api}"
-    secret-base64: "${JWT_SECRET_BASE64}"
-    access-ttl: "${JWT_ACCESS_TTL:15m}"
-    refresh-ttl: "${JWT_REFRESH_TTL:14d}"
-    secure-cookie: "${COOKIE_SECURE:true}"
+      account-lifecycle-dlt: "${KAFKA_ACCOUNT_LIFECYCLE_DLT_TOPIC:account.lifecycle.v1.DLT}"

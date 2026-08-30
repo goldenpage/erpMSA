@@ -21,6 +21,25 @@ services:
       retries: 20
       start_period: 20s
 
+  database-init:
+    image: mariadb:10.11
+    restart: "no"
+    environment:
+      MARIADB_ROOT_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set in .env}"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    command:
+      - sh
+      - -ec
+      - >-
+        MYSQL_PWD="$$MARIADB_ROOT_PASSWORD" mariadb
+        --host=mariadb --user=root
+        --execute="CREATE DATABASE IF NOT EXISTS auditdb
+        CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+        GRANT ALL PRIVILEGES ON auditdb.* TO 'account'@'%';
+        FLUSH PRIVILEGES;"
+
   redis:
     image: redis:8-alpine
     restart: unless-stopped
@@ -34,6 +53,42 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+
+  kafka:
+    image: apache/kafka:4.3.1
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: >-
+        CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_LISTENERS: >-
+        INTERNAL://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      KAFKA_ADVERTISED_LISTENERS: >-
+        INTERNAL://kafka:9092,EXTERNAL://127.0.0.1:9094
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+      KAFKA_NUM_PARTITIONS: "3"
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    ports:
+      - "127.0.0.1:9094:9094"
+    volumes:
+      - kafka-data:/tmp/kraft-combined-logs
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          /opt/kafka/bin/kafka-topics.sh
+          --bootstrap-server 127.0.0.1:9092 --list
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
 
   eureka-server:
     build:
@@ -64,8 +119,13 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       EUREKA_DEFAULT_ZONE: http://eureka-server:8761/eureka
-      JPA_DDL_AUTO: update
+      JPA_DDL_AUTO: validate
       JPA_SHOW_SQL: "false"
+      FLYWAY_BASELINE_ON_MIGRATE: "${FLYWAY_BASELINE_ON_MIGRATE:-true}"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_ACCOUNT_LIFECYCLE_TOPIC: "${KAFKA_ACCOUNT_LIFECYCLE_TOPIC:-account.lifecycle.v1}"
+      OUTBOX_PUBLISH_DELAY: "${OUTBOX_PUBLISH_DELAY:-1s}"
+      OUTBOX_RETRY_DELAY: "${OUTBOX_RETRY_DELAY:-5s}"
       JWT_ISSUER: "${JWT_ISSUER:-kosta-erp-account}"
       JWT_AUDIENCE: "${JWT_AUDIENCE:-kosta-erp-api}"
       JWT_SECRET_BASE64: "${JWT_SECRET_BASE64:?JWT_SECRET_BASE64 must be set in .env}"
@@ -78,12 +138,48 @@ services:
     depends_on:
       mariadb:
         condition: service_healthy
+      database-init:
+        condition: service_completed_successfully
       redis:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
       eureka-server:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/7071"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+
+  audit-service:
+    build:
+      context: ./AuditService
+    image: erpmsa/audit-service:local
+    restart: unless-stopped
+    environment:
+      AUDIT_SERVER_PORT: "7072"
+      AUDIT_DB_URL: jdbc:mariadb://mariadb:3306/auditdb
+      AUDIT_DB_USERNAME: account
+      AUDIT_DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set in .env}"
+      JPA_DDL_AUTO: validate
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_ACCOUNT_LIFECYCLE_TOPIC: "${KAFKA_ACCOUNT_LIFECYCLE_TOPIC:-account.lifecycle.v1}"
+      KAFKA_ACCOUNT_LIFECYCLE_DLT_TOPIC: "${KAFKA_ACCOUNT_LIFECYCLE_DLT_TOPIC:-account.lifecycle.v1.DLT}"
+      KAFKA_AUDIT_GROUP_ID: "${KAFKA_AUDIT_GROUP_ID:-audit-service-v1}"
+      EUREKA_DEFAULT_ZONE: http://eureka-server:8761/eureka
+    ports:
+      - "127.0.0.1:7072:7072"
+    depends_on:
+      database-init:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/7072"]
       interval: 5s
       timeout: 3s
       retries: 30
@@ -132,6 +228,8 @@ services:
         condition: service_healthy
       account-service:
         condition: service_healthy
+      audit-service:
+        condition: service_healthy
       gateway-server:
         condition: service_healthy
     healthcheck:
@@ -173,6 +271,8 @@ volumes:
     name: erpmsa-mariadb-data
   redis-data:
     name: erpmsa-redis-data
+  kafka-data:
+    name: erpmsa-kafka-data
   prometheus-data:
     name: erpmsa-prometheus-data
   grafana-data:

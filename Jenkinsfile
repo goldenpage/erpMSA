@@ -86,7 +86,7 @@ pipeline {
                         -f compose.ci.yaml \
                         -p "$CI_PROJECT_NAME" \
                         up -d --wait \
-                        mariadb redis eureka-server
+                        mariadb database-init redis kafka eureka-server
 
                     docker network connect \
                         "${CI_PROJECT_NAME}_default" \
@@ -136,11 +136,23 @@ pipeline {
                             REDIS_HOST=redis \
                             REDIS_PORT=6379 \
                             EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka \
-                            JPA_DDL_AUTO=update \
+                            KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \
+                            FLYWAY_BASELINE_ON_MIGRATE=false \
+                            JPA_DDL_AUTO=validate \
                             JPA_SHOW_SQL=false \
                             COOKIE_SECURE=false \
                             ./AccountService/gradlew \
                                 -p AccountService \
+                                test --no-daemon
+                        '''
+                    }
+                }
+
+                stage('Audit Test') {
+                    steps {
+                        sh '''
+                            ./AuditService/gradlew \
+                                -p AuditService \
                                 test --no-daemon
                         '''
                     }
@@ -208,7 +220,7 @@ pipeline {
                             --max-time 10 \
                             --get \
                             --data-urlencode \
-                            'query=up{job=~"eureka-server|account-service|gateway-server"}' \
+                            'query=up{job=~"eureka-server|account-service|audit-service|gateway-server"}' \
                             -o "$PROMETHEUS_FILE" \
                             http://prometheus:9090/api/v1/query; then
 
@@ -218,11 +230,11 @@ pipeline {
                         fi
 
                         printf \
-                            'Prometheus target check: attempt=%s up=%s/3\n' \
+                        'Prometheus target check: attempt=%s up=%s/4\n' \
                             "$ATTEMPT" \
                             "$TARGET_COUNT"
 
-                        if [ "$TARGET_COUNT" -eq 3 ]; then
+                        if [ "$TARGET_COUNT" -eq 4 ]; then
                             break
                         fi
 
@@ -248,7 +260,7 @@ pipeline {
 
                     test "$PROMETHEUS_STATUS" = "200"
                     test "$GRAFANA_STATUS" = "200"
-                    test "$TARGET_COUNT" -eq 3
+                    test "$TARGET_COUNT" -eq 4
                     test "$DASHBOARD_COUNT" -eq 1
 
                     rm -f "$PROMETHEUS_FILE"
@@ -409,6 +421,56 @@ pipeline {
                 '''
             }
         }
+
+        stage('Kafka Event Smoke Test') {
+            steps {
+                sh '''
+                    set +x
+                    set -eu
+
+                    AUDIT_COUNT=0
+                    PENDING_COUNT=1
+
+                    for ATTEMPT in $(seq 1 30); do
+                        AUDIT_COUNT=$(docker compose \
+                            -f compose.yaml \
+                            -f compose.ci.yaml \
+                            -p "$CI_PROJECT_NAME" \
+                            exec -T mariadb sh -ec \
+                            'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" mariadb \
+                            --host=127.0.0.1 --user=root \
+                            --batch --skip-column-names \
+                            --execute="SELECT COUNT(*) FROM auditdb.audit_event;"')
+
+                        PENDING_COUNT=$(docker compose \
+                            -f compose.yaml \
+                            -f compose.ci.yaml \
+                            -p "$CI_PROJECT_NAME" \
+                            exec -T mariadb sh -ec \
+                            'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" mariadb \
+                            --host=127.0.0.1 --user=root \
+                            --batch --skip-column-names \
+                            --execute="SELECT COUNT(*) FROM mydb.account_outbox_event WHERE status != '\''PUBLISHED'\'';"')
+
+                        printf \
+                            'Kafka event check: attempt=%s audit=%s pending=%s\n' \
+                            "$ATTEMPT" \
+                            "$AUDIT_COUNT" \
+                            "$PENDING_COUNT"
+
+                        if [ "$AUDIT_COUNT" -eq 1 ] && \
+                            [ "$PENDING_COUNT" -eq 0 ]; then
+                            break
+                        fi
+
+                        sleep 2
+                    done
+
+                    test "$AUDIT_COUNT" -eq 1
+                    test "$PENDING_COUNT" -eq 0
+                '''
+            }
+        }
     }
 
     post {
@@ -446,6 +508,7 @@ pipeline {
                 docker image rm \
                     "${CI_PROJECT_NAME}/eureka-server:${BUILD_NUMBER}" \
                     "${CI_PROJECT_NAME}/account-service:${BUILD_NUMBER}" \
+                    "${CI_PROJECT_NAME}/audit-service:${BUILD_NUMBER}" \
                     "${CI_PROJECT_NAME}/gateway-server:${BUILD_NUMBER}" \
                     "${CI_PROJECT_NAME}/prometheus:${BUILD_NUMBER}" \
                     "${CI_PROJECT_NAME}/grafana:${BUILD_NUMBER}" \

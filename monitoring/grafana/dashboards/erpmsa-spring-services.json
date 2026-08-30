@@ -305,19 +305,19 @@
   "templating": {
     "list": [
       {
-        "allValue": "eureka-server|account-service|gateway-server",
+        "allValue": "eureka-server|account-service|audit-service|gateway-server",
         "current": {},
         "datasource": {
           "type": "prometheus",
           "uid": "prometheus"
         },
-        "definition": "label_values({job=~\"eureka-server|account-service|gateway-server\"}, job)",
+        "definition": "label_values({job=~\"eureka-server|account-service|audit-service|gateway-server\"}, job)",
         "includeAll": true,
         "label": "서비스",
         "multi": true,
         "name": "job",
         "options": [],
-        "query": "label_values({job=~\"eureka-server|account-service|gateway-server\"}, job)",
+        "query": "label_values({job=~\"eureka-server|account-service|audit-service|gateway-server\"}, job)",
         "refresh": 1,
         "regex": "",
         "sort": 1,

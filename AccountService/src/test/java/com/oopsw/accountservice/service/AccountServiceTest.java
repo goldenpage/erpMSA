@@ -19,6 +19,7 @@ import com.oopsw.accountservice.entity.AccountEntity;
 import com.oopsw.accountservice.entity.AccountRepository;
 import com.oopsw.accountservice.entity.AccountRole;
 import com.oopsw.accountservice.entity.AccountStatus;
+import com.oopsw.accountservice.outbox.AccountEventOutbox;
 import java.time.Duration;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,6 +62,9 @@ class AccountServiceTest {
 
     @Mock
     private RefreshTokenStore refreshTokenStore;
+
+    @Mock
+    private AccountEventOutbox accountEventOutbox;
 
     @InjectMocks
     private AccountService accountService;
@@ -121,6 +125,7 @@ class AccountServiceTest {
         assertThat(savedAccount.getReviewStatus())
             .isEqualTo(AccountStatus.ACTIVE);
         verify(passwordEncoder).encode(PASSWORD);
+        verify(accountEventOutbox).enqueueRegistered(savedAccount);
     }
 
     @Test
@@ -141,6 +146,7 @@ class AccountServiceTest {
         verify(accountRepository, never())
             .saveAndFlush(any(AccountEntity.class));
         verifyNoInteractions(passwordEncoder);
+        verifyNoInteractions(accountEventOutbox);
     }
 
     @Test
@@ -163,6 +169,7 @@ class AccountServiceTest {
         verify(accountRepository, never())
             .saveAndFlush(any(AccountEntity.class));
         verifyNoInteractions(passwordEncoder);
+        verifyNoInteractions(accountEventOutbox);
     }
 
     @Test

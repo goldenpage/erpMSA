@@ -9,6 +9,7 @@ import com.oopsw.accountservice.auth.RefreshTokenStore;
 import com.oopsw.accountservice.entity.AccountEntity;
 import com.oopsw.accountservice.entity.AccountRepository;
 import com.oopsw.accountservice.entity.AccountStatus;
+import com.oopsw.accountservice.outbox.AccountEventOutbox;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -25,6 +26,7 @@ public class AccountService {
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
     private final RefreshTokenStore refreshTokenStore;
+    private final AccountEventOutbox accountEventOutbox;
 
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
@@ -58,6 +60,7 @@ public class AccountService {
         );
 
         AccountEntity saved = accountRepository.saveAndFlush(account);
+        accountEventOutbox.enqueueRegistered(saved);
 
         return new RegisterResponse(
             saved.getId(),

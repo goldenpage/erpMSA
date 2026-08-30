@@ -13,6 +13,13 @@ services:
     tmpfs:
       - /data
 
+  kafka:
+    restart: "no"
+    ports: !reset []
+    volumes: !reset []
+    tmpfs:
+      - /tmp/kraft-combined-logs
+
   eureka-server:
     image: "${CI_PROJECT_NAME:-erpmsa-ci}/eureka-server:${BUILD_NUMBER:-local}"
     restart: "no"
@@ -20,6 +27,11 @@ services:
 
   account-service:
     image: "${CI_PROJECT_NAME:-erpmsa-ci}/account-service:${BUILD_NUMBER:-local}"
+    restart: "no"
+    ports: !reset []
+
+  audit-service:
+    image: "${CI_PROJECT_NAME:-erpmsa-ci}/audit-service:${BUILD_NUMBER:-local}"
     restart: "no"
     ports: !reset []
 
@@ -44,6 +56,9 @@ volumes:
 
   redis-data:
     name: "${CI_PROJECT_NAME:-erpmsa-ci}-redis-data"
+
+  kafka-data:
+    name: "${CI_PROJECT_NAME:-erpmsa-ci}-kafka-data"
 
   prometheus-data:
     name: "${CI_PROJECT_NAME:-erpmsa-ci}-prometheus-data"

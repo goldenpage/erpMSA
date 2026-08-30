@@ -20,6 +20,12 @@ scrape_configs:
       - targets:
           - account-service:7071
 
+  - job_name: audit-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - audit-service:7072
+
   - job_name: gateway-server
     metrics_path: /actuator/prometheus
     static_configs:
