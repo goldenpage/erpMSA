@@ -86,7 +86,7 @@ pipeline {
                         -f compose.ci.yaml \
                         -p "$CI_PROJECT_NAME" \
                         up -d --wait \
-                        mariadb database-init redis kafka eureka-server
+                        mariadb redis kafka eureka-server
 
                     docker network connect \
                         "${CI_PROJECT_NAME}_default" \
