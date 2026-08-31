@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.oopsw.accountservice.api.ApiErrorWriter;
 import com.oopsw.accountservice.entity.AccountEntity;
 import com.oopsw.accountservice.entity.AccountStatus;
 import jakarta.servlet.FilterChain;
@@ -21,6 +22,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.util.ReflectionTestUtils;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 class JwtAuthorizationFilterTest {
 
@@ -30,13 +33,18 @@ class JwtAuthorizationFilterTest {
     private JwtProvider jwtProvider;
     private JwtAuthorizationFilter filter;
     private AccountEntity account;
+    private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
         jwtProvider = createProvider(
             "0123456789abcdef0123456789abcdef"
         );
-        filter = new JwtAuthorizationFilter(jwtProvider);
+        objectMapper = new ObjectMapper();
+        filter = new JwtAuthorizationFilter(
+            jwtProvider,
+            new ApiErrorWriter(objectMapper)
+        );
         account = AccountEntity.register(
             "user@example.com",
             "1234567890",
@@ -110,6 +118,16 @@ class JwtAuthorizationFilterTest {
 
         assertThat(response.getStatus()).isEqualTo(401);
         assertThat(response.getHeader("Token-Status")).isEqualTo("invalid");
+        assertThat(response.getContentType()).startsWith("application/json");
+
+        JsonNode body = objectMapper.readTree(
+            response.getContentAsString()
+        );
+        assertThat(body.get("code").stringValue())
+            .isEqualTo("INVALID_ACCESS_TOKEN");
+        assertThat(body.get("path").stringValue())
+            .isEqualTo("/account/auth/me");
+        assertThat(body.get("fieldErrors").isArray()).isTrue();
         verify(chain, never()).doFilter(request, response);
     }
 

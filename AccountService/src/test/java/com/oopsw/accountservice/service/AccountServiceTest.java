@@ -13,6 +13,8 @@ import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.oopsw.accountservice.advice.dto.LoginRequest;
 import com.oopsw.accountservice.advice.dto.RegisterRequest;
+import com.oopsw.accountservice.api.ApiErrorCode;
+import com.oopsw.accountservice.api.ApiException;
 import com.oopsw.accountservice.auth.JwtProvider;
 import com.oopsw.accountservice.auth.RefreshTokenStore;
 import com.oopsw.accountservice.entity.AccountEntity;
@@ -29,10 +31,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.server.ResponseStatusException;
 
 @ExtendWith(MockitoExtension.class)
 class AccountServiceTest {
@@ -135,14 +135,13 @@ class AccountServiceTest {
         when(accountRepository.existsByEmail(NORMALIZED_EMAIL))
             .thenReturn(true);
 
-        ResponseStatusException exception = assertThrows(
-            ResponseStatusException.class,
+        ApiException exception = assertThrows(
+            ApiException.class,
             () -> accountService.register(registerRequest)
         );
 
-        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(exception.getReason())
-            .isEqualTo("이미 가입된 이메일입니다.");
+        assertThat(exception.errorCode())
+            .isEqualTo(ApiErrorCode.EMAIL_ALREADY_EXISTS);
         verify(accountRepository, never())
             .saveAndFlush(any(AccountEntity.class));
         verifyNoInteractions(passwordEncoder);
@@ -158,14 +157,13 @@ class AccountServiceTest {
         when(accountRepository.existsByBusinessId(BUSINESS_ID))
             .thenReturn(true);
 
-        ResponseStatusException exception = assertThrows(
-            ResponseStatusException.class,
+        ApiException exception = assertThrows(
+            ApiException.class,
             () -> accountService.register(registerRequest)
         );
 
-        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(exception.getReason())
-            .isEqualTo("이미 등록된 사업자번호입니다.");
+        assertThat(exception.errorCode())
+            .isEqualTo(ApiErrorCode.BUSINESS_ID_ALREADY_EXISTS);
         verify(accountRepository, never())
             .saveAndFlush(any(AccountEntity.class));
         verifyNoInteractions(passwordEncoder);
@@ -206,15 +204,13 @@ class AccountServiceTest {
         when(passwordEncoder.matches(PASSWORD, PASSWORD_HASH))
             .thenReturn(false);
 
-        ResponseStatusException exception = assertThrows(
-            ResponseStatusException.class,
+        ApiException exception = assertThrows(
+            ApiException.class,
             () -> accountService.login(loginRequest)
         );
 
-        assertThat(exception.getStatusCode())
-            .isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(exception.getReason())
-            .isEqualTo("이메일 또는 비밀번호가 올바르지 않습니다.");
+        assertThat(exception.errorCode())
+            .isEqualTo(ApiErrorCode.INVALID_CREDENTIALS);
         verifyNoInteractions(jwtProvider, refreshTokenStore);
     }
 
@@ -225,15 +221,13 @@ class AccountServiceTest {
         when(accountRepository.findByEmail(NORMALIZED_EMAIL))
             .thenReturn(Optional.empty());
 
-        ResponseStatusException exception = assertThrows(
-            ResponseStatusException.class,
+        ApiException exception = assertThrows(
+            ApiException.class,
             () -> accountService.login(loginRequest)
         );
 
-        assertThat(exception.getStatusCode())
-            .isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(exception.getReason())
-            .isEqualTo("이메일 또는 비밀번호가 올바르지 않습니다.");
+        assertThat(exception.errorCode())
+            .isEqualTo(ApiErrorCode.INVALID_CREDENTIALS);
         verifyNoInteractions(passwordEncoder, jwtProvider, refreshTokenStore);
     }
 
@@ -247,14 +241,13 @@ class AccountServiceTest {
         when(passwordEncoder.matches(PASSWORD, PASSWORD_HASH))
             .thenReturn(true);
 
-        ResponseStatusException exception = assertThrows(
-            ResponseStatusException.class,
+        ApiException exception = assertThrows(
+            ApiException.class,
             () -> accountService.login(loginRequest)
         );
 
-        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-        assertThat(exception.getReason())
-            .isEqualTo("로그인할 수 없는 계정 상태입니다.");
+        assertThat(exception.errorCode())
+            .isEqualTo(ApiErrorCode.ACCOUNT_LOGIN_FORBIDDEN);
         verifyNoInteractions(jwtProvider, refreshTokenStore);
     }
 
@@ -293,15 +286,13 @@ class AccountServiceTest {
         when(refreshTokenStore.consume(OLD_REFRESH_TOKEN))
             .thenReturn(null);
 
-        ResponseStatusException exception = assertThrows(
-            ResponseStatusException.class,
+        ApiException exception = assertThrows(
+            ApiException.class,
             () -> accountService.refresh(OLD_REFRESH_TOKEN)
         );
 
-        assertThat(exception.getStatusCode())
-            .isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(exception.getReason())
-            .isEqualTo("유효하지 않은 Refresh Token입니다.");
+        assertThat(exception.errorCode())
+            .isEqualTo(ApiErrorCode.INVALID_REFRESH_TOKEN);
         verify(accountRepository, never()).findById(ACCOUNT_ID);
     }
 
@@ -310,15 +301,13 @@ class AccountServiceTest {
         when(jwtProvider.verifyRefreshToken(OLD_REFRESH_TOKEN))
             .thenThrow(new JWTVerificationException("invalid token"));
 
-        ResponseStatusException exception = assertThrows(
-            ResponseStatusException.class,
+        ApiException exception = assertThrows(
+            ApiException.class,
             () -> accountService.refresh(OLD_REFRESH_TOKEN)
         );
 
-        assertThat(exception.getStatusCode())
-            .isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(exception.getReason())
-            .isEqualTo("유효하지 않은 Refresh Token입니다.");
+        assertThat(exception.errorCode())
+            .isEqualTo(ApiErrorCode.INVALID_REFRESH_TOKEN);
         verifyNoInteractions(accountRepository, refreshTokenStore);
     }
 
@@ -330,15 +319,13 @@ class AccountServiceTest {
         when(decodedJWT.getSubject()).thenReturn(ACCOUNT_ID.toString());
         when(refreshTokenStore.consume(OLD_REFRESH_TOKEN)).thenReturn(2L);
 
-        ResponseStatusException exception = assertThrows(
-            ResponseStatusException.class,
+        ApiException exception = assertThrows(
+            ApiException.class,
             () -> accountService.refresh(OLD_REFRESH_TOKEN)
         );
 
-        assertThat(exception.getStatusCode())
-            .isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(exception.getReason())
-            .isEqualTo("유효하지 않은 Refresh Token입니다.");
+        assertThat(exception.errorCode())
+            .isEqualTo(ApiErrorCode.INVALID_REFRESH_TOKEN);
         verify(accountRepository, never()).findById(ACCOUNT_ID);
     }
 

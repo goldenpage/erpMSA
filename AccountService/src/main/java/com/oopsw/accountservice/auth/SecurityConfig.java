@@ -1,7 +1,8 @@
 package com.oopsw.accountservice.auth;
 
 
-import jakarta.servlet.http.HttpServletResponse;
+import com.oopsw.accountservice.api.ApiErrorCode;
+import com.oopsw.accountservice.api.ApiErrorWriter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -23,7 +24,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(
         HttpSecurity http,
-        JwtProvider jwtProvider          // ← 필터 대신 필터의 재료를 받음
+        JwtProvider jwtProvider,
+        ApiErrorWriter apiErrorWriter
     ) throws Exception {
 
         http
@@ -45,12 +47,20 @@ public class SecurityConfig {
             )
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((req, res, e) ->
-                    res.sendError(HttpServletResponse.SC_UNAUTHORIZED))
+                    apiErrorWriter.write(
+                        req,
+                        res,
+                        ApiErrorCode.AUTHENTICATION_REQUIRED
+                    ))
                 .accessDeniedHandler((req, res, e) ->
-                    res.sendError(HttpServletResponse.SC_FORBIDDEN))
+                    apiErrorWriter.write(
+                        req,
+                        res,
+                        ApiErrorCode.ACCESS_DENIED
+                    ))
             )
             .addFilterBefore(
-                new JwtAuthorizationFilter(jwtProvider),
+                new JwtAuthorizationFilter(jwtProvider, apiErrorWriter),
                 UsernamePasswordAuthenticationFilter.class
             );
 

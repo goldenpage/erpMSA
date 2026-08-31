@@ -2,6 +2,8 @@ package com.oopsw.accountservice.auth;
 
 import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.auth0.jwt.interfaces.DecodedJWT;
+import com.oopsw.accountservice.api.ApiErrorCode;
+import com.oopsw.accountservice.api.ApiErrorWriter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -19,6 +21,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class JwtAuthorizationFilter extends OncePerRequestFilter {
 
     private final JwtProvider jwtProvider;
+    private final ApiErrorWriter apiErrorWriter;
 
     @Override
     protected void doFilterInternal(
@@ -64,9 +67,10 @@ public class JwtAuthorizationFilter extends OncePerRequestFilter {
         } catch (JWTVerificationException | NumberFormatException exception) {
             SecurityContextHolder.clearContext();
             response.setHeader("Token-Status", "invalid");
-            response.sendError(
-                HttpServletResponse.SC_UNAUTHORIZED,
-                "유효하지 않은 Access Token입니다."
+            apiErrorWriter.write(
+                request,
+                response,
+                ApiErrorCode.INVALID_ACCESS_TOKEN
             );
         }
     }

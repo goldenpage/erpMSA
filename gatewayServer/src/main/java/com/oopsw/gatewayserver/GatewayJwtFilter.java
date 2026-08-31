@@ -4,6 +4,8 @@ import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.auth0.jwt.interfaces.JWTVerifier;
+import com.oopsw.gatewayserver.api.ApiErrorCode;
+import com.oopsw.gatewayserver.api.ApiErrorWriter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,12 +22,15 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class GatewayJwtFilter extends OncePerRequestFilter {
 
     private final JWTVerifier verifier;
+    private final ApiErrorWriter apiErrorWriter;
 
     public GatewayJwtFilter(
+        ApiErrorWriter apiErrorWriter,
         @Value("${app.auth.secret-base64}") String secretBase64,
         @Value("${app.auth.issuer}") String issuer,
         @Value("${app.auth.audience}") String audience
     ) {
+        this.apiErrorWriter = apiErrorWriter;
         byte[] secret = Base64.getDecoder().decode(secretBase64);
 
         if (secret.length < 32) {
@@ -69,9 +74,10 @@ public class GatewayJwtFilter extends OncePerRequestFilter {
 
         if (authorization == null ||
             !authorization.startsWith("Bearer ")) {
-            response.sendError(
-                HttpServletResponse.SC_UNAUTHORIZED,
-                "Access Token이 필요합니다."
+            apiErrorWriter.write(
+                request,
+                response,
+                ApiErrorCode.AUTHENTICATION_REQUIRED
             );
             return;
         }
@@ -82,9 +88,11 @@ public class GatewayJwtFilter extends OncePerRequestFilter {
             verifier.verify(token);
             filterChain.doFilter(request, response);
         } catch (JWTVerificationException exception) {
-            response.sendError(
-                HttpServletResponse.SC_UNAUTHORIZED,
-                "유효하지 않은 Access Token입니다."
+            response.setHeader("Token-Status", "invalid");
+            apiErrorWriter.write(
+                request,
+                response,
+                ApiErrorCode.INVALID_ACCESS_TOKEN
             );
         }
     }

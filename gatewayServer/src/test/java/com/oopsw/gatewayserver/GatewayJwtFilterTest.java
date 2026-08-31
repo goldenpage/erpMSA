@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
+import com.oopsw.gatewayserver.api.ApiErrorWriter;
 import jakarta.servlet.FilterChain;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -18,6 +19,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 class GatewayJwtFilterTest {
 
@@ -28,6 +31,7 @@ class GatewayJwtFilterTest {
 
     private GatewayJwtFilter filter;
     private Algorithm algorithm;
+    private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
@@ -35,7 +39,13 @@ class GatewayJwtFilterTest {
         String secretBase64 = Base64.getEncoder()
             .encodeToString(secretBytes);
         algorithm = Algorithm.HMAC256(secretBytes);
-        filter = new GatewayJwtFilter(secretBase64, ISSUER, AUDIENCE);
+        objectMapper = new ObjectMapper();
+        filter = new GatewayJwtFilter(
+            new ApiErrorWriter(objectMapper),
+            secretBase64,
+            ISSUER,
+            AUDIENCE
+        );
     }
 
     @ParameterizedTest
@@ -85,6 +95,16 @@ class GatewayJwtFilterTest {
         filter.doFilter(request, response, chain);
 
         assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(response.getContentType()).startsWith("application/json");
+
+        JsonNode body = objectMapper.readTree(
+            response.getContentAsString()
+        );
+        assertThat(body.get("code").stringValue())
+            .isEqualTo("AUTHENTICATION_REQUIRED");
+        assertThat(body.get("path").stringValue())
+            .isEqualTo("/orders/1");
+        assertThat(body.get("fieldErrors").isArray()).isTrue();
         verify(chain, never()).doFilter(request, response);
     }
 
@@ -208,6 +228,15 @@ class GatewayJwtFilterTest {
         filter.doFilter(request, response, chain);
 
         assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(response.getHeader("Token-Status")).isEqualTo("invalid");
+
+        JsonNode body = objectMapper.readTree(
+            response.getContentAsString()
+        );
+        assertThat(body.get("code").stringValue())
+            .isEqualTo("INVALID_ACCESS_TOKEN");
+        assertThat(body.get("path").stringValue())
+            .isEqualTo("/orders/1");
         verify(chain, never()).doFilter(request, response);
     }
 }

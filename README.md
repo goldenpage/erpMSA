@@ -107,6 +107,32 @@ set +a
 ./AuditService/gradlew -p AuditService bootRun
 ```
 
+## API 오류 응답 계약
+
+AccountService와 Gateway가 직접 반환하는 오류는 다음 JSON 구조를 사용합니다.
+성공 응답 구조와 기존 API 경로는 변경하지 않습니다.
+
+```json
+{
+  "timestamp": "2026-08-31T00:00:00Z",
+  "status": 400,
+  "code": "INVALID_REQUEST",
+  "message": "요청 값이 올바르지 않습니다.",
+  "path": "/account/auth/register",
+  "fieldErrors": [
+    {
+      "field": "email",
+      "message": "올바른 형식의 이메일 주소여야 합니다."
+    }
+  ]
+}
+```
+
+- `code`는 클라이언트가 분기 처리할 수 있는 고정된 오류 코드입니다.
+- `message`는 사용자에게 표시할 수 있는 안전한 설명입니다.
+- `fieldErrors`는 요청 검증 실패일 때만 채우고 그 외에는 빈 배열을 반환합니다.
+- 비밀번호, 토큰, 입력값 원문과 내부 예외 메시지는 오류 응답에 포함하지 않습니다.
+
 ## Kafka 이벤트 흐름 확인
 
 Compose 내부 서비스는 `kafka:9092`, 호스트에서 직접 실행한 애플리케이션은

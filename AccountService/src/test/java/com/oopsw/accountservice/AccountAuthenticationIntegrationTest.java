@@ -2,9 +2,11 @@ package com.oopsw.accountservice;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+import static org.hamcrest.Matchers.hasItems;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -164,14 +166,69 @@ class AccountAuthenticationIntegrationTest {
         mockMvc.perform(post("/account/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(registerJson(EMAIL, "0987654321")))
-            .andExpect(status().isConflict());
+            .andExpect(status().isConflict())
+            .andExpect(content().contentTypeCompatibleWith(
+                MediaType.APPLICATION_JSON
+            ))
+            .andExpect(jsonPath("$.status").value(409))
+            .andExpect(jsonPath("$.code").value(
+                "EMAIL_ALREADY_EXISTS"
+            ))
+            .andExpect(jsonPath("$.message").value(
+                "이미 가입된 이메일입니다."
+            ))
+            .andExpect(jsonPath("$.path").value(
+                "/account/auth/register"
+            ))
+            .andExpect(jsonPath("$.timestamp").isNotEmpty())
+            .andExpect(jsonPath("$.fieldErrors").isEmpty());
 
         mockMvc.perform(post("/account/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(registerJson("not-an-email", "123")))
-            .andExpect(status().isBadRequest());
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+            .andExpect(jsonPath("$.fieldErrors[*].field", hasItems(
+                "email",
+                "businessId"
+            )));
+
+        mockMvc.perform(post("/account/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"))
+            .andExpect(jsonPath("$.fieldErrors").isEmpty());
 
         assertThat(accountRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void 인증_오류도_표준_JSON_응답을_반환한다() throws Exception {
+        mockMvc.perform(get("/account/auth/me"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(
+                MediaType.APPLICATION_JSON
+            ))
+            .andExpect(jsonPath("$.status").value(401))
+            .andExpect(jsonPath("$.code").value(
+                "AUTHENTICATION_REQUIRED"
+            ))
+            .andExpect(jsonPath("$.path").value("/account/auth/me"));
+
+        mockMvc.perform(get("/account/auth/me")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(header().string("Token-Status", "invalid"))
+            .andExpect(jsonPath("$.code").value(
+                "INVALID_ACCESS_TOKEN"
+            ));
+
+        mockMvc.perform(post("/account/auth/refresh"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code").value(
+                "INVALID_REFRESH_TOKEN"
+            ));
     }
 
     private void register(String email, String businessId) throws Exception {
