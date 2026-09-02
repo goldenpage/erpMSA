@@ -1,6 +1,6 @@
 # ErpMSA
 
-Eureka, Gateway, Account, Audit 서비스를 하나의 Git 저장소에서 관리하는 모노레포입니다.
+Eureka, Gateway, Account, Audit, Item, Inventory 서비스를 하나의 Git 저장소에서 관리하는 모노레포입니다.
 각 서비스는 독립적인 Gradle 프로젝트이며 Docker Compose로 함께 실행하거나 별도로 배포합니다.
 Prometheus가 서비스 메트릭을 수집하고 Grafana가 기본 모니터링 대시보드를 제공합니다.
 
@@ -66,6 +66,8 @@ docker compose down
 - Gateway: `http://127.0.0.1:7070`
 - AccountService: `http://127.0.0.1:7071`
 - AuditService: `http://127.0.0.1:7072`
+- ItemService: `http://127.0.0.1:7073`
+- InventoryService: `http://127.0.0.1:7074`
 - Eureka: `http://127.0.0.1:8761`
 - Prometheus: `http://127.0.0.1:9090`
 - Grafana: `http://127.0.0.1:3000`
@@ -82,9 +84,11 @@ Prometheus는 15초마다 다음 엔드포인트를 수집합니다.
 - `eureka-server:8761/actuator/prometheus`
 - `account-service:7071/actuator/prometheus`
 - `audit-service:7072/actuator/prometheus`
+- `item-service:7073/actuator/prometheus`
+- `inventory-service:7074/actuator/prometheus`
 - `gateway-server:7070/actuator/prometheus`
 
-Prometheus의 `Status > Target health` 화면에서 네 대상이 `UP`인지 확인할 수 있습니다.
+Prometheus의 `Status > Target health` 화면에서 여섯 대상이 `UP`인지 확인할 수 있습니다.
 Grafana에는 `ErpMSA/ErpMSA Spring Services` 대시보드가 자동으로 등록됩니다.
 Grafana 로그인 정보는 `.env`의 `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD`를 사용합니다.
 
@@ -105,11 +109,13 @@ set +a
 ./gatewayServer/gradlew -p gatewayServer bootRun
 ./AccountService/gradlew -p AccountService bootRun
 ./AuditService/gradlew -p AuditService bootRun
+./ItemService/gradlew -p ItemService bootRun
+./InventoryService/gradlew -p InventoryService bootRun
 ```
 
 ## API 오류 응답 계약
 
-AccountService와 Gateway가 직접 반환하는 오류는 다음 JSON 구조를 사용합니다.
+AccountService, ItemService, InventoryService와 Gateway가 직접 반환하는 오류는 다음 JSON 구조를 사용합니다.
 성공 응답 구조와 기존 API 경로는 변경하지 않습니다.
 
 ```json
@@ -132,6 +138,57 @@ AccountService와 Gateway가 직접 반환하는 오류는 다음 JSON 구조를
 - `message`는 사용자에게 표시할 수 있는 안전한 설명입니다.
 - `fieldErrors`는 요청 검증 실패일 때만 채우고 그 외에는 빈 배열을 반환합니다.
 - 비밀번호, 토큰, 입력값 원문과 내부 예외 메시지는 오류 응답에 포함하지 않습니다.
+
+## Item API
+
+ItemService는 로그인 계정별 품목을 관리합니다. 모든 `/items/**` 요청은
+`Authorization: Bearer <access-token>` 헤더가 필요하며, Gateway와 ItemService가
+각각 토큰을 검증합니다. 다른 계정의 품목은 조회하거나 수정할 수 없습니다.
+
+```text
+POST   /items              품목 등록
+GET    /items              내 품목 목록(page, size, status)
+GET    /items/{itemId}     내 품목 상세
+PUT    /items/{itemId}     내 품목 수정
+DELETE /items/{itemId}     내 품목 비활성화
+```
+
+SKU는 계정 안에서 유일하며 영문, 숫자, `.`, `_`, `-`만 사용할 수 있습니다.
+삭제 요청은 주문·재고 이력 연결을 보존하기 위해 행을 제거하지 않고 상태를
+`INACTIVE`로 변경합니다. ItemService는 별도 `itemdb` 스키마를 사용하고
+Flyway가 시작 시 스키마를 생성·검증합니다.
+
+수정 요청의 `version`에는 조회 응답으로 받은 현재 버전을 전달해야 합니다.
+다른 요청이 먼저 수정해 버전이 달라졌다면 `409 ITEM_CONFLICT`를 반환하므로,
+최신 값을 다시 조회한 뒤 사용자의 변경을 재적용해야 합니다.
+
+## Inventory API
+
+InventoryService는 로그인 계정과 품목별 현재고 및 모든 수량 변경 원장을
+`inventorydb`에 저장합니다. 재고 생성 전에 전달받은 Access Token으로
+ItemService를 호출하여 해당 품목이 실제로 존재하고 현재 계정 소유인지 확인합니다.
+
+```text
+POST /inventories                         재고 및 초기 원장 생성
+GET  /inventories                         내 재고 목록(page, size)
+GET  /inventories/{itemId}                품목별 현재고 조회
+POST /inventories/{itemId}/adjustments    입고·출고 수량 조정
+GET  /inventories/{itemId}/movements      재고 변경 원장 조회
+```
+
+수량 조정 요청에는 다음 값이 필요합니다.
+
+- `requestId`: 계정 안에서 유일한 요청 ID입니다. 같은 ID를 다시 사용하면
+  `409 ADJUSTMENT_ALREADY_EXISTS`를 반환하여 중복 반영을 막습니다.
+- `quantityDelta`: 입고는 양수, 출고는 음수이며 `0`은 허용하지 않습니다.
+- `version`: 현재고 조회 응답의 버전입니다. 값이 오래되면
+  `409 INVENTORY_CONFLICT`를 반환합니다.
+- `reason`: 조정 사유이며 원장에 영구 기록됩니다.
+
+현재고 변경과 `stock_movement` 원장 저장은 같은 DB 트랜잭션으로 처리됩니다.
+차감 후 수량이 음수가 되면 `409 INSUFFICIENT_STOCK`를 반환하고 현재고와
+원장 모두 변경하지 않습니다. 주문 예약·해제 Kafka 이벤트는 OrderService
+도입 단계에서 이 서비스에 연결합니다.
 
 ## Kafka 이벤트 흐름 확인
 

@@ -26,6 +26,18 @@ scrape_configs:
       - targets:
           - audit-service:7072
 
+  - job_name: item-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - item-service:7073
+
+  - job_name: inventory-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - inventory-service:7074
+
   - job_name: gateway-server
     metrics_path: /actuator/prometheus
     static_configs:

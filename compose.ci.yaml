@@ -35,6 +35,16 @@ services:
     restart: "no"
     ports: !reset []
 
+  item-service:
+    image: "${CI_PROJECT_NAME:-erpmsa-ci}/item-service:${BUILD_NUMBER:-local}"
+    restart: "no"
+    ports: !reset []
+
+  inventory-service:
+    image: "${CI_PROJECT_NAME:-erpmsa-ci}/inventory-service:${BUILD_NUMBER:-local}"
+    restart: "no"
+    ports: !reset []
+
   gateway-server:
     image: "${CI_PROJECT_NAME:-erpmsa-ci}/gateway-server:${BUILD_NUMBER:-local}"
     restart: "no"

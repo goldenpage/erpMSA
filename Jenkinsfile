@@ -143,6 +143,26 @@ pipeline {
                         '''
                     }
                 }
+
+                stage('Item Test') {
+                    steps {
+                        sh '''
+                            ./ItemService/gradlew \
+                                -p ItemService \
+                                test --no-daemon
+                        '''
+                    }
+                }
+
+                stage('Inventory Test') {
+                    steps {
+                        sh '''
+                            ./InventoryService/gradlew \
+                                -p InventoryService \
+                                test --no-daemon
+                        '''
+                    }
+                }
             }
         }
 
@@ -206,7 +226,7 @@ pipeline {
                             --max-time 10 \
                             --get \
                             --data-urlencode \
-                            'query=up{job=~"eureka-server|account-service|audit-service|gateway-server"}' \
+                            'query=up{job=~"eureka-server|account-service|audit-service|item-service|inventory-service|gateway-server"}' \
                             -o "$PROMETHEUS_FILE" \
                             http://prometheus:9090/api/v1/query; then
 
@@ -216,11 +236,11 @@ pipeline {
                         fi
 
                         printf \
-                        'Prometheus target check: attempt=%s up=%s/4\n' \
+                        'Prometheus target check: attempt=%s up=%s/6\n' \
                             "$ATTEMPT" \
                             "$TARGET_COUNT"
 
-                        if [ "$TARGET_COUNT" -eq 4 ]; then
+                        if [ "$TARGET_COUNT" -eq 6 ]; then
                             break
                         fi
 
@@ -246,7 +266,7 @@ pipeline {
 
                     test "$PROMETHEUS_STATUS" = "200"
                     test "$GRAFANA_STATUS" = "200"
-                    test "$TARGET_COUNT" -eq 4
+                    test "$TARGET_COUNT" -eq 6
                     test "$DASHBOARD_COUNT" -eq 1
 
                     rm -f "$PROMETHEUS_FILE"
@@ -262,6 +282,9 @@ pipeline {
 
                     COOKIE_FILE=/tmp/erpmsa-ci-cookie.txt
                     LOGIN_FILE=/tmp/erpmsa-ci-login.json
+                    ITEM_FILE=/tmp/erpmsa-ci-item.json
+                    INVENTORY_FILE=/tmp/erpmsa-ci-inventory.json
+                    ADJUSTMENT_FILE=/tmp/erpmsa-ci-adjustment.json
                     BUSINESS_ID=$(printf '%010d' "$BUILD_NUMBER")
                     TEST_EMAIL="jenkins-${BUILD_NUMBER}@example.com"
 
@@ -362,6 +385,144 @@ pipeline {
                         exit 1
                     fi
 
+                    ITEM_ROUTE_STATUS=000
+
+                    for ATTEMPT in $(seq 1 30); do
+                        ITEM_ROUTE_STATUS=$(curl \
+                            -sS \
+                            --connect-timeout 2 \
+                            --max-time 5 \
+                            -o /dev/null \
+                            -w '%{http_code}' \
+                            -H "Authorization: Bearer $ACCESS_TOKEN" \
+                            http://gateway-server:7070/items \
+                            || true)
+
+                        printf \
+                            'Item route check: attempt=%s status=%s\\n' \
+                            "$ATTEMPT" \
+                            "$ITEM_ROUTE_STATUS"
+
+                        if [ "$ITEM_ROUTE_STATUS" = "200" ]; then
+                            break
+                        fi
+
+                        sleep 2
+                    done
+
+                    test "$ITEM_ROUTE_STATUS" = "200"
+
+                    ITEM_BODY=$(jq -nc \
+                        --arg sku "JENKINS-$BUILD_NUMBER" \
+                        '{
+                            sku: $sku,
+                            name: "Jenkins Item",
+                            description: "CI smoke test",
+                            unitPrice: 1000.00
+                        }')
+
+                    ITEM_CREATE_STATUS=$(curl \
+                        -sS \
+                        --connect-timeout 2 \
+                        --max-time 10 \
+                        -o "$ITEM_FILE" \
+                        -w '%{http_code}' \
+                        -H "Authorization: Bearer $ACCESS_TOKEN" \
+                        -H 'Content-Type: application/json' \
+                        --data "$ITEM_BODY" \
+                        http://gateway-server:7070/items)
+
+                    ITEM_ID=$(jq -r '.itemId // empty' "$ITEM_FILE")
+
+                    if [ -z "$ITEM_ID" ]; then
+                        echo 'Item ID가 반환되지 않았습니다.'
+                        exit 1
+                    fi
+
+                    ITEM_GET_STATUS=$(curl \
+                        -sS \
+                        --connect-timeout 2 \
+                        --max-time 10 \
+                        -o /dev/null \
+                        -w '%{http_code}' \
+                        -H "Authorization: Bearer $ACCESS_TOKEN" \
+                        "http://gateway-server:7070/items/$ITEM_ID")
+
+                    INVENTORY_ROUTE_STATUS=000
+
+                    for ATTEMPT in $(seq 1 30); do
+                        INVENTORY_ROUTE_STATUS=$(curl \
+                            -sS \
+                            --connect-timeout 2 \
+                            --max-time 5 \
+                            -o /dev/null \
+                            -w '%{http_code}' \
+                            -H "Authorization: Bearer $ACCESS_TOKEN" \
+                            http://gateway-server:7070/inventories \
+                            || true)
+
+                        printf \
+                            'Inventory route check: attempt=%s status=%s\\n' \
+                            "$ATTEMPT" \
+                            "$INVENTORY_ROUTE_STATUS"
+
+                        if [ "$INVENTORY_ROUTE_STATUS" = "200" ]; then
+                            break
+                        fi
+
+                        sleep 2
+                    done
+
+                    test "$INVENTORY_ROUTE_STATUS" = "200"
+
+                    INVENTORY_BODY=$(jq -nc \
+                        --argjson itemId "$ITEM_ID" \
+                        '{itemId: $itemId, initialQuantity: 20}')
+
+                    INVENTORY_CREATE_STATUS=$(curl \
+                        -sS \
+                        --connect-timeout 2 \
+                        --max-time 10 \
+                        -o "$INVENTORY_FILE" \
+                        -w '%{http_code}' \
+                        -H "Authorization: Bearer $ACCESS_TOKEN" \
+                        -H 'Content-Type: application/json' \
+                        --data "$INVENTORY_BODY" \
+                        http://gateway-server:7070/inventories)
+
+                    INVENTORY_VERSION=$(jq -r '.version // empty' \
+                        "$INVENTORY_FILE")
+
+                    if [ -z "$INVENTORY_VERSION" ]; then
+                        echo 'Inventory version이 반환되지 않았습니다.'
+                        exit 1
+                    fi
+
+                    ADJUSTMENT_BODY=$(jq -nc \
+                        --arg requestId "CI-ADJ-$BUILD_NUMBER" \
+                        --argjson version "$INVENTORY_VERSION" \
+                        '{
+                            requestId: $requestId,
+                            quantityDelta: -3,
+                            reason: "CI smoke test",
+                            version: $version
+                        }')
+
+                    INVENTORY_ADJUST_STATUS=$(curl \
+                        -sS \
+                        --connect-timeout 2 \
+                        --max-time 10 \
+                        -o "$ADJUSTMENT_FILE" \
+                        -w '%{http_code}' \
+                        -H "Authorization: Bearer $ACCESS_TOKEN" \
+                        -H 'Content-Type: application/json' \
+                        --data "$ADJUSTMENT_BODY" \
+                        "http://gateway-server:7070/inventories/$ITEM_ID/adjustments")
+
+                    INVENTORY_QUANTITY=$(jq -r \
+                        '.inventory.onHandQuantity // empty' \
+                        "$ADJUSTMENT_FILE")
+
                     ME_STATUS=$(curl \
                         -sS \
                         --connect-timeout 2 \
@@ -392,18 +553,33 @@ pipeline {
                         http://gateway-server:7070/account/auth/logout)
 
                     printf \
-                        'me=%s refresh=%s logout=%s\\n' \
+                        'item_route=%s item_create=%s item_get=%s inventory_route=%s inventory_create=%s inventory_adjust=%s inventory_quantity=%s me=%s refresh=%s logout=%s\\n' \
+                        "$ITEM_ROUTE_STATUS" \
+                        "$ITEM_CREATE_STATUS" \
+                        "$ITEM_GET_STATUS" \
+                        "$INVENTORY_ROUTE_STATUS" \
+                        "$INVENTORY_CREATE_STATUS" \
+                        "$INVENTORY_ADJUST_STATUS" \
+                        "$INVENTORY_QUANTITY" \
                         "$ME_STATUS" \
                         "$REFRESH_STATUS" \
                         "$LOGOUT_STATUS"
 
+                    test "$ITEM_CREATE_STATUS" = "201"
+                    test "$ITEM_GET_STATUS" = "200"
+                    test "$INVENTORY_CREATE_STATUS" = "201"
+                    test "$INVENTORY_ADJUST_STATUS" = "200"
+                    test "$INVENTORY_QUANTITY" = "17"
                     test "$ME_STATUS" = "200"
                     test "$REFRESH_STATUS" = "200"
                     test "$LOGOUT_STATUS" = "204"
 
                     rm -f \
                         "$COOKIE_FILE" \
-                        "$LOGIN_FILE"
+                        "$LOGIN_FILE" \
+                        "$ITEM_FILE" \
+                        "$INVENTORY_FILE" \
+                        "$ADJUSTMENT_FILE"
                 '''
             }
         }
@@ -500,6 +676,8 @@ pipeline {
                     "${CI_PROJECT_NAME}/eureka-server:${BUILD_NUMBER}" \
                     "${CI_PROJECT_NAME}/account-service:${BUILD_NUMBER}" \
                     "${CI_PROJECT_NAME}/audit-service:${BUILD_NUMBER}" \
+                    "${CI_PROJECT_NAME}/item-service:${BUILD_NUMBER}" \
+                    "${CI_PROJECT_NAME}/inventory-service:${BUILD_NUMBER}" \
                     "${CI_PROJECT_NAME}/gateway-server:${BUILD_NUMBER}" \
                     "${CI_PROJECT_NAME}/prometheus:${BUILD_NUMBER}" \
                     "${CI_PROJECT_NAME}/grafana:${BUILD_NUMBER}" \
@@ -509,6 +687,9 @@ pipeline {
                     .env \
                     /tmp/erpmsa-ci-cookie.txt \
                     /tmp/erpmsa-ci-login.json \
+                    /tmp/erpmsa-ci-item.json \
+                    /tmp/erpmsa-ci-inventory.json \
+                    /tmp/erpmsa-ci-adjustment.json \
                     /tmp/erpmsa-ci-prometheus.json
             '''
         }

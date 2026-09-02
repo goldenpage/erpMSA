@@ -1,0 +1,56 @@
+spring:
+  application:
+    name: InventoryService
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: "${INVENTORY_DB_URL:jdbc:mariadb://localhost:3306/inventorydb}"
+    username: "${INVENTORY_DB_USERNAME:account}"
+    password: "${INVENTORY_DB_PASSWORD:${DB_PASSWORD:}}"
+  jpa:
+    hibernate:
+      ddl-auto: "${JPA_DDL_AUTO:validate}"
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    baseline-on-migrate: "${INVENTORY_FLYWAY_BASELINE_ON_MIGRATE:false}"
+
+server:
+  port: "${INVENTORY_SERVER_PORT:7074}"
+
+eureka:
+  instance:
+    instance-id: "${spring.application.name}:${spring.application.instance_id:${random.value}}"
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: "${EUREKA_DEFAULT_ZONE:http://127.0.0.1:8761/eureka}"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,prometheus"
+  endpoint:
+    health:
+      show-details: never
+  metrics:
+    tags:
+      application: "${spring.application.name}"
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
+app:
+  auth:
+    issuer: "${JWT_ISSUER:kosta-erp-account}"
+    audience: "${JWT_AUDIENCE:kosta-erp-api}"
+    secret-base64: "${JWT_SECRET_BASE64}"
+  item-service:
+    base-url: "${ITEM_SERVICE_BASE_URL:http://ITEMSERVICE}"
