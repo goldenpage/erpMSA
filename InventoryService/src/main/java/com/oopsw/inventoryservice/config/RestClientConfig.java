@@ -5,15 +5,26 @@ import java.time.Duration;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
-@Configuration
+@Configuration(proxyBeanMethods = false)
 public class RestClientConfig {
+
+    @Bean
+    @Primary
+    RestClient.Builder restClientBuilder() {
+        return newRestClientBuilder();
+    }
 
     @Bean
     @LoadBalanced
     RestClient.Builder loadBalancedRestClientBuilder() {
+        return newRestClientBuilder();
+    }
+
+    private RestClient.Builder newRestClientBuilder() {
         JdkClientHttpRequestFactory requestFactory =
             new JdkClientHttpRequestFactory(
                 HttpClient.newBuilder()
