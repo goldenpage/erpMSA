@@ -3,10 +3,9 @@ package com.oopsw.inventoryservice.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.auth0.jwt.JWT;
-import com.auth0.jwt.algorithms.Algorithm;
+import com.oopsw.security.JwtTestKeys;
 import com.oopsw.inventoryservice.api.ApiErrorWriter;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,10 +16,6 @@ import tools.jackson.databind.ObjectMapper;
 
 class JwtAuthenticationFilterTest {
 
-    private static final byte[] SECRET =
-        "0123456789abcdef0123456789abcdef".getBytes();
-    private static final String SECRET_BASE64 =
-        Base64.getEncoder().encodeToString(SECRET);
 
     private JwtAuthenticationFilter filter;
 
@@ -28,7 +23,7 @@ class JwtAuthenticationFilterTest {
     void setUp() {
         filter = new JwtAuthenticationFilter(
             new ApiErrorWriter(new ObjectMapper()),
-            SECRET_BASE64,
+            JwtTestKeys.PRIMARY.publicDirectory(),
             "issuer",
             "audience"
         );
@@ -106,7 +101,7 @@ class JwtAuthenticationFilterTest {
 
     private String token(Long accountId) {
         Instant now = Instant.now();
-        return JWT.create()
+        return JWT.create().withKeyId(JwtTestKeys.PRIMARY.kid())
             .withIssuer("issuer")
             .withAudience("audience")
             .withSubject(accountId.toString())
@@ -115,6 +110,6 @@ class JwtAuthenticationFilterTest {
             .withClaim("token_type", "access")
             .withClaim("email", "owner@example.com")
             .withClaim("role", "ROLE_USER")
-            .sign(Algorithm.HMAC256(SECRET));
+            .sign(JwtTestKeys.PRIMARY.algorithm());
     }
 }

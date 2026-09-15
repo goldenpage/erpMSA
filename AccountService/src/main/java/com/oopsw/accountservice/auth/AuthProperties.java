@@ -7,7 +7,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record AuthProperties(
     String issuer,
     String audience,
-    String secretBase64,
+    String publicKeyDirectory,
+    String signingKeyId,
+    String privateKeyPath,
     Duration accessTtl,
     Duration refreshTtl,
     boolean secureCookie
@@ -21,8 +23,10 @@ public record AuthProperties(
             throw new IllegalArgumentException("JWT audience가 필요합니다.");
         }
 
-        if (secretBase64 == null || secretBase64.isBlank()) {
-            throw new IllegalArgumentException("JWT secret이 필요합니다.");
+        if (publicKeyDirectory == null || publicKeyDirectory.isBlank() ||
+            signingKeyId == null || !signingKeyId.matches("[A-Za-z0-9_-]{1,64}") ||
+            privateKeyPath == null || privateKeyPath.isBlank()) {
+            throw new IllegalArgumentException("JWT 키 경로와 서명 키 ID가 필요합니다.");
         }
 
         if (accessTtl == null || accessTtl.isZero() || accessTtl.isNegative()) {

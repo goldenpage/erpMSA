@@ -3,11 +3,10 @@ package com.oopsw.accountservice.auth;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.interfaces.DecodedJWT;
-import com.auth0.jwt.interfaces.JWTVerifier;
 import com.oopsw.accountservice.entity.AccountEntity;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Base64;
+import com.oopsw.security.RsaJwtVerifier;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 
@@ -23,55 +22,20 @@ public class JwtProvider {
 
     private final AuthProperties properties;
     private final Algorithm algorithm;
-    private final JWTVerifier accessVerifier;
-    private final JWTVerifier refreshVerifier;
+    private final RsaJwtVerifier verifier;
 
     public JwtProvider(AuthProperties properties) {
         this.properties = properties;
 
-        byte[] secret;
-
-        try {
-            secret = Base64.getDecoder().decode(properties.secretBase64());
-        } catch (IllegalArgumentException exception) {
-            throw new IllegalStateException(
-                "JWT_SECRET_BASE64가 올바른 Base64 형식이 아닙니다.",
-                exception
-            );
-        }
-
-        if (secret.length < 32) {
-            throw new IllegalStateException(
-                "HS256 비밀키는 최소 32바이트 이상이어야 합니다."
-            );
-        }
-
-        this.algorithm = Algorithm.HMAC256(secret);
-
-        this.accessVerifier = JWT.require(algorithm)
-            .withIssuer(properties.issuer())
-            .withAudience(properties.audience())
-            .withClaim(TOKEN_TYPE, ACCESS)
-            .withClaimPresence("sub")
-            .withClaimPresence("email")
-            .withClaimPresence("role")
-            .acceptLeeway(30)
-            .build();
-
-        this.refreshVerifier = JWT.require(algorithm)
-            .withIssuer(properties.issuer())
-            .withAudience(properties.audience())
-            .withClaim(TOKEN_TYPE, REFRESH)
-            .withClaimPresence("sub")
-            .withClaimPresence("jti")
-            .acceptLeeway(30)
-            .build();
+        verifier = new RsaJwtVerifier(properties.publicKeyDirectory(), properties.issuer(), properties.audience());
+        algorithm = verifier.signingAlgorithm(properties.signingKeyId(), properties.privateKeyPath());
     }
 
     public String createAccessToken(AccountEntity account) {
         Instant now = Instant.now();
 
         return JWT.create()
+            .withKeyId(properties.signingKeyId())
             .withIssuer(properties.issuer())
             .withAudience(properties.audience())
             .withSubject(account.getId().toString())
@@ -88,6 +52,7 @@ public class JwtProvider {
         Instant now = Instant.now();
 
         return JWT.create()
+            .withKeyId(properties.signingKeyId())
             .withIssuer(properties.issuer())
             .withAudience(properties.audience())
             .withSubject(account.getId().toString())
@@ -99,11 +64,11 @@ public class JwtProvider {
     }
 
     public DecodedJWT verifyAccessToken(String token) {
-        return accessVerifier.verify(token);
+        return verifier.verifyAccess(token);
     }
 
     public DecodedJWT verifyRefreshToken(String token) {
-        return refreshVerifier.verify(token);
+        return verifier.verifyRefresh(token);
     }
 
     public long getAccessTokenExpiresInSeconds() {

@@ -7,7 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.auth0.jwt.JWT;
-import com.auth0.jwt.algorithms.Algorithm;
+import com.oopsw.security.JwtTestKeys;
 import com.oopsw.inventoryservice.api.ApiErrorCode;
 import com.oopsw.inventoryservice.api.ApiException;
 import com.oopsw.inventoryservice.client.ItemCatalogClient;
@@ -32,8 +32,6 @@ import org.springframework.test.web.servlet.MvcResult;
 import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest(properties = {
-    "app.auth.secret-base64="
-        + "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
     "app.auth.issuer=issuer",
     "app.auth.audience=audience",
     "eureka.client.enabled=false",
@@ -46,9 +44,14 @@ import tools.jackson.databind.ObjectMapper;
     InventoryServiceIntegrationTest.OwnedItemClientConfiguration.class
 })
 class InventoryServiceIntegrationTest {
+    @org.springframework.test.context.DynamicPropertySource
+    static void jwtProperties(org.springframework.test.context.DynamicPropertyRegistry registry) {
+        registry.add("app.auth.public-key-directory", JwtTestKeys.PRIMARY::publicDirectory);
+        registry.add("app.auth.signing-key-id", JwtTestKeys.PRIMARY::kid);
+        registry.add("app.auth.private-key-path", JwtTestKeys.PRIMARY::privatePath);
+    }
 
-    private static final byte[] SECRET =
-        "0123456789abcdef0123456789abcdef".getBytes();
+
 
     @Autowired
     private MockMvc mockMvc;
@@ -212,7 +215,7 @@ class InventoryServiceIntegrationTest {
 
     private String token(Long accountId, String email) {
         Instant now = Instant.now();
-        return JWT.create()
+        return JWT.create().withKeyId(JwtTestKeys.PRIMARY.kid())
             .withIssuer("issuer")
             .withAudience("audience")
             .withSubject(accountId.toString())
@@ -221,7 +224,7 @@ class InventoryServiceIntegrationTest {
             .withClaim("token_type", "access")
             .withClaim("email", email)
             .withClaim("role", "ROLE_USER")
-            .sign(Algorithm.HMAC256(SECRET));
+            .sign(JwtTestKeys.PRIMARY.algorithm());
     }
 
     @TestConfiguration(proxyBeanMethods = false)

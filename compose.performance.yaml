@@ -1,0 +1,91 @@
+# Disposable lab. Always use performance/lab.py; never point this at application data.
+x-java-lab: &java-lab
+  JAVA_TOOL_OPTIONS: >-
+    -XX:MaxRAMPercentage=65 -XX:+HeapDumpOnOutOfMemoryError
+    -XX:HeapDumpPath=/tmp -XX:NativeMemoryTracking=summary
+    -Xlog:gc*:stdout:time,level,tags
+
+services:
+  mariadb:
+    ports: !reset []
+    volumes: !reset []
+    tmpfs: [/var/lib/mysql]
+    mem_limit: 1536m
+    cpus: 2
+  redis:
+    ports: !reset []
+    volumes: !reset []
+    tmpfs: [/data]
+  kafka:
+    ports: !reset []
+    volumes: !reset []
+    tmpfs: [/tmp/kraft-combined-logs]
+    environment:
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
+    mem_limit: 1024m
+  eureka-server:
+    image: erpmsa-sprint4/eureka-server:lab
+    ports: !reset []
+    environment: *java-lab
+    mem_limit: 384m
+  account-service:
+    image: erpmsa-sprint4/account-service:lab
+    ports: !reset []
+    environment:
+      <<: *java-lab
+      FLYWAY_BASELINE_ON_MIGRATE: "false"
+    mem_limit: 512m
+  audit-service:
+    image: erpmsa-sprint4/audit-service:lab
+    ports: !reset []
+    environment: *java-lab
+    mem_limit: 512m
+  item-service:
+    image: erpmsa-sprint4/item-service:lab
+    ports: !reset []
+    environment: *java-lab
+    mem_limit: 512m
+    cpus: 1
+
+  inventory-service:
+    image: erpmsa-sprint4/inventory-service:lab
+    ports: !reset []
+    environment: *java-lab
+    mem_limit: 512m
+    cpus: 1
+  gateway-server:
+    image: erpmsa-sprint4/gateway-server:lab
+    ports: !override ["127.0.0.1:17070:7070"]
+    environment: *java-lab
+    mem_limit: 512m
+    cpus: 1
+  prometheus:
+    image: erpmsa-sprint4/prometheus:lab
+    ports: !override ["127.0.0.1:19090:9090"]
+  grafana:
+    image: erpmsa-sprint4/grafana:lab
+    ports: !override ["127.0.0.1:13000:3000"]
+
+  k6:
+    image: grafana/k6:1.7.1
+    profiles: [load]
+    user: "0:0"
+    volumes:
+      - ./performance:/work
+    working_dir: /work
+    mem_limit: 512m
+    cpus: 1
+
+# Base Compose uses explicit global volume names. Override even currently unused
+# volumes so `down -v` can never select the application's persistent volumes.
+volumes:
+  mariadb-data:
+    name: erpmsa-sprint4-lab-mariadb-data
+  redis-data:
+    name: erpmsa-sprint4-lab-redis-data
+  kafka-data:
+    name: erpmsa-sprint4-lab-kafka-data
+  prometheus-data:
+    name: erpmsa-sprint4-lab-prometheus-data
+  grafana-data:
+    name: erpmsa-sprint4-lab-grafana-data

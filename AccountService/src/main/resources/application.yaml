@@ -2,6 +2,12 @@ spring:
   application:
     name: AccountService
 
+  task:
+    scheduling:
+      pool:
+        # The publisher may wait on Kafka; metrics must still sample backlog.
+        size: 2
+
   datasource:
     url: "${DB_URL:jdbc:mariadb://localhost:3306/account_service}"
     driver-class-name: org.mariadb.jdbc.Driver
@@ -86,7 +92,9 @@ app:
   auth:
     issuer: "${JWT_ISSUER:kosta-erp-account}"
     audience: "${JWT_AUDIENCE:kosta-erp-api}"
-    secret-base64: "${JWT_SECRET_BASE64}"
+    signing-key-id: "${JWT_SIGNING_KEY_ID:local-k1}"
+    private-key-path: "${JWT_PRIVATE_KEY_PATH:../secrets/jwt/private/local-k1.pem}"
+    public-key-directory: "${JWT_PUBLIC_KEY_DIRECTORY:../secrets/jwt/public}"
     access-ttl: "${JWT_ACCESS_TTL:15m}"
     refresh-ttl: "${JWT_REFRESH_TTL:14d}"
     secure-cookie: "${COOKIE_SECURE:true}"

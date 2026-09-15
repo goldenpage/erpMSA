@@ -27,7 +27,8 @@ dependencies {
     implementation 'org.springframework.cloud:spring-cloud-starter-gateway-server-webmvc'
     implementation 'org.springframework.cloud:spring-cloud-starter-loadbalancer'
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
-    implementation 'com.auth0:java-jwt:4.5.0'
+    implementation project(':jwt-security')
+    testImplementation testFixtures(project(':jwt-security'))
     runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'

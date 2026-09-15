@@ -6,12 +6,12 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.auth0.jwt.JWT;
+import com.oopsw.security.JwtTestKeys;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.oopsw.gatewayserver.api.ApiErrorWriter;
 import jakarta.servlet.FilterChain;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Base64;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -26,8 +26,6 @@ class GatewayJwtFilterTest {
 
     private static final String ISSUER = "kosta-erp-account";
     private static final String AUDIENCE = "kosta-erp-api";
-    private static final String SECRET =
-        "0123456789abcdef0123456789abcdef";
 
     private GatewayJwtFilter filter;
     private Algorithm algorithm;
@@ -35,14 +33,11 @@ class GatewayJwtFilterTest {
 
     @BeforeEach
     void setUp() {
-        byte[] secretBytes = SECRET.getBytes(StandardCharsets.UTF_8);
-        String secretBase64 = Base64.getEncoder()
-            .encodeToString(secretBytes);
-        algorithm = Algorithm.HMAC256(secretBytes);
+        algorithm = JwtTestKeys.PRIMARY.algorithm();
         objectMapper = new ObjectMapper();
         filter = new GatewayJwtFilter(
             new ApiErrorWriter(objectMapper),
-            secretBase64,
+            JwtTestKeys.PRIMARY.publicDirectory(),
             ISSUER,
             AUDIENCE
         );
@@ -179,7 +174,7 @@ class GatewayJwtFilterTest {
     @Test
     void RefreshToken은_Gateway를_통과할_수_없다() throws Exception {
         Instant now = Instant.now();
-        String token = JWT.create()
+        String token = JWT.create().withKeyId(JwtTestKeys.PRIMARY.kid())
             .withIssuer(ISSUER)
             .withAudience(AUDIENCE)
             .withSubject("1")
@@ -208,7 +203,7 @@ class GatewayJwtFilterTest {
         Instant expiresAt
     ) {
         Instant now = Instant.now();
-        return JWT.create()
+        return JWT.create().withKeyId(JwtTestKeys.PRIMARY.kid())
             .withIssuer(issuer)
             .withAudience(audience)
             .withSubject("1")

@@ -10,36 +10,48 @@ scrape_configs:
 
   - job_name: eureka-server
     metrics_path: /actuator/prometheus
-    static_configs:
-      - targets:
-          - eureka-server:8761
+    dns_sd_configs:
+      - names: ["eureka-server"]
+        type: A
+        port: 8761
+        refresh_interval: 10s
 
   - job_name: account-service
     metrics_path: /actuator/prometheus
-    static_configs:
-      - targets:
-          - account-service:7071
+    dns_sd_configs:
+      - names: ["account-service"]
+        type: A
+        port: 7071
+        refresh_interval: 10s
 
   - job_name: audit-service
     metrics_path: /actuator/prometheus
-    static_configs:
-      - targets:
-          - audit-service:7072
+    dns_sd_configs:
+      - names: ["audit-service"]
+        type: A
+        port: 7072
+        refresh_interval: 10s
 
   - job_name: item-service
     metrics_path: /actuator/prometheus
-    static_configs:
-      - targets:
-          - item-service:7073
+    dns_sd_configs:
+      - names: ["item-service"]
+        type: A
+        port: 7073
+        refresh_interval: 10s
 
   - job_name: inventory-service
     metrics_path: /actuator/prometheus
-    static_configs:
-      - targets:
-          - inventory-service:7074
+    dns_sd_configs:
+      - names: ["inventory-service"]
+        type: A
+        port: 7074
+        refresh_interval: 10s
 
   - job_name: gateway-server
     metrics_path: /actuator/prometheus
-    static_configs:
-      - targets:
-          - gateway-server:7070
+    dns_sd_configs:
+      - names: ["gateway-server"]
+        type: A
+        port: 7070
+        refresh_interval: 10s

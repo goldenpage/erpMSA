@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Objects;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import com.oopsw.security.JwtTestKeys;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -34,8 +35,6 @@ import org.springframework.test.web.servlet.MvcResult;
 import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest(properties = {
-    "app.auth.secret-base64="
-        + "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
     "app.auth.secure-cookie=false",
     "app.kafka.outbox.publish-delay=100ms",
     "app.kafka.outbox.retry-delay=100ms",
@@ -46,6 +45,13 @@ import tools.jackson.databind.ObjectMapper;
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 class AccountAuthenticationIntegrationTest {
+    @org.springframework.test.context.DynamicPropertySource
+    static void jwtProperties(org.springframework.test.context.DynamicPropertyRegistry registry) {
+        registry.add("app.auth.public-key-directory", JwtTestKeys.PRIMARY::publicDirectory);
+        registry.add("app.auth.signing-key-id", JwtTestKeys.PRIMARY::kid);
+        registry.add("app.auth.private-key-path", JwtTestKeys.PRIMARY::privatePath);
+    }
+
 
     private static final String EMAIL = "owner@example.com";
     private static final String PASSWORD = "Test1234!";

@@ -7,9 +7,8 @@ import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.oopsw.accountservice.entity.AccountEntity;
 import com.oopsw.accountservice.entity.AccountStatus;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Base64;
+import com.oopsw.security.JwtTestKeys;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -28,7 +27,9 @@ class JwtProviderTest {
         AuthProperties properties = new AuthProperties(
             ISSUER,
             AUDIENCE,
-            encodeSecret("0123456789abcdef0123456789abcdef"),
+            JwtTestKeys.PRIMARY.publicDirectory(),
+            JwtTestKeys.PRIMARY.kid(),
+            JwtTestKeys.PRIMARY.privatePath(),
             Duration.ofMinutes(15),
             Duration.ofDays(14),
             false
@@ -104,24 +105,11 @@ class JwtProviderTest {
     }
 
     @Test
-    void JWT_비밀키가_32바이트보다_짧으면_실패한다() {
+    void 공개키와_다른_개인키이면_시작하지_않는다() {
         AuthProperties properties = new AuthProperties(
-            ISSUER,
-            AUDIENCE,
-            encodeSecret("short-secret"),
-            Duration.ofMinutes(15),
-            Duration.ofDays(14),
-            false
-        );
-
+            ISSUER, AUDIENCE, JwtTestKeys.PRIMARY.publicDirectory(), JwtTestKeys.PRIMARY.kid(),
+            JwtTestKeys.OTHER.privatePath(), Duration.ofMinutes(15), Duration.ofDays(14), false);
         assertThatThrownBy(() -> new JwtProvider(properties))
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("최소 32바이트");
-    }
-
-    private String encodeSecret(String secret) {
-        return Base64.getEncoder().encodeToString(
-            secret.getBytes(StandardCharsets.UTF_8)
-        );
+            .isInstanceOf(IllegalStateException.class);
     }
 }

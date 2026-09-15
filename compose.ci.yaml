@@ -26,6 +26,12 @@ services:
     ports: !reset []
 
   account-service:
+    volumes: !override
+      - ci-jwt-public:/run/jwt-public:ro
+      - ci-jwt-private:/run/jwt-private:ro
+    secrets: !reset []
+    environment:
+      JWT_PRIVATE_KEY_PATH: /run/jwt-private/${JWT_SIGNING_KEY_ID:-local-k1}.pem
     image: "${CI_PROJECT_NAME:-erpmsa-ci}/account-service:${BUILD_NUMBER:-local}"
     restart: "no"
     ports: !reset []
@@ -36,16 +42,22 @@ services:
     ports: !reset []
 
   item-service:
+    volumes: !override
+      - ci-jwt-public:/run/jwt-public:ro
     image: "${CI_PROJECT_NAME:-erpmsa-ci}/item-service:${BUILD_NUMBER:-local}"
     restart: "no"
     ports: !reset []
 
   inventory-service:
+    volumes: !override
+      - ci-jwt-public:/run/jwt-public:ro
     image: "${CI_PROJECT_NAME:-erpmsa-ci}/inventory-service:${BUILD_NUMBER:-local}"
     restart: "no"
     ports: !reset []
 
   gateway-server:
+    volumes: !override
+      - ci-jwt-public:/run/jwt-public:ro
     image: "${CI_PROJECT_NAME:-erpmsa-ci}/gateway-server:${BUILD_NUMBER:-local}"
     restart: "no"
     ports: !reset []
@@ -61,6 +73,10 @@ services:
     ports: !reset []
 
 volumes:
+  ci-jwt-public:
+    name: "${CI_PROJECT_NAME:-erpmsa-ci}-jwt-public"
+  ci-jwt-private:
+    name: "${CI_PROJECT_NAME:-erpmsa-ci}-jwt-private"
   mariadb-data:
     name: "${CI_PROJECT_NAME:-erpmsa-ci}-mariadb-data"
 
@@ -75,3 +91,5 @@ volumes:
 
   grafana-data:
     name: "${CI_PROJECT_NAME:-erpmsa-ci}-grafana-data"
+
+secrets: !reset {}

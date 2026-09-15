@@ -1,0 +1,586 @@
+{
+  "dataset": {
+    "rows": 210000,
+    "accounts": 6,
+    "rowsPerAccount": [
+      10000,
+      10000,
+      20000,
+      20000,
+      50000,
+      100000
+    ],
+    "activeRatio": 0.8,
+    "descriptionBytes": 200,
+    "seed": "deterministic-sequence-v1"
+  },
+  "http": {
+    "baseline-v2-gateway": {
+      "conditions": {
+        "rate": 80,
+        "duration": "60s",
+        "profile": "mixed",
+        "exitCode": 0,
+        "at": "2026-09-13T02:43:09.677614+00:00",
+        "preAllocatedVUs": 150,
+        "maxVUs": 150,
+        "workloadSha256": "cf1865ac74147a415866c2a6d1fe505783cf05575e988912fd048c3d61fb748b",
+        "datasetSha256": "6492792a1996b84f1db5d2e1b2b4c41589675ee6c2b555d5ad8bd7276d80cf5f"
+      },
+      "durationMs": {
+        "avg": 8.67295224244949,
+        "p(50)": 4.835292,
+        "p(95)": 28.809375,
+        "p(99)": 61.323,
+        "max": 116.126417
+      },
+      "requests": {
+        "count": 4801,
+        "rate": 80.01043118706282
+      },
+      "failureRate": 0,
+      "checkRate": 1,
+      "droppedIterations": 0
+    },
+    "baseline-v2-direct": {
+      "conditions": {
+        "rate": 80,
+        "duration": "60s",
+        "profile": "mixed",
+        "exitCode": 0,
+        "at": "2026-09-13T02:44:14.558690+00:00",
+        "preAllocatedVUs": 150,
+        "maxVUs": 150,
+        "workloadSha256": "cf1865ac74147a415866c2a6d1fe505783cf05575e988912fd048c3d61fb748b",
+        "datasetSha256": "6492792a1996b84f1db5d2e1b2b4c41589675ee6c2b555d5ad8bd7276d80cf5f"
+      },
+      "durationMs": {
+        "avg": 7.997534074791703,
+        "p(50)": 3.814833,
+        "p(95)": 29.074774999999992,
+        "p(99)": 63.134984919999994,
+        "max": 242.2245
+      },
+      "requests": {
+        "rate": 79.99865696654712,
+        "count": 4800
+      },
+      "failureRate": 0,
+      "checkRate": 1,
+      "droppedIterations": 0
+    },
+    "indexed-gateway": {
+      "conditions": {
+        "rate": 80,
+        "duration": "60s",
+        "profile": "mixed",
+        "exitCode": 0,
+        "at": "2026-09-13T02:46:29.019758+00:00",
+        "preAllocatedVUs": 150,
+        "maxVUs": 150,
+        "workloadSha256": "cf1865ac74147a415866c2a6d1fe505783cf05575e988912fd048c3d61fb748b",
+        "datasetSha256": "6492792a1996b84f1db5d2e1b2b4c41589675ee6c2b555d5ad8bd7276d80cf5f"
+      },
+      "durationMs": {
+        "p(50)": 4.239375,
+        "p(95)": 24.066674999999993,
+        "p(99)": 58.71019,
+        "max": 141.926041,
+        "avg": 7.641088858333345
+      },
+      "requests": {
+        "count": 4800,
+        "rate": 80.01943577672083
+      },
+      "failureRate": 0,
+      "checkRate": 1,
+      "droppedIterations": 0
+    },
+    "indexed-direct": {
+      "conditions": {
+        "rate": 80,
+        "duration": "60s",
+        "profile": "mixed",
+        "exitCode": 0,
+        "at": "2026-09-13T02:47:33.602355+00:00",
+        "preAllocatedVUs": 150,
+        "maxVUs": 150,
+        "workloadSha256": "cf1865ac74147a415866c2a6d1fe505783cf05575e988912fd048c3d61fb748b",
+        "datasetSha256": "6492792a1996b84f1db5d2e1b2b4c41589675ee6c2b555d5ad8bd7276d80cf5f"
+      },
+      "durationMs": {
+        "avg": 6.878099696521557,
+        "p(50)": 3.39775,
+        "p(95)": 22.830875,
+        "p(99)": 58.331083,
+        "max": 100.470167
+      },
+      "requests": {
+        "count": 4801,
+        "rate": 80.01422062127371
+      },
+      "failureRate": 0,
+      "checkRate": 1,
+      "droppedIterations": 0
+    },
+    "final-one": {
+      "conditions": {
+        "rate": 80,
+        "duration": "60s",
+        "profile": "mixed",
+        "exitCode": 0,
+        "at": "2026-09-14T23:42:49.061270+00:00",
+        "preAllocatedVUs": 150,
+        "maxVUs": 150,
+        "workloadSha256": "cf1865ac74147a415866c2a6d1fe505783cf05575e988912fd048c3d61fb748b",
+        "datasetSha256": "6492792a1996b84f1db5d2e1b2b4c41589675ee6c2b555d5ad8bd7276d80cf5f"
+      },
+      "durationMs": {
+        "avg": 8.379124667777537,
+        "p(50)": 5.384584,
+        "p(95)": 23.889709,
+        "p(99)": 57.097333,
+        "max": 104.46675
+      },
+      "requests": {
+        "count": 4801,
+        "rate": 80.0111054507762
+      },
+      "failureRate": 0,
+      "checkRate": 1,
+      "droppedIterations": 0
+    },
+    "final-two": {
+      "conditions": {
+        "rate": 80,
+        "duration": "60s",
+        "profile": "mixed",
+        "exitCode": 0,
+        "at": "2026-09-14T23:45:10.208388+00:00",
+        "preAllocatedVUs": 150,
+        "maxVUs": 150,
+        "workloadSha256": "cf1865ac74147a415866c2a6d1fe505783cf05575e988912fd048c3d61fb748b",
+        "datasetSha256": "6492792a1996b84f1db5d2e1b2b4c41589675ee6c2b555d5ad8bd7276d80cf5f"
+      },
+      "durationMs": {
+        "p(95)": 23.7055,
+        "p(99)": 58.0765,
+        "max": 87.855834,
+        "avg": 8.189190912101614,
+        "p(50)": 5.23325
+      },
+      "requests": {
+        "count": 4801,
+        "rate": 80.0100675589765
+      },
+      "failureRate": 0,
+      "checkRate": 1,
+      "droppedIterations": 0
+    }
+  },
+  "sql": {
+    "baseline": [
+      {
+        "status": "ACTIVE",
+        "page": 0,
+        "kind": "list",
+        "samples": 5,
+        "medianMs": 0.039999376,
+        "firstSample": {
+          "key": "idx_item_account_created",
+          "r_rows": 24,
+          "r_engine_stats": {
+            "pages_accessed": 95
+          }
+        }
+      },
+      {
+        "status": "ACTIVE",
+        "page": 0,
+        "kind": "count",
+        "samples": 5,
+        "medianMs": 7.681677523,
+        "firstSample": {
+          "key": "idx_item_account_status",
+          "r_rows": 80000,
+          "r_engine_stats": {
+            "pages_accessed": 143
+          }
+        }
+      },
+      {
+        "status": "ACTIVE",
+        "page": 100,
+        "kind": "list",
+        "samples": 5,
+        "medianMs": 1.362904562,
+        "firstSample": {
+          "key": "idx_item_account_created",
+          "r_rows": 2524,
+          "r_engine_stats": {
+            "pages_accessed": 7578
+          }
+        }
+      },
+      {
+        "status": "ACTIVE",
+        "page": 100,
+        "kind": "count",
+        "samples": 5,
+        "medianMs": 7.177359367,
+        "firstSample": {
+          "key": "idx_item_account_status",
+          "r_rows": 80000,
+          "r_engine_stats": {
+            "pages_accessed": 143
+          }
+        }
+      },
+      {
+        "status": "INACTIVE",
+        "page": 0,
+        "kind": "list",
+        "samples": 5,
+        "medianMs": 0.07544292,
+        "firstSample": {
+          "key": "idx_item_account_created",
+          "r_rows": 100,
+          "r_engine_stats": {
+            "pages_accessed": 311
+          }
+        }
+      },
+      {
+        "status": "INACTIVE",
+        "page": 0,
+        "kind": "count",
+        "samples": 5,
+        "medianMs": 1.752825337,
+        "firstSample": {
+          "key": "idx_item_account_status",
+          "r_rows": 20000,
+          "r_engine_stats": {
+            "pages_accessed": 40
+          }
+        }
+      },
+      {
+        "status": "INACTIVE",
+        "page": 100,
+        "kind": "list",
+        "samples": 5,
+        "medianMs": 5.513519058,
+        "firstSample": {
+          "key": "idx_item_account_created",
+          "r_rows": 10100,
+          "r_engine_stats": {
+            "pages_accessed": 30326
+          }
+        }
+      },
+      {
+        "status": "INACTIVE",
+        "page": 100,
+        "kind": "count",
+        "samples": 5,
+        "medianMs": 1.782291963,
+        "firstSample": {
+          "key": "idx_item_account_status",
+          "r_rows": 20000,
+          "r_engine_stats": {
+            "pages_accessed": 40
+          }
+        }
+      },
+      {
+        "status": null,
+        "page": 0,
+        "kind": "list",
+        "samples": 5,
+        "medianMs": 0.027042421,
+        "firstSample": {
+          "key": "idx_item_account_created",
+          "r_rows": 20,
+          "r_engine_stats": {
+            "pages_accessed": 68
+          }
+        }
+      },
+      {
+        "status": null,
+        "page": 0,
+        "kind": "count",
+        "samples": 5,
+        "medianMs": 6.957801661,
+        "firstSample": {
+          "key": "idx_item_account_created",
+          "r_rows": 100000,
+          "r_engine_stats": {
+            "pages_accessed": 184
+          }
+        }
+      },
+      {
+        "status": null,
+        "page": 100,
+        "kind": "list",
+        "samples": 5,
+        "medianMs": 1.040777922,
+        "firstSample": {
+          "key": "idx_item_account_created",
+          "r_rows": 2020,
+          "r_engine_stats": {
+            "pages_accessed": 6065
+          }
+        }
+      },
+      {
+        "status": null,
+        "page": 100,
+        "kind": "count",
+        "samples": 5,
+        "medianMs": 6.873706838,
+        "firstSample": {
+          "key": "idx_item_account_created",
+          "r_rows": 100000,
+          "r_engine_stats": {
+            "pages_accessed": 184
+          }
+        }
+      }
+    ],
+    "indexed": [
+      {
+        "status": "ACTIVE",
+        "page": 0,
+        "kind": "list",
+        "samples": 5,
+        "medianMs": 0.037449782,
+        "firstSample": {
+          "key": "idx_item_account_created",
+          "r_rows": 24,
+          "r_engine_stats": {
+            "pages_accessed": 95
+          }
+        }
+      },
+      {
+        "status": "ACTIVE",
+        "page": 0,
+        "kind": "count",
+        "samples": 5,
+        "medianMs": 7.193952629,
+        "firstSample": {
+          "key": "idx_item_account_status",
+          "r_rows": 80000,
+          "r_engine_stats": {
+            "pages_accessed": 143
+          }
+        }
+      },
+      {
+        "status": "ACTIVE",
+        "page": 100,
+        "kind": "list",
+        "samples": 5,
+        "medianMs": 1.3326438,
+        "firstSample": {
+          "key": "idx_item_account_created",
+          "r_rows": 2524,
+          "r_engine_stats": {
+            "pages_accessed": 7578
+          }
+        }
+      },
+      {
+        "status": "ACTIVE",
+        "page": 100,
+        "kind": "count",
+        "samples": 5,
+        "medianMs": 7.433698108,
+        "firstSample": {
+          "key": "idx_item_account_status",
+          "r_rows": 80000,
+          "r_engine_stats": {
+            "pages_accessed": 143
+          }
+        }
+      },
+      {
+        "status": "INACTIVE",
+        "page": 0,
+        "kind": "list",
+        "samples": 5,
+        "medianMs": 0.034983781,
+        "firstSample": {
+          "key": "idx_item_account_status_created",
+          "r_rows": 20,
+          "r_engine_stats": {
+            "pages_accessed": 69
+          }
+        }
+      },
+      {
+        "status": "INACTIVE",
+        "page": 0,
+        "kind": "count",
+        "samples": 5,
+        "medianMs": 1.621918287,
+        "firstSample": {
+          "key": "idx_item_account_status",
+          "r_rows": 20000,
+          "r_engine_stats": {
+            "pages_accessed": 40
+          }
+        }
+      },
+      {
+        "status": "INACTIVE",
+        "page": 100,
+        "kind": "list",
+        "samples": 5,
+        "medianMs": 1.322236439,
+        "firstSample": {
+          "key": "idx_item_account_status_created",
+          "r_rows": 2020,
+          "r_engine_stats": {
+            "pages_accessed": 6068
+          }
+        }
+      },
+      {
+        "status": "INACTIVE",
+        "page": 100,
+        "kind": "count",
+        "samples": 5,
+        "medianMs": 1.640308805,
+        "firstSample": {
+          "key": "idx_item_account_status",
+          "r_rows": 20000,
+          "r_engine_stats": {
+            "pages_accessed": 40
+          }
+        }
+      },
+      {
+        "status": null,
+        "page": 0,
+        "kind": "list",
+        "samples": 5,
+        "medianMs": 0.028505303,
+        "firstSample": {
+          "key": "idx_item_account_created",
+          "r_rows": 20,
+          "r_engine_stats": {
+            "pages_accessed": 68
+          }
+        }
+      },
+      {
+        "status": null,
+        "page": 0,
+        "kind": "count",
+        "samples": 5,
+        "medianMs": 6.721525303,
+        "firstSample": {
+          "key": "idx_item_account_created",
+          "r_rows": 100000,
+          "r_engine_stats": {
+            "pages_accessed": 184
+          }
+        }
+      },
+      {
+        "status": null,
+        "page": 100,
+        "kind": "list",
+        "samples": 5,
+        "medianMs": 1.077057398,
+        "firstSample": {
+          "key": "idx_item_account_created",
+          "r_rows": 2020,
+          "r_engine_stats": {
+            "pages_accessed": 6065
+          }
+        }
+      },
+      {
+        "status": null,
+        "page": 100,
+        "kind": "count",
+        "samples": 5,
+        "medianMs": 6.682947012,
+        "firstSample": {
+          "key": "idx_item_account_created",
+          "r_rows": 100000,
+          "r_engine_stats": {
+            "pages_accessed": 184
+          }
+        }
+      }
+    ]
+  },
+  "faults": {
+    "eureka-server-outage-probes": {
+      "durationSeconds": 20.1359992090147,
+      "statuses": {
+        "200": 95
+      }
+    },
+    "kafka-outage-probes": {
+      "durationSeconds": 20.13211687502917,
+      "statuses": {
+        "200": 94
+      },
+      "registrationStatus": 201,
+      "pendingWhileDown": 1
+    },
+    "kafka-recovery": {
+      "pending": 0,
+      "missingAudit": 0,
+      "recoverySeconds": 9.690199250006117
+    },
+    "smoke": {
+      "refreshRotation": true,
+      "oldRefreshRejected": true,
+      "logoutReplayRejected": true,
+      "itemInventoryRouting": true,
+      "parallelAdjustments": {
+        "success": 1,
+        "conflict": 9,
+        "quantity": 19,
+        "movements": 2
+      },
+      "tenantBoundary": true,
+      "duplicateEventCount": 1,
+      "malformedEventDlt": true
+    },
+    "item-kill": {
+      "statuses": {
+        "200": 24,
+        "0": 2,
+        "500": 22
+      },
+      "durationSeconds": 30.095901499968022,
+      "injectedSignal": "SIGKILL",
+      "state": {
+        "Status": "exited",
+        "Running": false,
+        "OOMKilled": false,
+        "ExitCode": 137
+      }
+    },
+    "item-kill-during-eureka-recovery": {
+      "statuses": {
+        "500": 115,
+        "200": 29
+      },
+      "durationSeconds": 30.151243875036016,
+      "confounded": true
+    }
+  },
+  "itemReplicaRps": [
+    40.087998044487904,
+    40.06666666666666
+  ]
+}

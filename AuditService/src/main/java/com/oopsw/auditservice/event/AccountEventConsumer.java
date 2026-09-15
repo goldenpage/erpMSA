@@ -57,7 +57,9 @@ public class AccountEventConsumer {
         if (event == null ||
             event.eventId() == null ||
             event.eventVersion() != 1 ||
-            event.accountId() == null ||
+            event.accountId() == null || event.accountId() <= 0 ||
+            event.role() == null || event.role().isBlank() ||
+            event.status() == null || event.status().isBlank() ||
             event.occurredAt() == null) {
             throw new IllegalArgumentException(
                 "지원하지 않거나 필수 값이 없는 AccountRegistered 이벤트입니다."

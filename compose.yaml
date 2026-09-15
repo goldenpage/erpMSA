@@ -114,7 +114,8 @@ services:
 
   account-service:
     build:
-      context: ./AccountService
+      context: .
+      dockerfile: AccountService/Dockerfile
     image: erpmsa/account-service:local
     restart: unless-stopped
     environment:
@@ -134,11 +135,22 @@ services:
       OUTBOX_RETRY_DELAY: "${OUTBOX_RETRY_DELAY:-5s}"
       JWT_ISSUER: "${JWT_ISSUER:-kosta-erp-account}"
       JWT_AUDIENCE: "${JWT_AUDIENCE:-kosta-erp-api}"
-      JWT_SECRET_BASE64: "${JWT_SECRET_BASE64:?JWT_SECRET_BASE64 must be set in .env}"
+      JWT_PUBLIC_KEY_DIRECTORY: /run/jwt-public
+      JWT_SIGNING_KEY_ID: "${JWT_SIGNING_KEY_ID:-local-k1}"
+      JWT_PRIVATE_KEY_PATH: /run/secrets/jwt_private_key
       JWT_ACCESS_TTL: "${JWT_ACCESS_TTL:-15m}"
       JWT_REFRESH_TTL: "${JWT_REFRESH_TTL:-14d}"
-      COOKIE_SECURE: "false"
+      COOKIE_SECURE: "${COOKIE_SECURE:-false}"
       ACCOUNT_USER_MESSAGE: "${ACCOUNT_USER_MESSAGE:-AccountService Message}"
+    volumes:
+      - type: bind
+        source: ${JWT_PUBLIC_KEYS_HOST_DIR:-./secrets/jwt/public}
+        target: /run/jwt-public
+        read_only: true
+        bind:
+          create_host_path: false
+    secrets:
+      - jwt_private_key
     ports:
       - "127.0.0.1:7071:7071"
     depends_on:
@@ -193,7 +205,8 @@ services:
 
   item-service:
     build:
-      context: ./ItemService
+      context: .
+      dockerfile: ItemService/Dockerfile
     image: erpmsa/item-service:local
     restart: unless-stopped
     environment:
@@ -206,7 +219,14 @@ services:
       EUREKA_DEFAULT_ZONE: http://eureka-server:8761/eureka
       JWT_ISSUER: "${JWT_ISSUER:-kosta-erp-account}"
       JWT_AUDIENCE: "${JWT_AUDIENCE:-kosta-erp-api}"
-      JWT_SECRET_BASE64: "${JWT_SECRET_BASE64:?JWT_SECRET_BASE64 must be set in .env}"
+      JWT_PUBLIC_KEY_DIRECTORY: /run/jwt-public
+    volumes:
+      - type: bind
+        source: ${JWT_PUBLIC_KEYS_HOST_DIR:-./secrets/jwt/public}
+        target: /run/jwt-public
+        read_only: true
+        bind:
+          create_host_path: false
     ports:
       - "127.0.0.1:7073:7073"
     depends_on:
@@ -223,7 +243,8 @@ services:
 
   inventory-service:
     build:
-      context: ./InventoryService
+      context: .
+      dockerfile: InventoryService/Dockerfile
     image: erpmsa/inventory-service:local
     restart: unless-stopped
     environment:
@@ -237,7 +258,14 @@ services:
       EUREKA_DEFAULT_ZONE: http://eureka-server:8761/eureka
       JWT_ISSUER: "${JWT_ISSUER:-kosta-erp-account}"
       JWT_AUDIENCE: "${JWT_AUDIENCE:-kosta-erp-api}"
-      JWT_SECRET_BASE64: "${JWT_SECRET_BASE64:?JWT_SECRET_BASE64 must be set in .env}"
+      JWT_PUBLIC_KEY_DIRECTORY: /run/jwt-public
+    volumes:
+      - type: bind
+        source: ${JWT_PUBLIC_KEYS_HOST_DIR:-./secrets/jwt/public}
+        target: /run/jwt-public
+        read_only: true
+        bind:
+          create_host_path: false
     ports:
       - "127.0.0.1:7074:7074"
     depends_on:
@@ -256,7 +284,8 @@ services:
 
   gateway-server:
     build:
-      context: ./gatewayServer
+      context: .
+      dockerfile: gatewayServer/Dockerfile
     image: erpmsa/gateway-server:local
     restart: unless-stopped
     environment:
@@ -264,7 +293,14 @@ services:
       EUREKA_DEFAULT_ZONE: http://eureka-server:8761/eureka
       JWT_ISSUER: "${JWT_ISSUER:-kosta-erp-account}"
       JWT_AUDIENCE: "${JWT_AUDIENCE:-kosta-erp-api}"
-      JWT_SECRET_BASE64: "${JWT_SECRET_BASE64:?JWT_SECRET_BASE64 must be set in .env}"
+      JWT_PUBLIC_KEY_DIRECTORY: /run/jwt-public
+    volumes:
+      - type: bind
+        source: ${JWT_PUBLIC_KEYS_HOST_DIR:-./secrets/jwt/public}
+        target: /run/jwt-public
+        read_only: true
+        bind:
+          create_host_path: false
     ports:
       - "127.0.0.1:7070:7070"
     depends_on:
@@ -354,3 +390,7 @@ volumes:
     name: erpmsa-prometheus-data
   grafana-data:
     name: erpmsa-grafana-data
+
+secrets:
+  jwt_private_key:
+    file: ${JWT_PRIVATE_KEY_HOST_FILE:-./secrets/jwt/private/local-k1.pem}

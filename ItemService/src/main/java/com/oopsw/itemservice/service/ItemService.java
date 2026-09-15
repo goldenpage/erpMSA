@@ -58,7 +58,7 @@ public class ItemService {
         PageRequest pageable = PageRequest.of(
             page,
             size,
-            Sort.by(Sort.Direction.DESC, "createdAt")
+            Sort.by(Sort.Direction.DESC, "createdAt", "id")
         );
 
         Page<ItemEntity> items = status == null

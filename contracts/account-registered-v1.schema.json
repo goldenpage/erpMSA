@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:erpmsa:account-registered:v1",
+  "title": "AccountRegistered v1",
+  "type": "object",
+  "required": ["eventId", "eventVersion", "accountId", "role", "status", "occurredAt"],
+  "properties": {
+    "eventId": {"type": "string", "format": "uuid"},
+    "eventVersion": {"const": 1},
+    "accountId": {"type": "integer", "minimum": 1},
+    "role": {"type": "string", "minLength": 1, "pattern": "\\S"},
+    "status": {"type": "string", "minLength": 1, "pattern": "\\S"},
+    "occurredAt": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": true
+}

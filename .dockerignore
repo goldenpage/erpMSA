@@ -1,0 +1,9 @@
+**/.gradle
+**/build
+.git
+**/.env
+**/.env.*
+**/secrets
+**/*.pem
+**/*.key
+performance/results

@@ -9,9 +9,8 @@ import com.oopsw.accountservice.api.ApiErrorWriter;
 import com.oopsw.accountservice.entity.AccountEntity;
 import com.oopsw.accountservice.entity.AccountStatus;
 import jakarta.servlet.FilterChain;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Base64;
+import com.oopsw.security.JwtTestKeys;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,7 +37,7 @@ class JwtAuthorizationFilterTest {
     @BeforeEach
     void setUp() {
         jwtProvider = createProvider(
-            "0123456789abcdef0123456789abcdef"
+            JwtTestKeys.PRIMARY
         );
         objectMapper = new ObjectMapper();
         filter = new JwtAuthorizationFilter(
@@ -106,7 +105,7 @@ class JwtAuthorizationFilterTest {
     @Test
     void 변조된_AccessToken이면_401을_반환한다() throws Exception {
         JwtProvider anotherProvider = createProvider(
-            "abcdefghijklmnopqrstuvwxyz123456"
+            JwtTestKeys.OTHER
         );
         MockHttpServletRequest request = authorizedRequest(
             anotherProvider.createAccessToken(account)
@@ -143,17 +142,9 @@ class JwtAuthorizationFilterTest {
         return request;
     }
 
-    private JwtProvider createProvider(String secret) {
-        String secretBase64 = Base64.getEncoder().encodeToString(
-            secret.getBytes(StandardCharsets.UTF_8)
-        );
+    private JwtProvider createProvider(JwtTestKeys.Material keys) {
         return new JwtProvider(new AuthProperties(
-            ISSUER,
-            AUDIENCE,
-            secretBase64,
-            Duration.ofMinutes(15),
-            Duration.ofDays(14),
-            false
-        ));
+            ISSUER, AUDIENCE, keys.publicDirectory(), keys.kid(), keys.privatePath(),
+            Duration.ofMinutes(15), Duration.ofDays(14), false));
     }
 }

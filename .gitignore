@@ -22,3 +22,8 @@
 **/*.p12
 **/*.pfx
 **/*.jks
+
+**/*.pem
+/performance/results/
+/performance/.env
+**/__pycache__/

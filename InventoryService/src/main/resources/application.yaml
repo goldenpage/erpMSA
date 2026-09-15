@@ -51,6 +51,6 @@ app:
   auth:
     issuer: "${JWT_ISSUER:kosta-erp-account}"
     audience: "${JWT_AUDIENCE:kosta-erp-api}"
-    secret-base64: "${JWT_SECRET_BASE64}"
+    public-key-directory: "${JWT_PUBLIC_KEY_DIRECTORY:../secrets/jwt/public}"
   item-service:
     base-url: "${ITEM_SERVICE_BASE_URL:http://ITEMSERVICE}"

@@ -1,0 +1,15 @@
+plugins {
+    id 'java-library'
+    id 'java-test-fixtures'
+}
+
+group = 'com.oopsw'
+version = '0.0.1-SNAPSHOT'
+java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
+repositories { mavenCentral() }
+dependencies {
+    api platform('org.springframework.boot:spring-boot-dependencies:4.1.0')
+    api 'com.auth0:java-jwt:4.5.0'
+}
+// Each independently built service has its own output directory, including in parallel CI.
+layout.buildDirectory = rootProject.layout.buildDirectory.dir('jwt-security')

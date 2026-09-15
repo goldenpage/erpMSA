@@ -9,11 +9,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.auth0.jwt.JWT;
-import com.auth0.jwt.algorithms.Algorithm;
+import com.oopsw.security.JwtTestKeys;
 import com.oopsw.itemservice.domain.ItemRepository;
 import com.oopsw.itemservice.support.TestcontainersConfiguration;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,8 +27,6 @@ import org.springframework.test.web.servlet.MvcResult;
 import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest(properties = {
-    "app.auth.secret-base64="
-        + "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
     "app.auth.issuer=issuer",
     "app.auth.audience=audience",
     "eureka.client.enabled=false",
@@ -39,9 +36,14 @@ import tools.jackson.databind.ObjectMapper;
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 class ItemServiceIntegrationTest {
+    @org.springframework.test.context.DynamicPropertySource
+    static void jwtProperties(org.springframework.test.context.DynamicPropertyRegistry registry) {
+        registry.add("app.auth.public-key-directory", JwtTestKeys.PRIMARY::publicDirectory);
+        registry.add("app.auth.signing-key-id", JwtTestKeys.PRIMARY::kid);
+        registry.add("app.auth.private-key-path", JwtTestKeys.PRIMARY::privatePath);
+    }
 
-    private static final byte[] SECRET =
-        "0123456789abcdef0123456789abcdef".getBytes();
+
 
     @Autowired
     private MockMvc mockMvc;
@@ -52,9 +54,32 @@ class ItemServiceIntegrationTest {
     @Autowired
     private ItemRepository itemRepository;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
     @BeforeEach
     void cleanData() {
         itemRepository.deleteAllInBatch();
+    }
+
+    @Test
+    void 같은_생성시각도_페이지_순서가_안정적이다() throws Exception {
+        String access = token(101L, "owner@example.com");
+        long[] ids = new long[2];
+        for (int i = 0; i < 2; i++) {
+            MvcResult result = mockMvc.perform(post("/items")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + access)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(createJson("tie-" + i, "동일시각 품목", "1000.00")))
+                .andExpect(status().isCreated()).andReturn();
+            ids[i] = objectMapper.readTree(result.getResponse().getContentAsString()).get("itemId").longValue();
+        }
+        jdbc.update("UPDATE item SET created_at='2026-01-01 00:00:00' WHERE account_id=101");
+        for (int page = 0; page < 2; page++) {
+            mockMvc.perform(get("/items").param("page", String.valueOf(page)).param("size", "1").param("status", "ACTIVE")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + access))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].itemId").value(ids[1-page]));
+        }
     }
 
     @Test
@@ -188,7 +213,7 @@ class ItemServiceIntegrationTest {
 
     private String token(Long accountId, String email) {
         Instant now = Instant.now();
-        return JWT.create()
+        return JWT.create().withKeyId(JwtTestKeys.PRIMARY.kid())
             .withIssuer("issuer")
             .withAudience("audience")
             .withSubject(accountId.toString())
@@ -197,6 +222,6 @@ class ItemServiceIntegrationTest {
             .withClaim("token_type", "access")
             .withClaim("email", email)
             .withClaim("role", "ROLE_USER")
-            .sign(Algorithm.HMAC256(SECRET));
+            .sign(JwtTestKeys.PRIMARY.algorithm());
     }
 }

@@ -49,6 +49,7 @@ public class KafkaConfig {
                     record.partition()
                 )
             );
+        recoverer.setFailIfSendResultIsError(true);
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(
             recoverer,
             new FixedBackOff(1000L, 2L)

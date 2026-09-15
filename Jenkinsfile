@@ -33,22 +33,30 @@ pipeline {
                     string(
                         credentialsId: 'erpmsa-ci-db-password',
                         variable: 'ERPMSA_DB_PASSWORD'
-                    ),
-                    string(
-                        credentialsId: 'erpmsa-ci-jwt-secret',
-                        variable: 'ERPMSA_JWT_SECRET'
                     )
                 ]) {
                     sh '''
                         set +x
                         umask 077
 
+                        ./scripts/generate-jwt-keys.sh "ci-$BUILD_NUMBER" secrets/jwt-ci
+
+                        # Docker daemon runs outside Jenkins: transfer keys to named volumes.
+                        tar -C secrets/jwt-ci/public -cf - . | docker run --rm -i \
+                            -v "${CI_PROJECT_NAME}-jwt-public:/keys" mariadb:10.11 \
+                            sh -ec 'tar -xf - -C /keys; chmod 755 /keys; chmod 444 /keys/*.pem'
+                        tar -C secrets/jwt-ci/private -cf - "ci-$BUILD_NUMBER.pem" | docker run --rm -i \
+                            -v "${CI_PROJECT_NAME}-jwt-private:/keys" mariadb:10.11 \
+                            sh -ec 'tar -xf - -C /keys; chmod 755 /keys; chmod 444 /keys/*.pem'
+
                         GRAFANA_CI_ADMIN_PASSWORD=$(openssl rand -hex 32)
                         GRAFANA_CI_SECRET_KEY=$(openssl rand -hex 32)
 
                         {
                             printf 'DB_PASSWORD=%s\\n' "$ERPMSA_DB_PASSWORD"
-                            printf 'JWT_SECRET_BASE64=%s\\n' "$ERPMSA_JWT_SECRET"
+                            printf 'JWT_SIGNING_KEY_ID=ci-%s\\n' "$BUILD_NUMBER"
+                            printf 'JWT_PUBLIC_KEYS_HOST_DIR=./secrets/jwt-ci/public\\n'
+                            printf 'JWT_PRIVATE_KEY_HOST_FILE=./secrets/jwt-ci/private/ci-%s.pem\\n' "$BUILD_NUMBER"
                             printf 'JWT_ISSUER=kosta-erp-account\\n'
                             printf 'JWT_AUDIENCE=kosta-erp-api\\n'
                             printf 'PROMETHEUS_RETENTION_TIME=1d\\n'
@@ -537,6 +545,7 @@ pipeline {
                         --connect-timeout 2 \
                         --max-time 10 \
                         -b "$COOKIE_FILE" \
+                        -c "$COOKIE_FILE" \
                         -o /dev/null \
                         -w '%{http_code}' \
                         -X POST \
@@ -551,6 +560,11 @@ pipeline {
                         -w '%{http_code}' \
                         -X POST \
                         http://gateway-server:7070/account/auth/logout)
+
+                    AFTER_LOGOUT_STATUS=$(curl -sS --connect-timeout 2 --max-time 10 \
+                        -b "$COOKIE_FILE" -o /dev/null -w '%{http_code}' -X POST \
+                        http://gateway-server:7070/account/auth/refresh)
+                    test "$AFTER_LOGOUT_STATUS" = "401"
 
                     printf \
                         'item_route=%s item_create=%s item_get=%s inventory_route=%s inventory_create=%s inventory_adjust=%s inventory_quantity=%s me=%s refresh=%s logout=%s\\n' \
@@ -683,6 +697,8 @@ pipeline {
                     "${CI_PROJECT_NAME}/grafana:${BUILD_NUMBER}" \
                     || true
 
+                docker volume rm "${CI_PROJECT_NAME}-jwt-public" "${CI_PROJECT_NAME}-jwt-private" || true
+                rm -rf secrets/jwt-ci
                 rm -f \
                     .env \
                     /tmp/erpmsa-ci-cookie.txt \

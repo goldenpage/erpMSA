@@ -12,7 +12,8 @@ AuditService는 `eventId`를 기준으로 중복 이벤트를 저장하지 않�
 
 - `application.yml` 또는 `application.yaml`에는 비밀정보를 저장하지 않습니다.
 - 공통 구조와 안전한 기본값만 Git으로 관리합니다.
-- DB 비밀번호, JWT 키, Grafana 관리자 비밀번호는 환경변수로 주입합니다.
+- DB 비밀번호와 Grafana 관리자 비밀번호는 환경변수로 주입합니다.
+- JWT는 RS256을 사용합니다. AccountService만 개인키 파일을 받으며, Gateway·Item·Inventory는 공개키만 받습니다.
 - 실제 `.env` 파일은 Git에 올리지 않고 `.env.example`만 공유합니다.
 - CI에서는 Jenkins Credentials로 비밀정보를 주입합니다.
 - 운영에서는 Vault, AWS Secrets Manager 등 별도의 Secret Manager 사용을 권장합니다.
@@ -27,12 +28,15 @@ AuditService는 `eventId`를 기준으로 중복 이벤트를 저장하지 않�
 cp .env.example .env
 ```
 
+JWT 키를 생성합니다. 기존 키를 덮어쓰지 않으며 `secrets/`는 Git과 Docker 빌드 컨텍스트에서 제외합니다.
+
+```bash
+./scripts/generate-jwt-keys.sh
+```
+
 다음 명령으로 비밀값을 생성한 후 대응하는 `.env` 항목에 입력합니다. 각 항목에는 서로 다른 값을 사용합니다.
 
 ```bash
-# JWT_SECRET_BASE64
-openssl rand -base64 64 | tr -d '\n'
-
 # GRAFANA_ADMIN_PASSWORD
 openssl rand -base64 32 | tr -d '\n'
 
@@ -222,9 +226,25 @@ V2 Outbox 마이그레이션만 적용합니다. 새 데이터베이스와 CI에
 
 ## 운영 환경 주의사항
 
-- `DB_PASSWORD`, `JWT_SECRET_BASE64`, `GRAFANA_ADMIN_PASSWORD`, `GRAFANA_SECRET_KEY`는 필수입니다.
+- `DB_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`, `GRAFANA_SECRET_KEY`와 JWT 키 파일은 필수입니다.
 - 운영에서는 `JPA_DDL_AUTO=validate`, `JPA_SHOW_SQL=false`를 사용합니다.
 - HTTPS 환경에서는 `COOKIE_SECURE=true`, `GRAFANA_COOKIE_SECURE=true`를 사용합니다.
 - 실제 자격증명을 Git 커밋, Docker 이미지, Jenkins 로그에 포함하지 않습니다.
 - Grafana의 기본 SQLite 저장소는 로컬 개발용이며 고가용성 운영 환경에서는 PostgreSQL 또는 MySQL을 사용합니다.
 - Prometheus 보존 기간과 볼륨 크기를 운영 트래픽에 맞게 설정합니다.
+
+## 4차 스프린트: 운영 검증
+
+[설계 선택과 키 교체 절차](docs/sprint4-design.md), [부하·장애 실험 절차](performance/README.md),
+[이벤트 계약](contracts/README.md)을 함께 관리합니다. 실험 데이터는 별도 Compose 프로젝트와 임시 DB에 생성합니다.
+측정 결과와 한계는 [실험 보고서](docs/sprint4-results.md)에 기록합니다.
+
+HS256 토큰은 RS256 전환 후 사용할 수 없으므로 최초 전환에는 재로그인이 필요합니다.
+이후 RS256 키 교체는 새 공개키 선배포 → 서명키 전환 → 기존 토큰 만료 대기 → 구키 제거 순서입니다.
+공개키는 시작 시 읽는 스냅샷이므로 파일 교체 후 각 검증 인스턴스를 순차 재시작합니다.
+Access와 Refresh의 기본 만료는 각각 15분과 14일입니다. Refresh를 포함한 키 폐기 정책을 적용합니다.
+
+Jenkins는 매 빌드 일회용 RSA 키를 생성합니다. Jenkins 컨테이너의 경로를 호스트에 bind mount하지 않고
+전용 공개키·개인키 볼륨에 전달하며, 종료 시 해당 빌드 볼륨을 제거합니다.
+개별 서비스 이미지 빌드는 공유 JWT 모듈을 포함하므로 저장소 루트에서
+`docker build -f ItemService/Dockerfile .`처럼 실행합니다.
