@@ -40,8 +40,8 @@ services:
     ports: !reset []
     environment: *java-lab
     mem_limit: 512m
-  item-service:
-    image: erpmsa-sprint4/item-service:lab
+  foodmaterials-service:
+    image: erpmsa-sprint4/foodmaterials-service:lab
     ports: !reset []
     environment: *java-lab
     mem_limit: 512m
@@ -49,7 +49,7 @@ services:
 
   inventory-service:
     image: erpmsa-sprint4/inventory-service:lab
-    ports: !reset []
+    ports: !override ["127.0.0.1:17081:7081"]
     environment: *java-lab
     mem_limit: 512m
     cpus: 1
@@ -75,6 +75,42 @@ services:
     working_dir: /work
     mem_limit: 512m
     cpus: 1
+
+  menus-service:
+    image: erpmsa-sprint4/menus-service:lab
+    ports: !reset []
+    environment: *java-lab
+    mem_limit: 256m
+    cpus: 1
+
+  notices-service:
+    image: erpmsa-sprint4/notices-service:lab
+    ports: !reset []
+    environment: *java-lab
+    mem_limit: 256m
+    cpus: 1
+
+  bills-service:
+    image: erpmsa-sprint4/bills-service:lab
+    ports: !reset []
+    environment: *java-lab
+    mem_limit: 256m
+    cpus: 1
+
+  purchase-service:
+    image: erpmsa-sprint4/purchase-service:lab
+    ports: !reset []
+    environment: *java-lab
+    mem_limit: 256m
+    cpus: 1
+
+  disposals-service:
+    image: erpmsa-sprint4/disposals-service:lab
+    ports: !reset []
+    environment: *java-lab
+    mem_limit: 256m
+    cpus: 1
+
 
 # Base Compose uses explicit global volume names. Override even currently unused
 # volumes so `down -v` can never select the application's persistent volumes.

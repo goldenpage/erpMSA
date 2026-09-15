@@ -68,7 +68,7 @@ class GatewayJwtFilterTest {
     void OPTIONS_요청은_토큰_없이_통과한다() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest(
             "OPTIONS",
-            "/orders/1"
+            "/account/auth/me"
         );
         MockHttpServletResponse response = new MockHttpServletResponse();
         FilterChain chain = mock(FilterChain.class);
@@ -82,7 +82,7 @@ class GatewayJwtFilterTest {
     void 보호된_API에_토큰이_없으면_401을_반환한다() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest(
             "GET",
-            "/orders/1"
+            "/account/auth/me"
         );
         MockHttpServletResponse response = new MockHttpServletResponse();
         FilterChain chain = mock(FilterChain.class);
@@ -98,7 +98,7 @@ class GatewayJwtFilterTest {
         assertThat(body.get("code").stringValue())
             .isEqualTo("AUTHENTICATION_REQUIRED");
         assertThat(body.get("path").stringValue())
-            .isEqualTo("/orders/1");
+            .isEqualTo("/account/auth/me");
         assertThat(body.get("fieldErrors").isArray()).isTrue();
         verify(chain, never()).doFilter(request, response);
     }
@@ -190,7 +190,7 @@ class GatewayJwtFilterTest {
     private MockHttpServletRequest protectedRequest(String token) {
         MockHttpServletRequest request = new MockHttpServletRequest(
             "GET",
-            "/orders/1"
+            "/account/auth/me"
         );
         request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + token);
         return request;
@@ -231,7 +231,7 @@ class GatewayJwtFilterTest {
         assertThat(body.get("code").stringValue())
             .isEqualTo("INVALID_ACCESS_TOKEN");
         assertThat(body.get("path").stringValue())
-            .isEqualTo("/orders/1");
+            .isEqualTo("/account/auth/me");
         verify(chain, never()).doFilter(request, response);
     }
 }

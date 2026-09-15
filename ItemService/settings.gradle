@@ -1,4 +1,0 @@
-rootProject.name = 'ItemService'
-
-include 'jwt-security'
-project(':jwt-security').projectDir = file('../shared/jwt-security')

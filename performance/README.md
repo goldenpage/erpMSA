@@ -1,4 +1,7 @@
-# 품목 목록 부하·장애 실험
+# FoodMaterials 목록 부하·장애 실험
+
+이 도구는 FoodMaterials 카탈로그와 내부 Inventory를 대상으로 한다. 목표 업무 서비스의 명칭과 경로는
+[서비스 설계 기준](../docs/service-architecture.md)을 따르며, 전환 후 데이터·API·검증 항목을 갱신해야 한다.
 
 모든 명령은 저장소 루트에서 실행한다. `lab.py`는 고정 프로젝트 `erpmsa-sprint4-lab`과
 전용 `.env`를 사용한다. DB 작업 전에 Compose label과 `/var/lib/mysql` tmpfs를 검사한다.
@@ -39,7 +42,7 @@ python3 performance/lab.py down
 
 실험의 key·DB 암호는 prepare에서 생성된다. users.json에는 4시간 유효한 실험 전용 토큰이 있으므로
 Git에 추가하지 않는다. 결과 폴더는 기본 ignore 대상이며, 공유 보고서에는 토큰 없는 통계만 옮긴다.
-토큰이 만료되면 실험 환경을 재생성한다. 운영 세션 TTL은 변경하지 않는다.
+토큰이 만료되면 실험 환경을 재생성한다. Inventory 검증은 실험 환경에만 공개한 17081 포트로 직접 호출한다. 운영 세션 TTL은 변경하지 않는다.
 `up`의 Docker 빌드 중에 부하를 측정하지 않는다. 부하 발생기도 같은 Docker VM의 자원을 사용한다.
 
 ## 데이터와 요청 가설
@@ -74,6 +77,8 @@ Eureka 서버의 UP 등록만으로 Gateway 캐시까지 갱신됐다고 판단�
 `*-conditions.json`: 요청률/기간/경로/시각/프로세스 종료 상태.
 `*-metrics.json`: Prometheus 쿼리, 컨테이너 상태·메모리 제한·CPU 제한, docker stats.
 `*-sql.json`: 실제 SQL 실행계획 다섯 회 표본. 테스트 실패도 결과를 저장한 뒤 비정상 종료한다.
+
+과거 Item 측정 파일과 새 결과를 섞지 않는다. `summarize.py`는 기본적으로 `results/summary.json`에 저장한다.
 
 Grafana `ErpMSA Sprint 4 Diagnostics`는 인스턴스별 요청·지연, Hikari 연결/대기,
 GC 이후 live data, GC 시간, Outbox 적체와 가장 오래된 이벤트 나이를 제공한다.

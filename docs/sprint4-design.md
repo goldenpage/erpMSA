@@ -1,5 +1,9 @@
 # 4차 스프린트 설계 결정
 
+> 이 문서는 기존 Account·Item·Inventory·Audit 구현에 대한 기술 결정 이력이다.
+> 목표 업무 서비스 구조는 [서비스 설계 기준](service-architecture.md)을 따른다.
+> 아래 Item/Inventory 구성을 FoodMaterials/Notices 등의 설계로 대체 해석하지 않는다.
+
 목표는 기존 인증·품목·재고·감사 흐름의 권한 경계와 운영 한계를 설명하고 검증하는 것이다.
 신규 주문 서비스, Kubernetes 전환, 운영 환경 배포는 이 스프린트에 포함하지 않는다.
 

@@ -39,15 +39,27 @@ def main():
     status, login = auth('/account/auth/login',{'email':email,'password':password})
     assert status == 200
     token=login['accessToken']
+    # New service processes must route to their own authenticated, explicitly incomplete contracts.
+    for path,name in [('menus','MenusService'),('notices','NoticesService'),('bills','BillsService'),('purchase','PurchaseService'),('disposals','DisposalsService')]:
+        for _ in range(60):
+            code,payload=lab.request('/'+path,token=token)
+            if code==501: break
+            time.sleep(1)
+        assert code==501, f'{name} route: {code}'
+        assert json.loads(payload)['service']==name
+        assert json.loads(payload)['code']=='ENDPOINT_NOT_IMPLEMENTED'
+        assert lab.request('/'+path)[0]==401
+    assert lab.request('/items',token=token)[0]==404
+    assert lab.request('/orders',token=token)[0]==404
     old=refresh_value()
     assert auth('/account/auth/refresh')[0] == 200
     rotated=refresh_value()
     assert old != rotated and replay(old) == 401
     assert auth('/account/auth/logout')[0] == 204 and replay(rotated) == 401
-    assert lab.request('/items')[0] == 401
-    status,body=lab.request('/items','POST',{'sku':f'SMOKE-{number}','name':'Smoke','unitPrice':1000},token)
+    assert lab.request('/foodmaterials')[0] == 401
+    status,body=lab.request('/foodmaterials','POST',{'sku':f'SMOKE-{number}','name':'Smoke','unitPrice':1000},token)
     assert status == 201, f'item: {status}'
-    item=json.loads(body)['itemId']
+    item=json.loads(body)['foodMaterialId']
     status,body=lab.request('/inventories','POST',{'itemId':item,'initialQuantity':20},token)
     assert status == 201, f'inventory: {status}'
     version=json.loads(body)['version']
@@ -89,8 +101,8 @@ def main():
     assert invalid in dlt.stdout.splitlines(), 'This run\'s invalid event did not reach DLT'
     assert int(lab.sql(f"SELECT COUNT(*) FROM auditdb.audit_event WHERE aggregate_id='{account}';"))==1
     lab.save('smoke',{'refreshRotation':True,'oldRefreshRejected':True,'logoutReplayRejected':True,
-        'itemInventoryRouting':True,'parallelAdjustments':{'success':1,'conflict':9,'quantity':19,'movements':2},
+        'foodMaterialsInternalInventoryRouting':True,'designedServiceRoutes':5,'legacyRoutesRemoved':True,'parallelAdjustments':{'success':1,'conflict':9,'quantity':19,'movements':2},
         'tenantBoundary':True,'duplicateEventCount':1,'malformedEventDlt':True})
-    print('PASS: RSA auth/refresh/logout, Item→Inventory, 10 concurrent adjustments, tenant boundary, duplicate event and DLT')
+    print('PASS: RSA auth/refresh/logout, FoodMaterials→internal Inventory, 10 concurrent adjustments, tenant boundary, duplicate event and DLT')
 
 if __name__=='__main__': main()

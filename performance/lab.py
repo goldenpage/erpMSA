@@ -20,6 +20,7 @@ RESULTS = HERE / 'results'
 ENV = HERE / '.env'
 PROJECT = 'erpmsa-sprint4-lab'
 GATEWAY = 'http://127.0.0.1:17070'
+INVENTORY = 'http://127.0.0.1:17081'
 
 def compose(*args, capture=False, input=None, check=True):
     command = ['docker', 'compose', '--env-file', str(ENV), '-p', PROJECT,
@@ -55,7 +56,7 @@ def request(path, method='GET', body=None, token=None):
     headers = {'Content-Type': 'application/json'}
     if token: headers['Authorization'] = 'Bearer ' + token
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(GATEWAY + path, data=data, headers=headers, method=method)
+    req = urllib.request.Request((INVENTORY if path.startswith('/inventories') else GATEWAY) + path, data=data, headers=headers, method=method)
     try:
         with urllib.request.urlopen(req, timeout=10) as response:
             return response.status, response.read().decode()
@@ -77,7 +78,7 @@ def wait_gateway():
         try:
             ready = request('/account/auth/login')[0] == 405
             if token:
-                ready = ready and request('/items?page=0&size=20', token=token)[0] == 200
+                ready = ready and request('/foodmaterials?page=0&size=20', token=token)[0] == 200
         except (OSError, urllib.error.URLError):
             ready = False
         consecutive = consecutive + 1 if ready else 0
@@ -171,7 +172,7 @@ def capture(label):
     # Never serialize Config.Env or token-bearing request headers.
     output['stats'] = compose('stats', '--no-stream', '--format', 'json', capture=True, check=False).stdout
     save(label + '-metrics', output)
-    logs = compose('logs','--no-color','--since','5m','--tail','1000','item-service',capture=True,check=False)
+    logs = compose('logs','--no-color','--since','5m','--tail','1000','foodmaterials-service',capture=True,check=False)
     (RESULTS / (label + '-item-gc.log')).write_text(logs.stdout)
 
 def query_plan(label):
@@ -210,7 +211,7 @@ def outage(service, seconds):
         statuses = {}
         started = time.monotonic()
         while time.monotonic() - started < seconds:
-            try: status, _ = request('/items?page=0&size=20', token=token)
+            try: status, _ = request('/foodmaterials?page=0&size=20', token=token)
             except (OSError, urllib.error.URLError): status = 0
             statuses[str(status)] = statuses.get(str(status), 0) + 1
             time.sleep(0.2)
@@ -237,8 +238,8 @@ def outage(service, seconds):
 def kill_one(seconds):
     verify_lab()
     wait_gateway()
-    ids = compose('ps','-q','item-service',capture=True).stdout.split()
-    if len(ids) < 2: raise SystemExit('Scale item-service to at least two replicas first.')
+    ids = compose('ps','-q','foodmaterials-service',capture=True).stdout.split()
+    if len(ids) < 2: raise SystemExit('Scale foodmaterials-service to at least two replicas first.')
     target = ids[-1]
     capture('before-item-kill')
     subprocess.run(['docker','kill','--signal','KILL',target],check=True,stdout=subprocess.DEVNULL)
@@ -247,7 +248,7 @@ def kill_one(seconds):
         statuses = {}
         started = time.monotonic()
         while time.monotonic()-started < seconds:
-            try: status, _ = request('/items?page=0&size=20',token=token)
+            try: status, _ = request('/foodmaterials?page=0&size=20',token=token)
             except (OSError,urllib.error.URLError): status=0
             statuses[str(status)] = statuses.get(str(status),0)+1
             time.sleep(0.2)
@@ -268,7 +269,7 @@ def main():
     parser.add_argument('--direct', action='store_true')
     parser.add_argument('--rows', type=int, default=10000)
     parser.add_argument('--replicas', type=int, choices=[1,2,3], default=2)
-    parser.add_argument('--service', choices=['kafka','eureka-server','item-service'], default='kafka')
+    parser.add_argument('--service', choices=['kafka','eureka-server','foodmaterials-service'], default='kafka')
     parser.add_argument('--seconds', type=int, default=20)
     parser.add_argument('--state', choices=['baseline','indexed'], default='indexed')
     args = parser.parse_args()
@@ -283,15 +284,17 @@ def main():
     elif args.command == 'seed': seed(args.rows)
     elif args.command == 'run':
         verify_lab()
-        base = 'http://item-service:7073' if args.direct else 'http://gateway-server:7070'
+        base = 'http://foodmaterials-service:7073' if args.direct else 'http://gateway-server:7070'
         capture(args.label + '-before')
         result = compose('run','--rm','--no-deps','-e',f'BASE_URL={base}','-e',f'RATE={args.rate}',
             '-e',f'DURATION={args.duration}','-e',f'PROFILE={args.profile}','-e',f'LABEL={args.label}',
-            'k6','run','/work/items.js', check=False)
+            '-e',f'USERS_FILE=/work/{RESULTS.relative_to(HERE)}/users.json',
+            '-e',f'RESULTS_DIR=/work/{RESULTS.relative_to(HERE)}',
+            'k6','run','/work/foodmaterials.js', check=False)
         save(args.label + '-conditions', {'rate':args.rate,'duration':args.duration,'profile':args.profile,
             'base':base,'exitCode':result.returncode,'at':dt.datetime.now(dt.timezone.utc).isoformat(),
             'preAllocatedVUs':150,'maxVUs':150,
-            'workloadSha256':hashlib.sha256((HERE/'items.js').read_bytes()).hexdigest(),
+            'workloadSha256':hashlib.sha256((HERE/'foodmaterials.js').read_bytes()).hexdigest(),
             'datasetSha256':hashlib.sha256((RESULTS/'dataset.json').read_bytes()).hexdigest()})
         capture(args.label + '-after')
         raise SystemExit(result.returncode)
@@ -306,7 +309,7 @@ def main():
         save('index-state', {'state':args.state,'at':dt.datetime.now(dt.timezone.utc).isoformat()})
     elif args.command == 'scale':
         verify_lab(); compose('up','-d','--no-deps','--wait','--wait-timeout','180',
-                             '--scale',f'item-service={args.replicas}','item-service')
+                             '--scale',f'foodmaterials-service={args.replicas}','foodmaterials-service')
     elif args.command == 'outage': outage(args.service,args.seconds)
     elif args.command == 'kill-one': kill_one(args.seconds)
     elif args.command == 'down':

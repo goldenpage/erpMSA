@@ -152,12 +152,22 @@ pipeline {
                     }
                 }
 
-                stage('Item Test') {
+                stage('FoodMaterials Test') {
                     steps {
                         sh '''
-                            ./ItemService/gradlew \
-                                -p ItemService \
+                            ./FoodMaterialsService/gradlew \
+                                -p FoodMaterialsService \
                                 test --no-daemon
+                        '''
+                    }
+                }
+
+                stage('Designed Services Test') {
+                    steps {
+                        sh '''
+                            for SERVICE in MenusService NoticesService BillsService PurchaseService DisposalsService; do
+                                ./$SERVICE/gradlew -p "$SERVICE" test --no-daemon
+                            done
                         '''
                     }
                 }
@@ -234,7 +244,7 @@ pipeline {
                             --max-time 10 \
                             --get \
                             --data-urlencode \
-                            'query=up{job=~"eureka-server|account-service|audit-service|item-service|inventory-service|gateway-server"}' \
+                            'query=up{job=~"eureka-server|account-service|audit-service|foodmaterials-service|inventory-service|menus-service|notices-service|bills-service|purchase-service|disposals-service|gateway-server"}' \
                             -o "$PROMETHEUS_FILE" \
                             http://prometheus:9090/api/v1/query; then
 
@@ -244,11 +254,11 @@ pipeline {
                         fi
 
                         printf \
-                        'Prometheus target check: attempt=%s up=%s/6\n' \
+                        'Prometheus target check: attempt=%s up=%s/11\n' \
                             "$ATTEMPT" \
                             "$TARGET_COUNT"
 
-                        if [ "$TARGET_COUNT" -eq 6 ]; then
+                        if [ "$TARGET_COUNT" -eq 11 ]; then
                             break
                         fi
 
@@ -274,7 +284,7 @@ pipeline {
 
                     test "$PROMETHEUS_STATUS" = "200"
                     test "$GRAFANA_STATUS" = "200"
-                    test "$TARGET_COUNT" -eq 6
+                    test "$TARGET_COUNT" -eq 11
                     test "$DASHBOARD_COUNT" -eq 1
 
                     rm -f "$PROMETHEUS_FILE"
@@ -290,7 +300,7 @@ pipeline {
 
                     COOKIE_FILE=/tmp/erpmsa-ci-cookie.txt
                     LOGIN_FILE=/tmp/erpmsa-ci-login.json
-                    ITEM_FILE=/tmp/erpmsa-ci-item.json
+                    FOOD_MATERIAL_FILE=/tmp/erpmsa-ci-foodmaterial.json
                     INVENTORY_FILE=/tmp/erpmsa-ci-inventory.json
                     ADJUSTMENT_FILE=/tmp/erpmsa-ci-adjustment.json
                     BUSINESS_ID=$(printf '%010d' "$BUILD_NUMBER")
@@ -393,68 +403,84 @@ pipeline {
                         exit 1
                     fi
 
-                    ITEM_ROUTE_STATUS=000
+                    # Verify discovery and honest 501 contracts for the five new domain shells.
+                    for SERVICE_PATH in menus notices bills purchase disposals; do
+                        SHELL_STATUS=000
+                        for ATTEMPT in $(seq 1 45); do
+                            SHELL_STATUS=$(curl -sS --connect-timeout 2 --max-time 5 \
+                                -o /tmp/erpmsa-ci-service-contract.json -w '%{http_code}' \
+                                -H "Authorization: Bearer $ACCESS_TOKEN" \
+                                "http://gateway-server:7070/$SERVICE_PATH" || true)
+                            if [ "$SHELL_STATUS" = "501" ]; then break; fi
+                            sleep 2
+                        done
+                        test "$SHELL_STATUS" = "501"
+                        test "$(jq -r '.code' /tmp/erpmsa-ci-service-contract.json)" = "ENDPOINT_NOT_IMPLEMENTED"
+                    done
+                    rm -f /tmp/erpmsa-ci-service-contract.json
+
+                    FOOD_MATERIAL_ROUTE_STATUS=000
 
                     for ATTEMPT in $(seq 1 30); do
-                        ITEM_ROUTE_STATUS=$(curl \
+                        FOOD_MATERIAL_ROUTE_STATUS=$(curl \
                             -sS \
                             --connect-timeout 2 \
                             --max-time 5 \
                             -o /dev/null \
                             -w '%{http_code}' \
                             -H "Authorization: Bearer $ACCESS_TOKEN" \
-                            http://gateway-server:7070/items \
+                            http://gateway-server:7070/foodmaterials \
                             || true)
 
                         printf \
-                            'Item route check: attempt=%s status=%s\\n' \
+                            'FoodMaterials route check: attempt=%s status=%s\\n' \
                             "$ATTEMPT" \
-                            "$ITEM_ROUTE_STATUS"
+                            "$FOOD_MATERIAL_ROUTE_STATUS"
 
-                        if [ "$ITEM_ROUTE_STATUS" = "200" ]; then
+                        if [ "$FOOD_MATERIAL_ROUTE_STATUS" = "200" ]; then
                             break
                         fi
 
                         sleep 2
                     done
 
-                    test "$ITEM_ROUTE_STATUS" = "200"
+                    test "$FOOD_MATERIAL_ROUTE_STATUS" = "200"
 
-                    ITEM_BODY=$(jq -nc \
+                    FOOD_MATERIAL_BODY=$(jq -nc \
                         --arg sku "JENKINS-$BUILD_NUMBER" \
                         '{
                             sku: $sku,
-                            name: "Jenkins Item",
+                            name: "Jenkins FoodMaterial",
                             description: "CI smoke test",
                             unitPrice: 1000.00
                         }')
 
-                    ITEM_CREATE_STATUS=$(curl \
+                    FOOD_MATERIAL_CREATE_STATUS=$(curl \
                         -sS \
                         --connect-timeout 2 \
                         --max-time 10 \
-                        -o "$ITEM_FILE" \
+                        -o "$FOOD_MATERIAL_FILE" \
                         -w '%{http_code}' \
                         -H "Authorization: Bearer $ACCESS_TOKEN" \
                         -H 'Content-Type: application/json' \
-                        --data "$ITEM_BODY" \
-                        http://gateway-server:7070/items)
+                        --data "$FOOD_MATERIAL_BODY" \
+                        http://gateway-server:7070/foodmaterials)
 
-                    ITEM_ID=$(jq -r '.itemId // empty' "$ITEM_FILE")
+                    FOOD_MATERIAL_ID=$(jq -r '.foodMaterialId // empty' "$FOOD_MATERIAL_FILE")
 
-                    if [ -z "$ITEM_ID" ]; then
-                        echo 'Item ID가 반환되지 않았습니다.'
+                    if [ -z "$FOOD_MATERIAL_ID" ]; then
+                        echo 'FoodMaterial ID가 반환되지 않았습니다.'
                         exit 1
                     fi
 
-                    ITEM_GET_STATUS=$(curl \
+                    FOOD_MATERIAL_GET_STATUS=$(curl \
                         -sS \
                         --connect-timeout 2 \
                         --max-time 10 \
                         -o /dev/null \
                         -w '%{http_code}' \
                         -H "Authorization: Bearer $ACCESS_TOKEN" \
-                        "http://gateway-server:7070/items/$ITEM_ID")
+                        "http://gateway-server:7070/foodmaterials/$FOOD_MATERIAL_ID")
 
                     INVENTORY_ROUTE_STATUS=000
 
@@ -466,7 +492,7 @@ pipeline {
                             -o /dev/null \
                             -w '%{http_code}' \
                             -H "Authorization: Bearer $ACCESS_TOKEN" \
-                            http://gateway-server:7070/inventories \
+                            http://inventory-service:7081/inventories \
                             || true)
 
                         printf \
@@ -484,7 +510,7 @@ pipeline {
                     test "$INVENTORY_ROUTE_STATUS" = "200"
 
                     INVENTORY_BODY=$(jq -nc \
-                        --argjson itemId "$ITEM_ID" \
+                        --argjson itemId "$FOOD_MATERIAL_ID" \
                         '{itemId: $itemId, initialQuantity: 20}')
 
                     INVENTORY_CREATE_STATUS=$(curl \
@@ -496,7 +522,7 @@ pipeline {
                         -H "Authorization: Bearer $ACCESS_TOKEN" \
                         -H 'Content-Type: application/json' \
                         --data "$INVENTORY_BODY" \
-                        http://gateway-server:7070/inventories)
+                        http://inventory-service:7081/inventories)
 
                     INVENTORY_VERSION=$(jq -r '.version // empty' \
                         "$INVENTORY_FILE")
@@ -525,7 +551,7 @@ pipeline {
                         -H "Authorization: Bearer $ACCESS_TOKEN" \
                         -H 'Content-Type: application/json' \
                         --data "$ADJUSTMENT_BODY" \
-                        "http://gateway-server:7070/inventories/$ITEM_ID/adjustments")
+                        "http://inventory-service:7081/inventories/$FOOD_MATERIAL_ID/adjustments")
 
                     INVENTORY_QUANTITY=$(jq -r \
                         '.inventory.onHandQuantity // empty' \
@@ -568,9 +594,9 @@ pipeline {
 
                     printf \
                         'item_route=%s item_create=%s item_get=%s inventory_route=%s inventory_create=%s inventory_adjust=%s inventory_quantity=%s me=%s refresh=%s logout=%s\\n' \
-                        "$ITEM_ROUTE_STATUS" \
-                        "$ITEM_CREATE_STATUS" \
-                        "$ITEM_GET_STATUS" \
+                        "$FOOD_MATERIAL_ROUTE_STATUS" \
+                        "$FOOD_MATERIAL_CREATE_STATUS" \
+                        "$FOOD_MATERIAL_GET_STATUS" \
                         "$INVENTORY_ROUTE_STATUS" \
                         "$INVENTORY_CREATE_STATUS" \
                         "$INVENTORY_ADJUST_STATUS" \
@@ -579,8 +605,8 @@ pipeline {
                         "$REFRESH_STATUS" \
                         "$LOGOUT_STATUS"
 
-                    test "$ITEM_CREATE_STATUS" = "201"
-                    test "$ITEM_GET_STATUS" = "200"
+                    test "$FOOD_MATERIAL_CREATE_STATUS" = "201"
+                    test "$FOOD_MATERIAL_GET_STATUS" = "200"
                     test "$INVENTORY_CREATE_STATUS" = "201"
                     test "$INVENTORY_ADJUST_STATUS" = "200"
                     test "$INVENTORY_QUANTITY" = "17"
@@ -591,7 +617,7 @@ pipeline {
                     rm -f \
                         "$COOKIE_FILE" \
                         "$LOGIN_FILE" \
-                        "$ITEM_FILE" \
+                        "$FOOD_MATERIAL_FILE" \
                         "$INVENTORY_FILE" \
                         "$ADJUSTMENT_FILE"
                 '''
@@ -690,8 +716,13 @@ pipeline {
                     "${CI_PROJECT_NAME}/eureka-server:${BUILD_NUMBER}" \
                     "${CI_PROJECT_NAME}/account-service:${BUILD_NUMBER}" \
                     "${CI_PROJECT_NAME}/audit-service:${BUILD_NUMBER}" \
-                    "${CI_PROJECT_NAME}/item-service:${BUILD_NUMBER}" \
+                    "${CI_PROJECT_NAME}/foodmaterials-service:${BUILD_NUMBER}" \
                     "${CI_PROJECT_NAME}/inventory-service:${BUILD_NUMBER}" \
+                    "${CI_PROJECT_NAME}/menus-service:${BUILD_NUMBER}" \
+                    "${CI_PROJECT_NAME}/notices-service:${BUILD_NUMBER}" \
+                    "${CI_PROJECT_NAME}/bills-service:${BUILD_NUMBER}" \
+                    "${CI_PROJECT_NAME}/purchase-service:${BUILD_NUMBER}" \
+                    "${CI_PROJECT_NAME}/disposals-service:${BUILD_NUMBER}" \
                     "${CI_PROJECT_NAME}/gateway-server:${BUILD_NUMBER}" \
                     "${CI_PROJECT_NAME}/prometheus:${BUILD_NUMBER}" \
                     "${CI_PROJECT_NAME}/grafana:${BUILD_NUMBER}" \
@@ -703,7 +734,7 @@ pipeline {
                     .env \
                     /tmp/erpmsa-ci-cookie.txt \
                     /tmp/erpmsa-ci-login.json \
-                    /tmp/erpmsa-ci-item.json \
+                    /tmp/erpmsa-ci-foodmaterial.json \
                     /tmp/erpmsa-ci-inventory.json \
                     /tmp/erpmsa-ci-adjustment.json \
                     /tmp/erpmsa-ci-prometheus.json

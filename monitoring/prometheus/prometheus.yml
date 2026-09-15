@@ -29,13 +29,13 @@ scrape_configs:
     dns_sd_configs:
       - names: ["audit-service"]
         type: A
-        port: 7072
+        port: 7080
         refresh_interval: 10s
 
-  - job_name: item-service
+  - job_name: foodmaterials-service
     metrics_path: /actuator/prometheus
     dns_sd_configs:
-      - names: ["item-service"]
+      - names: ["foodmaterials-service"]
         type: A
         port: 7073
         refresh_interval: 10s
@@ -45,7 +45,7 @@ scrape_configs:
     dns_sd_configs:
       - names: ["inventory-service"]
         type: A
-        port: 7074
+        port: 7081
         refresh_interval: 10s
 
   - job_name: gateway-server
@@ -54,4 +54,44 @@ scrape_configs:
       - names: ["gateway-server"]
         type: A
         port: 7070
+        refresh_interval: 10s
+
+  - job_name: menus-service
+    metrics_path: /actuator/prometheus
+    dns_sd_configs:
+      - names: ["menus-service"]
+        type: A
+        port: 7072
+        refresh_interval: 10s
+
+  - job_name: notices-service
+    metrics_path: /actuator/prometheus
+    dns_sd_configs:
+      - names: ["notices-service"]
+        type: A
+        port: 7074
+        refresh_interval: 10s
+
+  - job_name: bills-service
+    metrics_path: /actuator/prometheus
+    dns_sd_configs:
+      - names: ["bills-service"]
+        type: A
+        port: 7075
+        refresh_interval: 10s
+
+  - job_name: purchase-service
+    metrics_path: /actuator/prometheus
+    dns_sd_configs:
+      - names: ["purchase-service"]
+        type: A
+        port: 7076
+        refresh_interval: 10s
+
+  - job_name: disposals-service
+    metrics_path: /actuator/prometheus
+    dns_sd_configs:
+      - names: ["disposals-service"]
+        type: A
+        port: 7077
         refresh_interval: 10s

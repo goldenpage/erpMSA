@@ -1,0 +1,13 @@
+plugins { id 'java-library' }
+java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
+repositories { mavenCentral() }
+dependencies {
+    api platform('org.springframework.boot:spring-boot-dependencies:4.1.0')
+    api platform('org.springframework.cloud:spring-cloud-dependencies:2025.1.2')
+    api 'org.springframework.boot:spring-boot-starter-web'
+    api 'org.springframework.boot:spring-boot-starter-actuator'
+    api 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+    implementation project(':jwt-security')
+    runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+}
+layout.buildDirectory = rootProject.layout.buildDirectory.dir('service-foundation')

@@ -10,7 +10,7 @@ import com.auth0.jwt.JWT;
 import com.oopsw.security.JwtTestKeys;
 import com.oopsw.inventoryservice.api.ApiErrorCode;
 import com.oopsw.inventoryservice.api.ApiException;
-import com.oopsw.inventoryservice.client.ItemCatalogClient;
+import com.oopsw.inventoryservice.client.FoodMaterialCatalogClient;
 import com.oopsw.inventoryservice.domain.InventoryRepository;
 import com.oopsw.inventoryservice.domain.StockMovementRepository;
 import com.oopsw.inventoryservice.support.TestcontainersConfiguration;
@@ -232,7 +232,7 @@ class InventoryServiceIntegrationTest {
 
         @Bean
         @Primary
-        ItemCatalogClient itemCatalogClient() {
+        FoodMaterialCatalogClient itemCatalogClient() {
             return (itemId, authorization) -> {
                 if (itemId == 999L) {
                     throw new ApiException(ApiErrorCode.ITEM_NOT_FOUND);

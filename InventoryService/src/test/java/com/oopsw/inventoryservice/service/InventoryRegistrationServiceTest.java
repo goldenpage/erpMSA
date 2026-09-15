@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.when;
 
-import com.oopsw.inventoryservice.client.ItemCatalogClient;
+import com.oopsw.inventoryservice.client.FoodMaterialCatalogClient;
 import com.oopsw.inventoryservice.web.dto.CreateInventoryRequest;
 import com.oopsw.inventoryservice.web.dto.InventoryResponse;
 import org.junit.jupiter.api.Test;
@@ -17,7 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class InventoryRegistrationServiceTest {
 
     @Mock
-    private ItemCatalogClient itemCatalogClient;
+    private FoodMaterialCatalogClient itemCatalogClient;
 
     @Mock
     private InventoryService inventoryService;
@@ -45,7 +45,7 @@ class InventoryRegistrationServiceTest {
         );
 
         var ordered = inOrder(itemCatalogClient, inventoryService);
-        ordered.verify(itemCatalogClient).verifyOwnedItem(
+        ordered.verify(itemCatalogClient).verifyOwnedFoodMaterial(
             100L,
             "Bearer token"
         );

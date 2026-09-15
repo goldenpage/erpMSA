@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Export only allowlisted measurements; never export tokens, env or raw logs."""
+import argparse
 import json
 import statistics
 from pathlib import Path
@@ -11,6 +12,12 @@ def read(name):
     return json.loads((RESULTS / (name + '.json')).read_text())
 
 def main():
+    global RESULTS
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--results-dir', type=Path, default=RESULTS)
+    parser.add_argument('--output', type=Path)
+    args = parser.parse_args()
+    RESULTS = args.results_dir
     output = {'dataset': read('dataset'), 'http': {}, 'sql': {}, 'faults': {}}
     for label in ['baseline-v2-gateway', 'baseline-v2-direct', 'indexed-gateway', 'indexed-direct', 'final-one', 'final-two']:
         data, conditions = read(label), read(label + '-conditions')
@@ -48,9 +55,11 @@ def main():
             'confounded': True,
         }
     replicas = read('final-two-after-metrics')['queries']['rps']['data']['result']
-    output['itemReplicaRps'] = [float(r['value'][1]) for r in replicas if r['metric'].get('job') == 'item-service']
-    destination = ROOT / 'docs/sprint4-measurements.json'
+    output['serviceReplicaRps'] = [float(r['value'][1]) for r in replicas if r['metric'].get('job') in ['item-service', 'foodmaterials-service']]
+    assert len({v['conditions']['workloadSha256'] for v in output['http'].values()}) == 1, 'Do not mix different workloads'
+    assert len({v['conditions']['datasetSha256'] for v in output['http'].values()}) == 1, 'Do not mix different datasets'
+    destination = args.output or RESULTS / 'summary.json'
     destination.write_text(json.dumps(output, ensure_ascii=False, indent=2) + '\n')
-    print('Exported token-free measurements to docs/sprint4-measurements.json')
+    print('Exported token-free measurements to', destination)
 
 if __name__ == '__main__': main()

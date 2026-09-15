@@ -9,32 +9,37 @@ spring:
       server:
         webmvc:
           routes:
-          - id: Account-service
-            uri: lb://AccountService #Eureka 서비스에 등록된 이름만 사용 가능 -> 같은 컴퓨터는 가능
-            #uri: http://localhost:7001 # .before(uri("http://localhost:7001"))
+          - id: account-service
+            uri: lb://ACCOUNTSERVICE
             predicates:
-              - Path=/account/**         # .GET("/users/**")
+              - Path=/account/**
             filters:
               - AddRequestHeader=X-Gateway-Request, true
               - AddResponseHeader=X-Gateway-Response, true
-          #filters:
-          #- StripPrefix=1 mapping하는 네이미을 같이하기에 안씀   # .before(stripPrefix(1))매핑
-          - id: item-service
-            uri: lb://ITEMSERVICE
+          - id: menus-service
+            uri: lb://MENUSSERVICE
             predicates:
-              - Path=/items/**
-          #            filters:
-          #              - StripPrefix=1
-          - id: inventory-service
-            uri: lb://INVENTORYSERVICE
+              - Path=/menus/**
+          - id: foodmaterials-service
+            uri: lb://FOODMATERIALSSERVICE
             predicates:
-              - Path=/inventories/**
-          - id: order-service
-            uri: lb://ORDERSERVICE
+              - Path=/foodmaterials/**
+          - id: notices-service
+            uri: lb://NOTICESSERVICE
             predicates:
-              - Path=/orders/**
-#            filters:
-#              - StripPrefix=1
+              - Path=/notices/**
+          - id: bills-service
+            uri: lb://BILLSSERVICE
+            predicates:
+              - Path=/bills/**
+          - id: purchase-service
+            uri: lb://PURCHASESERVICE
+            predicates:
+              - Path=/purchase/**
+          - id: disposals-service
+            uri: lb://DISPOSALSSERVICE
+            predicates:
+              - Path=/disposals/**
 
 
 eureka:

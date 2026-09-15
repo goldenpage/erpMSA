@@ -21,7 +21,7 @@ spring:
     baseline-on-migrate: "${INVENTORY_FLYWAY_BASELINE_ON_MIGRATE:false}"
 
 server:
-  port: "${INVENTORY_SERVER_PORT:7074}"
+  port: "${INVENTORY_SERVER_PORT:7081}"
 
 eureka:
   instance:
@@ -52,5 +52,5 @@ app:
     issuer: "${JWT_ISSUER:kosta-erp-account}"
     audience: "${JWT_AUDIENCE:kosta-erp-api}"
     public-key-directory: "${JWT_PUBLIC_KEY_DIRECTORY:../secrets/jwt/public}"
-  item-service:
-    base-url: "${ITEM_SERVICE_BASE_URL:http://ITEMSERVICE}"
+  foodmaterials-service:
+    base-url: "${FOOD_MATERIAL_SERVICE_BASE_URL:http://FOODMATERIALSSERVICE}"

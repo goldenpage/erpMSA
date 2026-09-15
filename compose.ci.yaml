@@ -41,10 +41,10 @@ services:
     restart: "no"
     ports: !reset []
 
-  item-service:
+  foodmaterials-service:
     volumes: !override
       - ci-jwt-public:/run/jwt-public:ro
-    image: "${CI_PROJECT_NAME:-erpmsa-ci}/item-service:${BUILD_NUMBER:-local}"
+    image: "${CI_PROJECT_NAME:-erpmsa-ci}/foodmaterials-service:${BUILD_NUMBER:-local}"
     restart: "no"
     ports: !reset []
 
@@ -71,6 +71,42 @@ services:
     image: "${CI_PROJECT_NAME:-erpmsa-ci}/grafana:${BUILD_NUMBER:-local}"
     restart: "no"
     ports: !reset []
+
+  menus-service:
+    volumes: !override
+      - ci-jwt-public:/run/jwt-public:ro
+    image: "${CI_PROJECT_NAME:-erpmsa-ci}/menus-service:${BUILD_NUMBER:-local}"
+    restart: "no"
+    ports: !reset []
+
+  notices-service:
+    volumes: !override
+      - ci-jwt-public:/run/jwt-public:ro
+    image: "${CI_PROJECT_NAME:-erpmsa-ci}/notices-service:${BUILD_NUMBER:-local}"
+    restart: "no"
+    ports: !reset []
+
+  bills-service:
+    volumes: !override
+      - ci-jwt-public:/run/jwt-public:ro
+    image: "${CI_PROJECT_NAME:-erpmsa-ci}/bills-service:${BUILD_NUMBER:-local}"
+    restart: "no"
+    ports: !reset []
+
+  purchase-service:
+    volumes: !override
+      - ci-jwt-public:/run/jwt-public:ro
+    image: "${CI_PROJECT_NAME:-erpmsa-ci}/purchase-service:${BUILD_NUMBER:-local}"
+    restart: "no"
+    ports: !reset []
+
+  disposals-service:
+    volumes: !override
+      - ci-jwt-public:/run/jwt-public:ro
+    image: "${CI_PROJECT_NAME:-erpmsa-ci}/disposals-service:${BUILD_NUMBER:-local}"
+    restart: "no"
+    ports: !reset []
+
 
 volumes:
   ci-jwt-public:

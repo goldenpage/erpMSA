@@ -22,6 +22,6 @@ RUN groupadd --system spring \
 COPY --from=builder --chown=spring:spring /workspace/InventoryService/app.jar ./app.jar
 
 USER spring:spring
-EXPOSE 7074
+EXPOSE 7081
 
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

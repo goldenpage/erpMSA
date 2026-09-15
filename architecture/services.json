@@ -1,0 +1,68 @@
+{
+  "authority": "사용자가 제공한 서비스 설계도",
+  "scope": "target-business-services",
+  "runtimeMigrationStatus": "verified-in-disposable-lab",
+  "services": [
+    {
+      "displayName": "Account Service",
+      "applicationName": "AccountService",
+      "port": 7071,
+      "path": "/account",
+      "implementationStatus": "existing"
+    },
+    {
+      "displayName": "Menus Service",
+      "applicationName": "MenusService",
+      "port": 7072,
+      "path": "/menus",
+      "implementationStatus": "authenticated-shell"
+    },
+    {
+      "displayName": "FoodMaterials Service",
+      "applicationName": "FoodMaterialsService",
+      "port": 7073,
+      "path": "/foodmaterials",
+      "implementationStatus": "catalog-basics"
+    },
+    {
+      "displayName": "Notices Service",
+      "applicationName": "NoticesService",
+      "port": 7074,
+      "path": "/notices",
+      "implementationStatus": "authenticated-shell"
+    },
+    {
+      "displayName": "Bills Service",
+      "applicationName": "BillsService",
+      "port": 7075,
+      "path": "/bills",
+      "implementationStatus": "authenticated-shell"
+    },
+    {
+      "displayName": "Purchase Service",
+      "applicationName": "PurchaseService",
+      "port": 7076,
+      "path": "/purchase",
+      "implementationStatus": "authenticated-shell"
+    },
+    {
+      "displayName": "Disposals Service",
+      "applicationName": "DisposalsService",
+      "port": 7077,
+      "path": "/disposals",
+      "implementationStatus": "authenticated-shell"
+    }
+  ],
+  "supportServices": [
+    {
+      "applicationName": "AuditService",
+      "port": 7080,
+      "publicGatewayRoute": false
+    },
+    {
+      "applicationName": "InventoryService",
+      "port": 7081,
+      "publicGatewayRoute": false
+    }
+  ]
+}

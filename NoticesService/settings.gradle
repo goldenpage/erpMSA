@@ -1,0 +1,4 @@
+rootProject.name = 'NoticesService'
+include 'jwt-security', 'service-foundation'
+project(':jwt-security').projectDir = file('../shared/jwt-security')
+project(':service-foundation').projectDir = file('../shared/service-foundation')

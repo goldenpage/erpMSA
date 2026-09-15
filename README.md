@@ -1,26 +1,43 @@
 # ErpMSA
 
-Eureka, Gateway, Account, Audit, Item, Inventory 서비스를 하나의 Git 저장소에서 관리하는 모노레포입니다.
-각 서비스는 독립적인 Gradle 프로젝트이며 Docker Compose로 함께 실행하거나 별도로 배포합니다.
-Prometheus가 서비스 메트릭을 수집하고 Grafana가 기본 모니터링 대시보드를 제공합니다.
+사용자가 제공한 설계도를 기준으로 하는 ERP MSA 모노레포입니다.
+서비스 구조의 기준은 [서비스 설계 기준](docs/service-architecture.md)과 [서비스 식별자 계약](architecture/services.json)입니다.
+
+## 목표 서비스와 구현 상태
+
+| 서비스 | 포트 | 기본 경로 | 현재 상태 |
+|---|---:|---|---|
+| Account Service | 7071 | `/account` | 구현 있음 |
+| Menus Service | 7072 | `/menus` | 서비스 실행 기반, 업무 API 501 |
+| FoodMaterials Service | 7073 | `/foodmaterials` | 기초 카탈로그 CRUD |
+| Notices Service | 7074 | `/notices` | 서비스 실행 기반, 업무 API 501 |
+| Bills Service | 7075 | `/bills` | 서비스 실행 기반, 업무 API 501 |
+| Purchase Service | 7076 | `/purchase` | 서비스 실행 기반, 업무 API 501 |
+| Disposals Service | 7077 | `/disposals` | 서비스 실행 기반, 업무 API 501 |
+
+위 7개 서비스가 실제 독립 Gradle 프로젝트와 Compose 서비스로 구성되어 있습니다.
+Menus·Notices·Bills·Purchase·Disposals는 JWT 인증·서비스 발견·관측까지 연결되며, 상세 업무 기능은 아직 501을 반환합니다.
+FoodMaterials는 기존 품목의 기초 카탈로그를 이관했습니다. 전체 식자재 업무 기능이 완성된 것은 아닙니다.
+
+Audit(7080)과 Inventory(7081)는 기존 기능을 보존하는 내부 지원 서비스입니다. 기본 Compose에서 호스트 포트를 공개하지 않고
+Gateway 업무 라우트에서도 제외했습니다. [기존 환경 전환 절차](docs/service-architecture.md#기존-환경-전환)를 확인하세요.
 
 회원가입 이벤트는 `AccountService -> Outbox -> Kafka -> AuditService` 순서로 전달됩니다.
-AccountService의 DB 저장과 Outbox 기록은 같은 트랜잭션으로 처리하며,
-AuditService는 `eventId`를 기준으로 중복 이벤트를 저장하지 않습니다.
+AccountService의 DB 저장과 Outbox 기록은 같은 트랜잭션으로 처리하며 AuditService는 eventId로 중복을 막습니다.
 
 ## 설정 및 보안 관리 원칙
 
 - `application.yml` 또는 `application.yaml`에는 비밀정보를 저장하지 않습니다.
 - 공통 구조와 안전한 기본값만 Git으로 관리합니다.
 - DB 비밀번호와 Grafana 관리자 비밀번호는 환경변수로 주입합니다.
-- JWT는 RS256을 사용합니다. AccountService만 개인키 파일을 받으며, Gateway·Item·Inventory는 공개키만 받습니다.
+- JWT는 RS256을 사용합니다. AccountService만 개인키 파일을 받으며, Gateway·나머지 업무 서비스·Inventory는 공개키만 받습니다.
 - 실제 `.env` 파일은 Git에 올리지 않고 `.env.example`만 공유합니다.
 - CI에서는 Jenkins Credentials로 비밀정보를 주입합니다.
 - 운영에서는 Vault, AWS Secrets Manager 등 별도의 Secret Manager 사용을 권장합니다.
 - Jenkins 콘솔 로그에 비밀번호, 토큰, JWT 키가 출력되지 않도록 관리합니다.
 - 비밀정보가 노출되면 로그만 삭제하지 않고 해당 자격증명을 즉시 폐기하거나 교체합니다.
 
-## Docker Compose로 전체 실행
+## Docker Compose로 현재 구현 실행
 
 루트에서 예제 파일을 복사합니다.
 
@@ -65,13 +82,16 @@ docker compose down
 
 `docker compose down -v`는 MariaDB, Redis, Kafka, Prometheus, Grafana 데이터를 삭제하므로 초기화가 필요한 경우에만 사용합니다.
 
-## 로컬 접속 주소
+## 현재 구현의 로컬 접속 주소
 
 - Gateway: `http://127.0.0.1:7070`
 - AccountService: `http://127.0.0.1:7071`
-- AuditService: `http://127.0.0.1:7072`
-- ItemService: `http://127.0.0.1:7073`
-- InventoryService: `http://127.0.0.1:7074`
+- MenusService: `http://127.0.0.1:7072`
+- FoodMaterialsService: `http://127.0.0.1:7073`
+- NoticesService: `http://127.0.0.1:7074`
+- BillsService: `http://127.0.0.1:7075`
+- PurchaseService: `http://127.0.0.1:7076`
+- DisposalsService: `http://127.0.0.1:7077`
 - Eureka: `http://127.0.0.1:8761`
 - Prometheus: `http://127.0.0.1:9090`
 - Grafana: `http://127.0.0.1:3000`
@@ -87,12 +107,17 @@ Prometheus는 15초마다 다음 엔드포인트를 수집합니다.
 
 - `eureka-server:8761/actuator/prometheus`
 - `account-service:7071/actuator/prometheus`
-- `audit-service:7072/actuator/prometheus`
-- `item-service:7073/actuator/prometheus`
-- `inventory-service:7074/actuator/prometheus`
+- `audit-service:7080/actuator/prometheus`
+- `foodmaterials-service:7073/actuator/prometheus`
+- `inventory-service:7081/actuator/prometheus`
 - `gateway-server:7070/actuator/prometheus`
+- `menus-service:7072/actuator/prometheus`
+- `notices-service:7074/actuator/prometheus`
+- `bills-service:7075/actuator/prometheus`
+- `purchase-service:7076/actuator/prometheus`
+- `disposals-service:7077/actuator/prometheus`
 
-Prometheus의 `Status > Target health` 화면에서 여섯 대상이 `UP`인지 확인할 수 있습니다.
+Prometheus의 `Status > Target health` 화면에서 11개 Spring 서비스 대상이 `UP`인지 확인할 수 있습니다.
 Grafana에는 `ErpMSA/ErpMSA Spring Services` 대시보드가 자동으로 등록됩니다.
 Grafana 로그인 정보는 `.env`의 `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD`를 사용합니다.
 
@@ -113,14 +138,19 @@ set +a
 ./gatewayServer/gradlew -p gatewayServer bootRun
 ./AccountService/gradlew -p AccountService bootRun
 ./AuditService/gradlew -p AuditService bootRun
-./ItemService/gradlew -p ItemService bootRun
+./FoodMaterialsService/gradlew -p FoodMaterialsService bootRun
 ./InventoryService/gradlew -p InventoryService bootRun
+./MenusService/gradlew -p MenusService bootRun
+./NoticesService/gradlew -p NoticesService bootRun
+./BillsService/gradlew -p BillsService bootRun
+./PurchaseService/gradlew -p PurchaseService bootRun
+./DisposalsService/gradlew -p DisposalsService bootRun
 ```
 
 ## API 오류 응답 계약
 
-AccountService, ItemService, InventoryService와 Gateway가 직접 반환하는 오류는 다음 JSON 구조를 사용합니다.
-성공 응답 구조와 기존 API 경로는 변경하지 않습니다.
+AccountService, FoodMaterialsService, InventoryService와 Gateway가 직접 반환하는 오류는 다음 JSON 구조를 사용합니다.
+FoodMaterials의 경로와 식별자 필드는 전환에 맞춰 변경되었습니다. 상세 호환성 변경은 설계 기준 문서를 확인하세요.
 
 ```json
 {
@@ -143,34 +173,35 @@ AccountService, ItemService, InventoryService와 Gateway가 직접 반환하는 
 - `fieldErrors`는 요청 검증 실패일 때만 채우고 그 외에는 빈 배열을 반환합니다.
 - 비밀번호, 토큰, 입력값 원문과 내부 예외 메시지는 오류 응답에 포함하지 않습니다.
 
-## Item API
+## FoodMaterials API
 
-ItemService는 로그인 계정별 품목을 관리합니다. 모든 `/items/**` 요청은
-`Authorization: Bearer <access-token>` 헤더가 필요하며, Gateway와 ItemService가
+FoodMaterialsService는 로그인 계정별 품목을 관리합니다. 모든 `/foodmaterials/**` 요청은
+`Authorization: Bearer <access-token>` 헤더가 필요하며, Gateway와 FoodMaterialsService가
 각각 토큰을 검증합니다. 다른 계정의 품목은 조회하거나 수정할 수 없습니다.
 
 ```text
-POST   /items              품목 등록
-GET    /items              내 품목 목록(page, size, status)
-GET    /items/{itemId}     내 품목 상세
-PUT    /items/{itemId}     내 품목 수정
-DELETE /items/{itemId}     내 품목 비활성화
+POST   /foodmaterials              품목 등록
+GET    /foodmaterials              내 품목 목록(page, size, status)
+GET    /foodmaterials/{foodMaterialId}     내 품목 상세
+PUT    /foodmaterials/{foodMaterialId}     내 품목 수정
+DELETE /foodmaterials/{foodMaterialId}     내 품목 비활성화
 ```
 
 SKU는 계정 안에서 유일하며 영문, 숫자, `.`, `_`, `-`만 사용할 수 있습니다.
-삭제 요청은 주문·재고 이력 연결을 보존하기 위해 행을 제거하지 않고 상태를
-`INACTIVE`로 변경합니다. ItemService는 별도 `itemdb` 스키마를 사용하고
+삭제 요청은 품목 참조 이력을 보존하기 위해 행을 제거하지 않고 상태를
+`INACTIVE`로 변경합니다. FoodMaterialsService는 별도 `itemdb` 스키마를 사용하고
 Flyway가 시작 시 스키마를 생성·검증합니다.
 
 수정 요청의 `version`에는 조회 응답으로 받은 현재 버전을 전달해야 합니다.
 다른 요청이 먼저 수정해 버전이 달라졌다면 `409 ITEM_CONFLICT`를 반환하므로,
 최신 값을 다시 조회한 뒤 사용자의 변경을 재적용해야 합니다.
 
-## Inventory API
+## 내부 Inventory API — 도메인 소유권 정비 전
 
-InventoryService는 로그인 계정과 품목별 현재고 및 모든 수량 변경 원장을
+InventoryService는 기본 Gateway에 노출하지 않는 내부 서비스입니다. 내부 경로는 다음과 같습니다.
+로그인 계정과 품목별 현재고 및 모든 수량 변경 원장을
 `inventorydb`에 저장합니다. 재고 생성 전에 전달받은 Access Token으로
-ItemService를 호출하여 해당 품목이 실제로 존재하고 현재 계정 소유인지 확인합니다.
+FoodMaterialsService를 호출하여 해당 품목이 실제로 존재하고 현재 계정 소유인지 확인합니다.
 
 ```text
 POST /inventories                         재고 및 초기 원장 생성
@@ -191,8 +222,9 @@ GET  /inventories/{itemId}/movements      재고 변경 원장 조회
 
 현재고 변경과 `stock_movement` 원장 저장은 같은 DB 트랜잭션으로 처리됩니다.
 차감 후 수량이 음수가 되면 `409 INSUFFICIENT_STOCK`를 반환하고 현재고와
-원장 모두 변경하지 않습니다. 주문 예약·해제 Kafka 이벤트는 OrderService
-도입 단계에서 이 서비스에 연결합니다.
+원장 모두 변경하지 않습니다. 이 기능은 Notices의 공지 기능과 다릅니다.
+재고 소유권과 Purchase·Disposals의 연계는 원래 업무 명세를 확인한 뒤 정합니다.
+OrderService는 목표 설계에 포함하지 않습니다.
 
 ## Kafka 이벤트 흐름 확인
 
@@ -235,6 +267,9 @@ V2 Outbox 마이그레이션만 적용합니다. 새 데이터베이스와 CI에
 
 ## 4차 스프린트: 운영 검증
 
+아래 기록은 전환 전 Account·Item·Inventory·Audit 구성의 실험 이력입니다.
+목표 서비스로 전환한 뒤에는 변경된 업무 모델과 API에서 다시 검증해야 합니다.
+
 [설계 선택과 키 교체 절차](docs/sprint4-design.md), [부하·장애 실험 절차](performance/README.md),
 [이벤트 계약](contracts/README.md)을 함께 관리합니다. 실험 데이터는 별도 Compose 프로젝트와 임시 DB에 생성합니다.
 측정 결과와 한계는 [실험 보고서](docs/sprint4-results.md)에 기록합니다.
@@ -247,4 +282,4 @@ Access와 Refresh의 기본 만료는 각각 15분과 14일입니다. Refresh를
 Jenkins는 매 빌드 일회용 RSA 키를 생성합니다. Jenkins 컨테이너의 경로를 호스트에 bind mount하지 않고
 전용 공개키·개인키 볼륨에 전달하며, 종료 시 해당 빌드 볼륨을 제거합니다.
 개별 서비스 이미지 빌드는 공유 JWT 모듈을 포함하므로 저장소 루트에서
-`docker build -f ItemService/Dockerfile .`처럼 실행합니다.
+`docker build -f FoodMaterialsService/Dockerfile .`처럼 실행합니다.

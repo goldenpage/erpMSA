@@ -1,0 +1,170 @@
+{
+  "gatewayBusinessServices": [
+    {
+      "displayName": "Account Service",
+      "applicationName": "AccountService",
+      "port": 7071,
+      "path": "/account",
+      "implementationStatus": "existing"
+    },
+    {
+      "displayName": "Menus Service",
+      "applicationName": "MenusService",
+      "port": 7072,
+      "path": "/menus",
+      "implementationStatus": "authenticated-shell"
+    },
+    {
+      "displayName": "FoodMaterials Service",
+      "applicationName": "FoodMaterialsService",
+      "port": 7073,
+      "path": "/foodmaterials",
+      "implementationStatus": "catalog-basics"
+    },
+    {
+      "displayName": "Notices Service",
+      "applicationName": "NoticesService",
+      "port": 7074,
+      "path": "/notices",
+      "implementationStatus": "authenticated-shell"
+    },
+    {
+      "displayName": "Bills Service",
+      "applicationName": "BillsService",
+      "port": 7075,
+      "path": "/bills",
+      "implementationStatus": "authenticated-shell"
+    },
+    {
+      "displayName": "Purchase Service",
+      "applicationName": "PurchaseService",
+      "port": 7076,
+      "path": "/purchase",
+      "implementationStatus": "authenticated-shell"
+    },
+    {
+      "displayName": "Disposals Service",
+      "applicationName": "DisposalsService",
+      "port": 7077,
+      "path": "/disposals",
+      "implementationStatus": "authenticated-shell"
+    }
+  ],
+  "eurekaRegistered": {
+    "ACCOUNTSERVICE": 1,
+    "INVENTORYSERVICE": 1,
+    "NOTICESSERVICE": 1,
+    "PURCHASESERVICE": 1,
+    "AUDITSERVICE": 1,
+    "DISPOSALSSERVICE": 1,
+    "BILLSSERVICE": 1,
+    "MENUSSERVICE": 1,
+    "FOODMATERIALSSERVICE": 1
+  },
+  "prometheusUpJobs": [
+    "account-service",
+    "audit-service",
+    "bills-service",
+    "disposals-service",
+    "eureka-server",
+    "foodmaterials-service",
+    "gateway-server",
+    "inventory-service",
+    "menus-service",
+    "notices-service",
+    "purchase-service"
+  ],
+  "internalInventoryGatewayStatus": 404,
+  "smoke": {
+    "refreshRotation": true,
+    "oldRefreshRejected": true,
+    "logoutReplayRejected": true,
+    "foodMaterialsInternalInventoryRouting": true,
+    "designedServiceRoutes": 5,
+    "legacyRoutesRemoved": true,
+    "parallelAdjustments": {
+      "success": 1,
+      "conflict": 9,
+      "quantity": 19,
+      "movements": 2
+    },
+    "tenantBoundary": true,
+    "duplicateEventCount": 1,
+    "malformedEventDlt": true
+  },
+  "scope": "disposable-lab",
+  "remoteJenkinsExecuted": false,
+  "verifiedAt": "2026-09-15T09:16:55.795215+00:00",
+  "tests": {
+    "FoodMaterialsService": {
+      "tests": 16,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "InventoryService": {
+      "tests": 21,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "gatewayServer": {
+      "tests": 15,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "MenusService": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "NoticesService": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "BillsService": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "PurchaseService": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "DisposalsService": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "labSafetyTests": 3,
+  "flywaySqlUnchanged": true,
+  "k6RouteSmoke": {
+    "http_reqs": {
+      "count": 21,
+      "rate": 2.097998403783671
+    },
+    "http_req_failed": {
+      "rate": 0,
+      "passes": 0,
+      "fails": 21
+    },
+    "checks": {
+      "rate": 1,
+      "passes": 21,
+      "fails": 0
+    },
+    "dropped_iterations": {
+      "count": 0,
+      "rate": 0
+    }
+  }
+}
