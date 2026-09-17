@@ -2,6 +2,7 @@ package com.oopsw.foodmaterialsservice.support;
 
 import org.flywaydb.core.Flyway;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
@@ -19,11 +20,14 @@ public class TestcontainersConfiguration {
     }
 
     @Bean(defaultCandidate = false)
-    MariaDBContainer inventoryDatabase() {
+    MariaDBContainer inventoryDatabase(@Value("${test.inventory.legacy:false}") boolean legacy) {
         var database = new MariaDBContainer("mariadb:10.11")
             .withDatabaseName("inventory_service_test")
             .withUsername("inventory").withPassword("test-password");
         database.start();
+        if (!legacy) {
+            return database;
+        }
         // Model the pre-existing service's schema/history and data before the new app starts.
         Flyway.configure().dataSource(database.getJdbcUrl(), database.getUsername(), database.getPassword())
             .locations("classpath:db/inventory-migration").load().migrate();

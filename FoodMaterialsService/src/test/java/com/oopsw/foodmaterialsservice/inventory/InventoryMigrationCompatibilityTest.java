@@ -14,7 +14,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-@SpringBootTest(properties = {"eureka.client.enabled=false", "spring.cloud.discovery.enabled=false"})
+@SpringBootTest(properties = {"eureka.client.enabled=false", "spring.cloud.discovery.enabled=false",
+    "test.inventory.legacy=true"})
 @Import(TestcontainersConfiguration.class)
 class InventoryMigrationCompatibilityTest {
     @DynamicPropertySource

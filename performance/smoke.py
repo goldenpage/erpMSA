@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """End-to-end verification against the disposable lab only; no tokens are printed."""
+import concurrent.futures
+import threading
 import http.cookiejar
 import json
 import secrets
@@ -64,6 +66,30 @@ def main():
     other=json.loads((lab.RESULTS/'users.json').read_text())[0]['token']
     assert lab.request(f'/foodmaterials/{item}',token=other)[0]==404
 
+    status,body=lab.request('/foodmaterials/inventories','POST',{'foodMaterialId':item,'initialQuantity':20},token)
+    assert status==201, f'inventory creation: {status}'
+    version=json.loads(body)['version']
+    barrier=threading.Barrier(10)
+    def adjustment(i):
+        barrier.wait(timeout=10)
+        return i,lab.request(f'/foodmaterials/inventories/{item}/adjustments','POST',{
+            'requestId':f'PARALLEL-{number}-{i}','quantityDelta':-1,'version':version,'reason':'parallel lab verification'},token)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        outcomes=list(executor.map(adjustment,range(10)))
+    assert sorted(result[0] for _,result in outcomes)==[200]+[409]*9
+    for _,(code,payload) in outcomes:
+        if code==409: assert json.loads(payload)['code']=='INVENTORY_CONFLICT'
+    winner=next(i for i,(code,_) in outcomes if code==200)
+    status,body=lab.request(f'/foodmaterials/inventories/{item}',token=token)
+    assert status==200 and json.loads(body)['onHandQuantity']==19
+    current=json.loads(body)['version']
+    assert lab.request(f'/foodmaterials/inventories/{item}/adjustments','POST',{
+        'requestId':f'PARALLEL-{number}-{winner}','quantityDelta':-1,'version':current,'reason':'duplicate'},token)[0]==409
+    status,body=lab.request(f'/foodmaterials/inventories/{item}/movements',token=token)
+    assert status==200 and json.loads(body)['totalElements']==2
+    assert lab.request(f'/foodmaterials/inventories/{item}',token=other)[0]==404
+    assert lab.request('/foodmaterials/inventories','POST',{'foodMaterialId':item,'initialQuantity':1},other)[0]==404
+
     # Publication is verified separately from the retired audit consumer.
     for _ in range(30):
         published=int(lab.sql(f"SELECT COUNT(*) FROM mydb.account_outbox_event WHERE aggregate_id='{account}' AND status='PUBLISHED';"))
@@ -72,7 +98,7 @@ def main():
     assert published==1
     lab.save('smoke',{'refreshRotation':True,'oldRefreshRejected':True,'logoutReplayRejected':True,
         'foodMaterialsCreateAndRead':True,'designedServiceRoutes':5,'legacyRoutesRemoved':True,
-        'tenantBoundary':True,'outboxPublished':True,'consumerVerification':False})
-    print('PASS: RSA auth/refresh/logout, FoodMaterials create/read, tenant boundary, 7 designed routes and Outbox publication')
+        'tenantBoundary':True,'parallelAdjustments':{'success':1,'conflict':9,'quantity':19,'movements':2},'outboxPublished':True,'consumerVerification':False})
+    print('PASS: RSA auth/refresh/logout, FoodMaterials catalog/inventory, parallel adjustments, tenant boundary, 7 designed routes and Outbox publication')
 
 if __name__=='__main__': main()

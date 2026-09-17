@@ -462,6 +462,29 @@ pipeline {
                         -H "Authorization: Bearer $ACCESS_TOKEN" \
                         "http://gateway-server:7070/foodmaterials/$FOOD_MATERIAL_ID")
 
+                    INVENTORY_FILE=/tmp/erpmsa-ci-foodmaterial-inventory.json
+                    STOCK_BODY=$(jq -nc --argjson id "$FOOD_MATERIAL_ID" '{foodMaterialId:$id,initialQuantity:20}')
+                    STOCK_STATUS=$(curl -sS --connect-timeout 2 --max-time 10 \
+                        -o "$INVENTORY_FILE" -w '%{http_code}' \
+                        -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' \
+                        --data "$STOCK_BODY" http://gateway-server:7070/foodmaterials/inventories)
+                    test "$STOCK_STATUS" = "201"
+                    STOCK_VERSION=$(jq -er '.version' "$INVENTORY_FILE")
+                    STOCK_BODY=$(jq -nc --argjson version "$STOCK_VERSION" --arg id "CI-STOCK-$BUILD_NUMBER" \
+                        '{requestId:$id,quantityDelta:-3,reason:"CI smoke",version:$version}')
+                    STOCK_STATUS=$(curl -sS --connect-timeout 2 --max-time 10 \
+                        -o "$INVENTORY_FILE" -w '%{http_code}' \
+                        -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' \
+                        --data "$STOCK_BODY" "http://gateway-server:7070/foodmaterials/inventories/$FOOD_MATERIAL_ID/adjustments")
+                    test "$STOCK_STATUS" = "200"
+                    test "$(jq -er '.inventory.onHandQuantity' "$INVENTORY_FILE")" = "17"
+                    STOCK_STATUS=$(curl -sS --connect-timeout 2 --max-time 10 \
+                        -o "$INVENTORY_FILE" -w '%{http_code}' -H "Authorization: Bearer $ACCESS_TOKEN" \
+                        "http://gateway-server:7070/foodmaterials/inventories/$FOOD_MATERIAL_ID/movements")
+                    test "$STOCK_STATUS" = "200"
+                    test "$(jq -er '.totalElements' "$INVENTORY_FILE")" = "2"
+                    rm -f "$INVENTORY_FILE"
+
                     for LEGACY_PATH in items inventories orders; do
                         LEGACY_STATUS=$(curl -sS --connect-timeout 2 --max-time 10 \
                             -o /dev/null -w '%{http_code}' \
@@ -637,6 +660,7 @@ pipeline {
                     /tmp/erpmsa-ci-cookie.txt \
                     /tmp/erpmsa-ci-login.json \
                     /tmp/erpmsa-ci-foodmaterial.json \
+                    /tmp/erpmsa-ci-foodmaterial-inventory.json \
                     /tmp/erpmsa-ci-prometheus.json
             '''
         }
