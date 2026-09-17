@@ -15,14 +15,14 @@
       "applicationName": "MenusService",
       "port": 7072,
       "path": "/menus",
-      "implementationStatus": "authenticated-shell"
+      "implementationStatus": "menu-crud"
     },
     {
       "displayName": "FoodMaterials Service",
       "applicationName": "FoodMaterialsService",
       "port": 7073,
       "path": "/foodmaterials",
-      "implementationStatus": "catalog-basics"
+      "implementationStatus": "catalog-and-inventory"
     },
     {
       "displayName": "Notices Service",
@@ -50,7 +50,7 @@
       "applicationName": "DisposalsService",
       "port": 7077,
       "path": "/disposals",
-      "implementationStatus": "authenticated-shell"
+      "implementationStatus": "disposal-stock-workflow"
     }
   ]
 }

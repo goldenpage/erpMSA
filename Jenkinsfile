@@ -23,6 +23,8 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
+                // Removed/renamed modules can leave untracked Gradle output behind.
+                deleteDir()
                 checkout scm
             }
         }
@@ -105,7 +107,8 @@ pipeline {
         }
 
         stage('Gradle Test') {
-            parallel {
+            // Keep one Gradle build active when CI shares Docker Desktop with ERP.
+            stages {
                 stage('Eureka Test') {
                     steps {
                         sh '''
@@ -169,11 +172,16 @@ pipeline {
         stage('Build Images') {
             steps {
                 sh '''
-                    docker compose \
-                        -f compose.yaml \
-                        -f compose.ci.yaml \
-                        -p "$CI_PROJECT_NAME" \
-                        build
+                    set -eu
+                    for SERVICE in eureka-server account-service foodmaterials-service \
+                        menus-service notices-service bills-service purchase-service \
+                        disposals-service gateway-server prometheus grafana; do
+                        docker compose \
+                            -f compose.yaml \
+                            -f compose.ci.yaml \
+                            -p "$CI_PROJECT_NAME" \
+                            build "$SERVICE"
+                    done
                 '''
             }
         }
@@ -383,8 +391,8 @@ pipeline {
                         exit 1
                     fi
 
-                    # Verify discovery and honest 501 contracts for the five new domain shells.
-                    for SERVICE_PATH in menus notices bills purchase disposals; do
+                    # Verify discovery and honest 501 contracts for the three pending domain shells.
+                    for SERVICE_PATH in notices bills purchase; do
                         SHELL_STATUS=000
                         for ATTEMPT in $(seq 1 45); do
                             SHELL_STATUS=$(curl -sS --connect-timeout 2 --max-time 5 \
@@ -484,6 +492,31 @@ pipeline {
                     test "$STOCK_STATUS" = "200"
                     test "$(jq -er '.totalElements' "$INVENTORY_FILE")" = "2"
                     rm -f "$INVENTORY_FILE"
+
+                    BUSINESS_FILE=/tmp/erpmsa-ci-business.json
+                    MENU_STATUS=$(curl -sS --connect-timeout 2 --max-time 10 -o "$BUSINESS_FILE" -w '%{http_code}' \
+                        -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' \
+                        --data '{"name":"CI menu","price":12000}' http://gateway-server:7070/menus)
+                    test "$MENU_STATUS" = "201"
+                    MENU_ID=$(jq -er '.menuId' "$BUSINESS_FILE")
+                    MENU_STATUS=$(curl -sS --connect-timeout 2 --max-time 10 -o /dev/null -w '%{http_code}' \
+                        -H "Authorization: Bearer $ACCESS_TOKEN" -X DELETE "http://gateway-server:7070/menus/$MENU_ID")
+                    test "$MENU_STATUS" = "204"
+                    DISPOSAL_BODY=$(jq -nc --arg id "CI-DISPOSAL-$BUILD_NUMBER" --argjson material "$FOOD_MATERIAL_ID" \
+                        '{requestId:$id,foodMaterialId:$material,quantity:2,reason:"CI disposal"}')
+                    for REPLAY in 1 2; do
+                        DISPOSAL_STATUS=$(curl -sS --connect-timeout 2 --max-time 15 -o "$BUSINESS_FILE" -w '%{http_code}' \
+                            -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' \
+                            --data "$DISPOSAL_BODY" http://gateway-server:7070/disposals)
+                        test "$DISPOSAL_STATUS" = "200"
+                        test "$(jq -r '.status' "$BUSINESS_FILE")" = "COMPLETED"
+                        test "$(jq -r '.quantityAfter' "$BUSINESS_FILE")" = "15"
+                    done
+                    STOCK_STATUS=$(curl -sS --connect-timeout 2 --max-time 10 -o "$BUSINESS_FILE" -w '%{http_code}' \
+                        -H "Authorization: Bearer $ACCESS_TOKEN" "http://gateway-server:7070/foodmaterials/inventories/$FOOD_MATERIAL_ID")
+                    test "$STOCK_STATUS" = "200"
+                    test "$(jq -r '.onHandQuantity' "$BUSINESS_FILE")" = "15"
+                    rm -f "$BUSINESS_FILE"
 
                     for LEGACY_PATH in items inventories orders; do
                         LEGACY_STATUS=$(curl -sS --connect-timeout 2 --max-time 10 \
@@ -659,6 +692,7 @@ pipeline {
                     .env \
                     /tmp/erpmsa-ci-cookie.txt \
                     /tmp/erpmsa-ci-login.json \
+                    /tmp/erpmsa-ci-business.json \
                     /tmp/erpmsa-ci-foodmaterial.json \
                     /tmp/erpmsa-ci-foodmaterial-inventory.json \
                     /tmp/erpmsa-ci-prometheus.json

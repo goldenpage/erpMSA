@@ -69,7 +69,7 @@ services:
     image: erpmsa-sprint4/menus-service:lab
     ports: !reset []
     environment: *java-lab
-    mem_limit: 256m
+    mem_limit: 512m
     cpus: 1
 
   notices-service:
@@ -97,7 +97,7 @@ services:
     image: erpmsa-sprint4/disposals-service:lab
     ports: !reset []
     environment: *java-lab
-    mem_limit: 256m
+    mem_limit: 512m
     cpus: 1
 
 

@@ -1,0 +1,20 @@
+CREATE TABLE disposal (
+    id VARCHAR(36) NOT NULL PRIMARY KEY,
+    account_id BIGINT NOT NULL,
+    request_id VARCHAR(64) NOT NULL,
+    food_material_id BIGINT NOT NULL,
+    quantity BIGINT NOT NULL,
+    reason VARCHAR(255) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    movement_id BIGINT,
+    quantity_after BIGINT,
+    rejection_code VARCHAR(64),
+    version BIGINT NOT NULL DEFAULT 0,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    CONSTRAINT uk_disposal_account_request UNIQUE(account_id,request_id),
+    CONSTRAINT chk_disposal_quantity CHECK(quantity>0),
+    CONSTRAINT chk_disposal_status CHECK(status IN ('PENDING','COMPLETED','REJECTED')),
+    INDEX idx_disposal_account_created(account_id,created_at,id),
+    INDEX idx_disposal_account_status_created(account_id,status,created_at,id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

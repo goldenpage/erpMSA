@@ -25,7 +25,9 @@ RUN apt-get update \
 
 USER jenkins
 
-RUN jenkins-plugin-cli --plugins \
+# Use the official archive to avoid failures in redirected regional mirrors.
+ARG JENKINS_UC_DOWNLOAD_URL=https://archives.jenkins.io/plugins
+RUN JENKINS_UC_DOWNLOAD_URL="${JENKINS_UC_DOWNLOAD_URL}" jenkins-plugin-cli --plugins \
     workflow-aggregator \
     git \
     github \

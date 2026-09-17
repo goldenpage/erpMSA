@@ -1,0 +1,32 @@
+{
+  "date": "2026-09-17",
+  "tests": {
+    "MenusService": {
+      "tests": 5,
+      "failures": 0
+    },
+    "DisposalsService": {
+      "tests": 6,
+      "failures": 0
+    },
+    "FoodMaterialsService": {
+      "tests": 37,
+      "failures": 0
+    }
+  },
+  "directHttpE2e": {
+    "scope": "three real service JARs, direct HTTP, temporary MariaDB; no Gateway/Eureka or remote CI",
+    "menuLifecycle": true,
+    "tenantBoundary": true,
+    "simultaneousDisposalRequests": 8,
+    "disposalRecordsForRequest": 1,
+    "stockBefore": 20,
+    "stockAfter": 17,
+    "ledgerRows": 2,
+    "disposalLedgerRows": 1,
+    "insufficientStockRejected": true,
+    "temporaryResourcesRemoved": true
+  },
+  "remoteJenkinsExecuted": false,
+  "gatewayEurekaE2eExecuted": false
+}

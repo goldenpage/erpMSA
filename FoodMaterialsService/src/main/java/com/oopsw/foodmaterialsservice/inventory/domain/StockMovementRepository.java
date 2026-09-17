@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface StockMovementRepository
     extends JpaRepository<StockMovementEntity, Long> {
 
+    java.util.Optional<StockMovementEntity> findByAccountIdAndRequestId(Long accountId, String requestId);
+
     boolean existsByAccountIdAndRequestId(Long accountId, String requestId);
 
     Page<StockMovementEntity> findAllByInventoryId(

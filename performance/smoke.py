@@ -40,7 +40,7 @@ def main():
     assert status == 200
     token=login['accessToken']
     # New service processes must route to their own authenticated, explicitly incomplete contracts.
-    for path,name in [('menus','MenusService'),('notices','NoticesService'),('bills','BillsService'),('purchase','PurchaseService'),('disposals','DisposalsService')]:
+    for path,name in [('notices','NoticesService'),('bills','BillsService'),('purchase','PurchaseService')]:
         for _ in range(60):
             code,payload=lab.request('/'+path,token=token)
             if code==501: break
@@ -90,6 +90,21 @@ def main():
     assert lab.request(f'/foodmaterials/inventories/{item}',token=other)[0]==404
     assert lab.request('/foodmaterials/inventories','POST',{'foodMaterialId':item,'initialQuantity':1},other)[0]==404
 
+    code,payload=lab.request('/menus','POST',{'name':'Smoke menu','price':12000},token)
+    assert code==201
+    menu=json.loads(payload)['menuId']
+    assert lab.request(f'/menus/{menu}',token=other)[0]==404
+    assert lab.request(f'/menus/{menu}','DELETE',token=token)[0]==204
+    disposal={'requestId':f'DISPOSE-{number}','foodMaterialId':item,'quantity':2,'reason':'smoke disposal'}
+    for _ in range(2):
+        code,payload=lab.request('/disposals','POST',disposal,token)
+        assert code==200, f'disposal: {code}'
+        result=json.loads(payload)
+        assert result['status']=='COMPLETED' and result['quantityAfter']==17
+    assert lab.request('/disposals/'+result['disposalId'],token=other)[0]==404
+    code,payload=lab.request(f'/foodmaterials/inventories/{item}',token=token)
+    assert code==200 and json.loads(payload)['onHandQuantity']==17
+
     # Publication is verified separately from the retired audit consumer.
     for _ in range(30):
         published=int(lab.sql(f"SELECT COUNT(*) FROM mydb.account_outbox_event WHERE aggregate_id='{account}' AND status='PUBLISHED';"))
@@ -97,7 +112,7 @@ def main():
         time.sleep(1)
     assert published==1
     lab.save('smoke',{'refreshRotation':True,'oldRefreshRejected':True,'logoutReplayRejected':True,
-        'foodMaterialsCreateAndRead':True,'designedServiceRoutes':5,'legacyRoutesRemoved':True,
+        'foodMaterialsCreateAndRead':True,'pendingServiceRoutes':3,'menuLifecycle':True,'disposalReplaySingleDeduction':True,'legacyRoutesRemoved':True,
         'tenantBoundary':True,'parallelAdjustments':{'success':1,'conflict':9,'quantity':19,'movements':2},'outboxPublished':True,'consumerVerification':False})
     print('PASS: RSA auth/refresh/logout, FoodMaterials catalog/inventory, parallel adjustments, tenant boundary, 7 designed routes and Outbox publication')
 

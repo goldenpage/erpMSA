@@ -1,6 +1,21 @@
 spring:
   application:
     name: DisposalsService
+  datasource:
+    url: "${DISPOSALS_DB_URL:jdbc:mariadb://localhost:3306/disposalsdb}"
+    username: "${DISPOSALS_DB_USERNAME:account}"
+    password: "${DISPOSALS_DB_PASSWORD:${DB_PASSWORD:}}"
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    baseline-on-migrate: false
 server:
   port: "${DISPOSALS_SERVER_PORT:7077}"
 eureka:
@@ -26,6 +41,9 @@ management:
       percentiles-histogram:
         http.server.requests: true
 app:
+  inventory:
+    base-url: "${FOOD_MATERIAL_SERVICE_BASE_URL:http://FOODMATERIALSSERVICE}"
+    discovery-enabled: "${FOOD_MATERIAL_DISCOVERY_ENABLED:true}"
   service:
     base-path: /disposals
   auth:

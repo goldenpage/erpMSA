@@ -17,6 +17,13 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
 
+    healthcheck:
+      test: ["CMD-SHELL", "python3 --version >/dev/null && curl -fsS --max-time 5 -o /dev/null http://127.0.0.1:8080/login"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 60s
+
     group_add:
       # Docker Desktop for Mac mounts docker.sock with group ID 0 in the container.
       - "0"

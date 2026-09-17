@@ -35,7 +35,7 @@ class InventoryMigrationCompatibilityTest {
         assertEquals(3L,result.version());
         assertEquals(1L,inventory.movements(101L,777L,0,20).totalElements());
         var stock=new JdbcTemplate(dataSource);
-        assertEquals(1,stock.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class));
+        assertEquals(2,stock.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class));
         assertEquals(0,catalog.queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='inventory'",Integer.class));
         assertEquals(0,stock.queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='item'",Integer.class));
     }

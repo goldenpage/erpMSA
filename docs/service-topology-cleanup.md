@@ -1,5 +1,8 @@
 # 설계도 외 서비스 제거
 
+> 아래는 두 서버 제거 시점의 기록이다. 이후 사용자 지정에 따라 재고 기능을 FoodMaterials로 이관했다.
+> 현재 구현과 검증은 [식자재 재고 이관](foodmaterials-inventory-migration.md)을 따른다.
+
 2026-09-17 사용자 요청에 따라 AuditService와 InventoryService를 내부 지원 서비스로 남겼던 결정을 철회했다.
 폴더·소스·빌드 설정을 제거하고 업무 서비스를 설계도의 7개로 맞췄다.
 

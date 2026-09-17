@@ -30,7 +30,7 @@ public class TestcontainersConfiguration {
         }
         // Model the pre-existing service's schema/history and data before the new app starts.
         Flyway.configure().dataSource(database.getJdbcUrl(), database.getUsername(), database.getPassword())
-            .locations("classpath:db/inventory-migration").load().migrate();
+            .locations("classpath:db/inventory-migration").target("1").load().migrate();
         try (var connection = java.sql.DriverManager.getConnection(
                 database.getJdbcUrl(), database.getUsername(), database.getPassword());
              var statement = connection.createStatement()) {

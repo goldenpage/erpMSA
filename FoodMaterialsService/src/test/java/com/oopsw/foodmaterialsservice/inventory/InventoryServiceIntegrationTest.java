@@ -229,6 +229,18 @@ class InventoryServiceIntegrationTest {
 
 
     @Test
+    void 잘못된_페이지와_식별자는_400으로_거절한다() throws Exception {
+        String access = token(101L, "owner@example.com");
+        for (String path : new String[]{"/foodmaterials/inventories?page=-1",
+            "/foodmaterials/inventories?size=101", "/foodmaterials/inventories/0",
+            "/foodmaterials/inventories/100/movements?page=-1"}) {
+            mockMvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + access))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        }
+    }
+
+    @Test
     void 타계정_식자재에는_재고를_등록할_수_없다() throws Exception {
         mockMvc.perform(post("/foodmaterials/inventories")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token(202L, "other@example.com"))
@@ -301,5 +313,61 @@ class InventoryServiceIntegrationTest {
                 .andExpect(jsonPath("$.version").value(0));
             org.junit.jupiter.api.Assertions.assertEquals(1,movementRepository.count());
         } finally { jdbc.execute("DROP TRIGGER reject_movement"); }
+    }
+
+    private String disposalJson(String requestId,long quantity) throws Exception {
+        return objectMapper.writeValueAsString(Map.of("requestId",requestId,"quantity",quantity,"reason","기한 경과"));
+    }
+    private MvcResult dispose(String access,String requestId,long quantity) throws Exception {
+        return mockMvc.perform(post("/foodmaterials/inventories/100/disposals")
+            .header(HttpHeaders.AUTHORIZATION,"Bearer "+access).contentType(MediaType.APPLICATION_JSON)
+            .content(disposalJson(requestId,quantity))).andReturn();
+    }
+    @Test
+    void 폐기_재시도는_같은원장을_반환하고_다른내용은_충돌한다() throws Exception {
+        String access=token(101L,"owner@example.com");create(access,100L,20L);
+        String id="DISPOSAL-"+java.util.UUID.randomUUID();
+        var first=dispose(access,id,3);org.junit.jupiter.api.Assertions.assertEquals(200,first.getResponse().getStatus());
+        var replay=dispose(access,id,3);org.junit.jupiter.api.Assertions.assertEquals(200,replay.getResponse().getStatus());
+        org.junit.jupiter.api.Assertions.assertEquals(bodyLong(first,"movementId"),bodyLong(replay,"movementId"));
+        org.junit.jupiter.api.Assertions.assertEquals(17,bodyLong(replay,"quantityAfter"));
+        org.junit.jupiter.api.Assertions.assertEquals(409,dispose(access,id,4).getResponse().getStatus());
+        org.junit.jupiter.api.Assertions.assertEquals(2,movementRepository.count());
+    }
+    @Test
+    void 같은폐기_동시요청은_한번만_차감된다() throws Exception {
+        String access=token(101L,"owner@example.com");create(access,100L,20L);
+        String id="DISPOSAL-"+java.util.UUID.randomUUID();var barrier=new java.util.concurrent.CyclicBarrier(10);
+        try(var executor=java.util.concurrent.Executors.newFixedThreadPool(10)) {
+            var futures=new java.util.ArrayList<java.util.concurrent.Future<MvcResult>>();
+            for(int i=0;i<10;i++) futures.add(executor.submit(()->{barrier.await(10,java.util.concurrent.TimeUnit.SECONDS);return dispose(access,id,3);}));
+            var movements=new java.util.HashSet<Long>();
+            for(var f:futures) {var result=f.get(30,java.util.concurrent.TimeUnit.SECONDS);org.junit.jupiter.api.Assertions.assertEquals(200,result.getResponse().getStatus());movements.add(bodyLong(result,"movementId"));}
+            org.junit.jupiter.api.Assertions.assertEquals(1,movements.size());
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(17,inventoryRepository.findByAccountIdAndFoodMaterialId(101L,100L).orElseThrow().getOnHandQuantity());
+        org.junit.jupiter.api.Assertions.assertEquals(2,movementRepository.count());
+    }
+    @Test
+    void 폐기는_타계정과_부족수량을_거절한다() throws Exception {
+        String access=token(101L,"owner@example.com");create(access,100L,20L);
+        org.junit.jupiter.api.Assertions.assertEquals(404,dispose(token(202L,"other@example.com"),"DISPOSAL-"+java.util.UUID.randomUUID(),1).getResponse().getStatus());
+        var result=dispose(access,"DISPOSAL-"+java.util.UUID.randomUUID(),21);
+        org.junit.jupiter.api.Assertions.assertEquals(409,result.getResponse().getStatus());
+        org.junit.jupiter.api.Assertions.assertTrue(result.getResponse().getContentAsString().contains("INSUFFICIENT_STOCK"));
+        org.junit.jupiter.api.Assertions.assertEquals(1,movementRepository.count());
+    }
+    @Test
+    void 폐기원장_실패도_수량과_버전을_롤백한다() throws Exception {
+        String access=token(101L,"owner@example.com");create(access,100L,20L);
+        var jdbc=new org.springframework.jdbc.core.JdbcTemplate(inventoryDataSource);
+        jdbc.execute("CREATE TRIGGER reject_disposal BEFORE INSERT ON stock_movement FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'test failure'");
+        try {
+            org.junit.jupiter.api.Assertions.assertEquals(500,dispose(access,"DISPOSAL-"+java.util.UUID.randomUUID(),3).getResponse().getStatus());
+            var inventory=inventoryRepository.findByAccountIdAndFoodMaterialId(101L,100L).orElseThrow();
+            org.junit.jupiter.api.Assertions.assertEquals(20,inventory.getOnHandQuantity());
+            org.junit.jupiter.api.Assertions.assertEquals(0,inventory.getVersion());
+            org.junit.jupiter.api.Assertions.assertEquals(1,movementRepository.count());
+        } finally {jdbc.execute("DROP TRIGGER reject_disposal");}
     }
 }

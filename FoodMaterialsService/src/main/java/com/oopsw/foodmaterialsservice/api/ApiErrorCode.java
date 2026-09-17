@@ -10,6 +10,7 @@ public enum ApiErrorCode {
     FOOD_MATERIAL_NOT_FOUND(HttpStatus.NOT_FOUND, "품목을 찾을 수 없습니다."),
     SKU_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 등록된 SKU입니다."),
     FOOD_MATERIAL_CONFLICT(HttpStatus.CONFLICT, "품목 정보가 다른 요청에 의해 변경되었습니다."),
+    DISPOSAL_REQUEST_CONFLICT(HttpStatus.CONFLICT, "같은 폐기 요청 ID에 다른 내용이 전달되었습니다."),
     INVENTORY_NOT_FOUND(HttpStatus.NOT_FOUND, "재고를 찾을 수 없습니다."),
     INVENTORY_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 생성된 품목 재고입니다."),
     ADJUSTMENT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 처리된 재고 변경 요청입니다."),

@@ -8,19 +8,20 @@
 | 서비스 | 포트 | 기본 경로 | 현재 상태 |
 |---|---:|---|---|
 | Account Service | 7071 | `/account` | 구현 있음 |
-| Menus Service | 7072 | `/menus` | 서비스 실행 기반, 업무 API 501 |
-| FoodMaterials Service | 7073 | `/foodmaterials` | 기초 카탈로그 CRUD |
+| Menus Service | 7072 | `/menus` | 음식 메뉴 CRUD·비활성화 |
+| FoodMaterials Service | 7073 | `/foodmaterials` | 기초 카탈로그 CRUD·현재고·수량 조정·원장 |
 | Notices Service | 7074 | `/notices` | 서비스 실행 기반, 업무 API 501 |
 | Bills Service | 7075 | `/bills` | 서비스 실행 기반, 업무 API 501 |
 | Purchase Service | 7076 | `/purchase` | 서비스 실행 기반, 업무 API 501 |
-| Disposals Service | 7077 | `/disposals` | 서비스 실행 기반, 업무 API 501 |
+| Disposals Service | 7077 | `/disposals` | 폐기 기록·식자재 재고 차감·안전한 재시도 |
 
 위 7개 서비스가 실제 독립 Gradle 프로젝트와 Compose 서비스로 구성되어 있습니다.
-Menus·Notices·Bills·Purchase·Disposals는 JWT 인증·서비스 발견·관측까지 연결되며, 상세 업무 기능은 아직 501을 반환합니다.
-FoodMaterials는 기존 품목의 기초 카탈로그를 이관했습니다. 전체 식자재 업무 기능이 완성된 것은 아닙니다.
+Menus는 이름·설명·가격·판매 상태를 관리하고 Disposals는 식자재 폐기 기록과 재고 차감을 연결합니다.
+Notices·Bills·Purchase는 아직 501을 반환하며 Bills·Purchase는 요청에 따라 대기합니다.
+FoodMaterials는 기존 품목 카탈로그와 식자재 재고 기능을 함께 담당합니다. 전체 식자재 업무 기능이 완성된 것은 아닙니다.
 
 설계도 외 AuditService와 InventoryService는 폴더와 실행 구성에서 제거했습니다.
-기존 감사 저장·재고 수량 API는 제공하지 않습니다. 기존 DB와 데이터 볼륨은 보존합니다.
+재고 기능은 FoodMaterialsService 내부로 이관했습니다. 감사 저장 소비자는 아직 없습니다. 기존 DB와 데이터 볼륨은 보존합니다.
 [기존 환경 전환 절차](docs/service-architecture.md#기존-환경-전환)를 확인하세요.
 
 회원가입 이벤트는 `AccountService -> Outbox -> Kafka`까지 발행합니다.
@@ -82,6 +83,26 @@ docker compose down
 ```
 
 `docker compose down -v`는 MariaDB, Redis, Kafka, Prometheus, Grafana 데이터를 삭제하므로 초기화가 필요한 경우에만 사용합니다.
+
+## Jenkins 실행 및 이미지 갱신
+
+Jenkins는 기본 Compose와 분리되어 있으므로 별도로 실행합니다. 최초 실행과
+`jenkins/Dockerfile` 변경 후에는 이미지를 다시 빌드해야 합니다.
+
+```bash
+docker compose -f compose.jenkins.yaml up -d --build --wait
+docker compose -f compose.jenkins.yaml ps
+```
+
+접속 주소는 `http://127.0.0.1:8080`입니다. 기존 `erpmsa-jenkins-home` 볼륨의 설정과
+빌드 이력을 유지합니다. 실행 중인 빌드가 끝난 뒤 이미지를 갱신합니다.
+상태 검사는 로그인 페이지 응답과 CI 구조 검증에 필요한 Python 설치 여부를 확인합니다.
+`python3: not found`로 빌드가 실패하면 호스트에 Python을 설치하는 대신 위 명령으로
+Jenkins 이미지를 갱신합니다.
+
+CI는 체크아웃 전에 작업 폴더를 정리하여 제거된 서비스의 Gradle 산출물이 구조 검증에
+섞이지 않게 합니다. 일반 ERP 환경과 Docker Desktop 메모리를 공유하므로 테스트와
+서비스 이미지 빌드는 순차 실행합니다.
 
 ## 현재 구현의 로컬 접속 주소
 
@@ -192,6 +213,39 @@ Flyway가 시작 시 스키마를 생성·검증합니다.
 수정 요청의 `version`에는 조회 응답으로 받은 현재 버전을 전달해야 합니다.
 다른 요청이 먼저 수정해 버전이 달라졌다면 `409 FOOD_MATERIAL_CONFLICT`를 반환하므로,
 최신 값을 다시 조회한 뒤 사용자의 변경을 재적용해야 합니다.
+
+## 식자재 재고 API
+
+FoodMaterialsService가 기존 `inventorydb`를 별도 DB 연결로 사용합니다.
+재고 생성 시 같은 서비스의 카탈로그에서 계정 소유권을 검사하며, 수량과 변경 원장은 한 재고 DB 트랜잭션으로 저장합니다.
+
+```text
+POST /foodmaterials/inventories                              재고 생성
+GET  /foodmaterials/inventories                              내 재고 목록
+GET  /foodmaterials/inventories/{foodMaterialId}             현재고 조회
+POST /foodmaterials/inventories/{foodMaterialId}/adjustments 수량 조정
+GET  /foodmaterials/inventories/{foodMaterialId}/movements   변경 원장
+```
+
+생성 본문은 `foodMaterialId`, `initialQuantity`를 사용합니다. 조정 본문은 `requestId`, `quantityDelta`, `version`, `reason`입니다.
+중복 요청·버전 충돌·재고 부족은 409, 타계정 및 없는 식자재는 404로 처리합니다. 모든 경로는 Access Token이 필요합니다.
+기존 `/inventories` 경로와 JSON의 `itemId`는 새 경로와 `foodMaterialId`로 변경해야 합니다.
+물리 DB의 `item_id`와 기존 데이터·Flyway 이력은 그대로 유지합니다.
+[이관 방식과 검증 결과](docs/foodmaterials-inventory-migration.md)를 확인하세요.
+
+## 음식 메뉴 및 폐기 API
+
+메뉴는 `/menus`의 POST·GET과 `/menus/{menuId}`의 GET·PUT·DELETE로 관리합니다.
+등록 시 `name`, `description`, `price`, 수정 시 `status`(ACTIVE/INACTIVE)와 `version`을 함께 보냅니다.
+DELETE는 비활성화이며 레시피·식자재별 사용량 연결은 아직 구현하지 않습니다.
+
+폐기는 `POST /disposals`에 `requestId`, `foodMaterialId`, `quantity`, `reason`을 보냅니다.
+Disposals가 기록을 저장한 뒤 FoodMaterials에 재고 차감을 요청합니다.
+완료는 200/COMPLETED, 재고 부족 등 거절은 409/REJECTED, 통신 결과가 불명확하면 202/PENDING입니다.
+PENDING은 `POST /disposals/{disposalId}/retry` 또는 같은 requestId·내용의 등록 요청으로 재시도합니다.
+`GET /disposals`와 `GET /disposals/{disposalId}`로 내 처리 상태와 이력을 조회합니다.
+재시도에도 차감은 한 번만 적용하며, 같은 requestId에 다른 내용을 보내면 409입니다.
+[상세 계약과 실패 처리·검증](docs/menus-disposals-implementation.md)을 참고하세요.
 
 ## Kafka 이벤트 흐름 확인
 

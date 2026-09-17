@@ -1,6 +1,6 @@
 # FoodMaterials 목록 부하·장애 실험
 
-이 도구는 Account 인증·Outbox 발행과 FoodMaterials 카탈로그를 대상으로 한다. 목표 업무 서비스의 명칭과 경로는
+이 도구는 Account 인증·Outbox 발행과 FoodMaterials 카탈로그·재고를 대상으로 한다. 목표 업무 서비스의 명칭과 경로는
 [서비스 설계 기준](../docs/service-architecture.md)을 따르며, 전환 후 데이터·API·검증 항목을 갱신해야 한다.
 
 모든 명령은 저장소 루트에서 실행한다. `lab.py`는 고정 프로젝트 `erpmsa-sprint4-lab`과
@@ -65,8 +65,8 @@ baseline commit과 인덱스 조건은 보고서에 남긴다. `index`는 Flyway
 임시 실험 조작이다. 실제 환경에서는 V2 migration으로 추가하며 수동 DROP을 실행하지 않는다.
 
 `smoke.py`는 실험 계정을 추가하므로 부하 비교가 끝난 뒤 실행한다. Refresh 회전·로그아웃 후
-재사용 거절, FoodMaterials 생성·조회·계정 경계, 5개 서비스의 501 계약, 제거된 경로의 404와 Outbox 발행을 검사한다.
-감사 소비자·재고 동시성·DLT는 현재 구성의 검증 대상이 아니다. Kafka 복구 시간도 Outbox 발행 완료까지로 한정하며
+재사용 거절, FoodMaterials 생성·조회·계정 경계, 재고 10개 동시 조정(성공 1/충돌 9)·중복 요청 방지·원장 조회, Notices·Bills·Purchase의 501 계약, 제거된 경로의 404와 Outbox 발행을 검사한다.
+메뉴 생성·비활성화와 폐기 기록·재시도 후 한 번 차감도 검사한다. 감사 소비자·DLT는 현재 구성의 검증 대상이 아니다. Kafka 복구 시간도 Outbox 발행 완료까지로 한정하며
 소비자 처리까지 포함했던 과거 결과와 직접 비교하지 않는다.
 장애 주입 전에는 Gateway의 Account·FoodMaterials 경로가 연속 10회 정상 응답하는지 확인한다.
 Eureka 서버의 UP 등록만으로 Gateway 캐시까지 갱신됐다고 판단하지 않는다. 장애 영향이 겹친 실행은 별도로 표시한다.

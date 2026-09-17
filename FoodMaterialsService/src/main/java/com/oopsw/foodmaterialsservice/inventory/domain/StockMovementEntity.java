@@ -91,6 +91,12 @@ public class StockMovementEntity {
         );
     }
 
+    public static StockMovementEntity disposal(InventoryEntity inventory, String requestId, long quantity,
+        InventoryEntity.QuantityChange change, String reason) {
+        return create(inventory, requestId, MovementType.DISPOSAL, -quantity,
+            change.before(), change.after(), reason);
+    }
+
     private static StockMovementEntity create(
         InventoryEntity inventory,
         String requestId,
