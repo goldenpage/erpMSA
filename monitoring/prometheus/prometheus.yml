@@ -24,28 +24,12 @@ scrape_configs:
         port: 7071
         refresh_interval: 10s
 
-  - job_name: audit-service
-    metrics_path: /actuator/prometheus
-    dns_sd_configs:
-      - names: ["audit-service"]
-        type: A
-        port: 7080
-        refresh_interval: 10s
-
   - job_name: foodmaterials-service
     metrics_path: /actuator/prometheus
     dns_sd_configs:
       - names: ["foodmaterials-service"]
         type: A
         port: 7073
-        refresh_interval: 10s
-
-  - job_name: inventory-service
-    metrics_path: /actuator/prometheus
-    dns_sd_configs:
-      - names: ["inventory-service"]
-        type: A
-        port: 7081
         refresh_interval: 10s
 
   - job_name: gateway-server

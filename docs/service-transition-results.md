@@ -1,5 +1,8 @@
 # 설계도 기준 서비스 전환 결과
 
+> 이 문서는 2026-09-15 당시의 검증 기록이다. Audit·Inventory를 포함한 결과는 현재 구성의 검증이 아니다.
+> 이후 두 서비스를 제거한 변경은 [7개 서비스 정리 결과](service-topology-cleanup.md)를 참고한다.
+
 2026-09-15 기준, 문서의 이름뿐 아니라 프로젝트 폴더·Java 패키지/Application·포트·Gateway 경로·Eureka·Docker·CI·관측 설정을 변경했다.
 서비스 목록과 업무 완성 범위는 [설계 기준](service-architecture.md)을 따른다. 검증 원본 요약은 [검증 JSON](service-transition-verification.json)이다.
 

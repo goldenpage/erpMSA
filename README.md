@@ -19,18 +19,19 @@
 Menus·Notices·Bills·Purchase·Disposals는 JWT 인증·서비스 발견·관측까지 연결되며, 상세 업무 기능은 아직 501을 반환합니다.
 FoodMaterials는 기존 품목의 기초 카탈로그를 이관했습니다. 전체 식자재 업무 기능이 완성된 것은 아닙니다.
 
-Audit(7080)과 Inventory(7081)는 기존 기능을 보존하는 내부 지원 서비스입니다. 기본 Compose에서 호스트 포트를 공개하지 않고
-Gateway 업무 라우트에서도 제외했습니다. [기존 환경 전환 절차](docs/service-architecture.md#기존-환경-전환)를 확인하세요.
+설계도 외 AuditService와 InventoryService는 폴더와 실행 구성에서 제거했습니다.
+기존 감사 저장·재고 수량 API는 제공하지 않습니다. 기존 DB와 데이터 볼륨은 보존합니다.
+[기존 환경 전환 절차](docs/service-architecture.md#기존-환경-전환)를 확인하세요.
 
-회원가입 이벤트는 `AccountService -> Outbox -> Kafka -> AuditService` 순서로 전달됩니다.
-AccountService의 DB 저장과 Outbox 기록은 같은 트랜잭션으로 처리하며 AuditService는 eventId로 중복을 막습니다.
+회원가입 이벤트는 `AccountService -> Outbox -> Kafka`까지 발행합니다.
+계정과 Outbox 기록은 같은 DB 트랜잭션으로 저장하며 현재 업무 소비자는 없습니다.
 
 ## 설정 및 보안 관리 원칙
 
 - `application.yml` 또는 `application.yaml`에는 비밀정보를 저장하지 않습니다.
 - 공통 구조와 안전한 기본값만 Git으로 관리합니다.
 - DB 비밀번호와 Grafana 관리자 비밀번호는 환경변수로 주입합니다.
-- JWT는 RS256을 사용합니다. AccountService만 개인키 파일을 받으며, Gateway·나머지 업무 서비스·Inventory는 공개키만 받습니다.
+- JWT는 RS256을 사용합니다. AccountService만 개인키 파일을 받으며, Gateway·나머지 업무 서비스는 공개키만 받습니다.
 - 실제 `.env` 파일은 Git에 올리지 않고 `.env.example`만 공유합니다.
 - CI에서는 Jenkins Credentials로 비밀정보를 주입합니다.
 - 운영에서는 Vault, AWS Secrets Manager 등 별도의 Secret Manager 사용을 권장합니다.
@@ -107,9 +108,7 @@ Prometheus는 15초마다 다음 엔드포인트를 수집합니다.
 
 - `eureka-server:8761/actuator/prometheus`
 - `account-service:7071/actuator/prometheus`
-- `audit-service:7080/actuator/prometheus`
 - `foodmaterials-service:7073/actuator/prometheus`
-- `inventory-service:7081/actuator/prometheus`
 - `gateway-server:7070/actuator/prometheus`
 - `menus-service:7072/actuator/prometheus`
 - `notices-service:7074/actuator/prometheus`
@@ -117,7 +116,7 @@ Prometheus는 15초마다 다음 엔드포인트를 수집합니다.
 - `purchase-service:7076/actuator/prometheus`
 - `disposals-service:7077/actuator/prometheus`
 
-Prometheus의 `Status > Target health` 화면에서 11개 Spring 서비스 대상이 `UP`인지 확인할 수 있습니다.
+Prometheus의 `Status > Target health` 화면에서 9개 Spring 서비스 대상이 `UP`인지 확인할 수 있습니다.
 Grafana에는 `ErpMSA/ErpMSA Spring Services` 대시보드가 자동으로 등록됩니다.
 Grafana 로그인 정보는 `.env`의 `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD`를 사용합니다.
 
@@ -137,9 +136,7 @@ set +a
 ./eurekaServer/gradlew -p eurekaServer bootRun
 ./gatewayServer/gradlew -p gatewayServer bootRun
 ./AccountService/gradlew -p AccountService bootRun
-./AuditService/gradlew -p AuditService bootRun
 ./FoodMaterialsService/gradlew -p FoodMaterialsService bootRun
-./InventoryService/gradlew -p InventoryService bootRun
 ./MenusService/gradlew -p MenusService bootRun
 ./NoticesService/gradlew -p NoticesService bootRun
 ./BillsService/gradlew -p BillsService bootRun
@@ -149,7 +146,7 @@ set +a
 
 ## API 오류 응답 계약
 
-AccountService, FoodMaterialsService, InventoryService와 Gateway가 직접 반환하는 오류는 다음 JSON 구조를 사용합니다.
+AccountService, FoodMaterialsService와 Gateway가 직접 반환하는 오류는 다음 JSON 구조를 사용합니다.
 FoodMaterials의 경로와 식별자 필드는 전환에 맞춰 변경되었습니다. 상세 호환성 변경은 설계 기준 문서를 확인하세요.
 
 ```json
@@ -193,38 +190,8 @@ SKU는 계정 안에서 유일하며 영문, 숫자, `.`, `_`, `-`만 사용할 
 Flyway가 시작 시 스키마를 생성·검증합니다.
 
 수정 요청의 `version`에는 조회 응답으로 받은 현재 버전을 전달해야 합니다.
-다른 요청이 먼저 수정해 버전이 달라졌다면 `409 ITEM_CONFLICT`를 반환하므로,
+다른 요청이 먼저 수정해 버전이 달라졌다면 `409 FOOD_MATERIAL_CONFLICT`를 반환하므로,
 최신 값을 다시 조회한 뒤 사용자의 변경을 재적용해야 합니다.
-
-## 내부 Inventory API — 도메인 소유권 정비 전
-
-InventoryService는 기본 Gateway에 노출하지 않는 내부 서비스입니다. 내부 경로는 다음과 같습니다.
-로그인 계정과 품목별 현재고 및 모든 수량 변경 원장을
-`inventorydb`에 저장합니다. 재고 생성 전에 전달받은 Access Token으로
-FoodMaterialsService를 호출하여 해당 품목이 실제로 존재하고 현재 계정 소유인지 확인합니다.
-
-```text
-POST /inventories                         재고 및 초기 원장 생성
-GET  /inventories                         내 재고 목록(page, size)
-GET  /inventories/{itemId}                품목별 현재고 조회
-POST /inventories/{itemId}/adjustments    입고·출고 수량 조정
-GET  /inventories/{itemId}/movements      재고 변경 원장 조회
-```
-
-수량 조정 요청에는 다음 값이 필요합니다.
-
-- `requestId`: 계정 안에서 유일한 요청 ID입니다. 같은 ID를 다시 사용하면
-  `409 ADJUSTMENT_ALREADY_EXISTS`를 반환하여 중복 반영을 막습니다.
-- `quantityDelta`: 입고는 양수, 출고는 음수이며 `0`은 허용하지 않습니다.
-- `version`: 현재고 조회 응답의 버전입니다. 값이 오래되면
-  `409 INVENTORY_CONFLICT`를 반환합니다.
-- `reason`: 조정 사유이며 원장에 영구 기록됩니다.
-
-현재고 변경과 `stock_movement` 원장 저장은 같은 DB 트랜잭션으로 처리됩니다.
-차감 후 수량이 음수가 되면 `409 INSUFFICIENT_STOCK`를 반환하고 현재고와
-원장 모두 변경하지 않습니다. 이 기능은 Notices의 공지 기능과 다릅니다.
-재고 소유권과 Purchase·Disposals의 연계는 원래 업무 명세를 확인한 뒤 정합니다.
-OrderService는 목표 설계에 포함하지 않습니다.
 
 ## Kafka 이벤트 흐름 확인
 
@@ -238,19 +205,17 @@ docker compose exec kafka \
   --list
 ```
 
-회원가입 후 Outbox와 감사 로그 상태를 확인합니다.
+회원가입 후 Outbox의 발행 상태를 확인합니다.
 
 ```bash
 docker compose exec mariadb sh -ec \
   'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" mariadb \
   --host=127.0.0.1 --user=root \
-  --execute="SELECT event_id, status, attempt_count FROM mydb.account_outbox_event; \
-  SELECT event_id, event_type, aggregate_id FROM auditdb.audit_event;"'
+  --execute="SELECT event_id, status, attempt_count FROM mydb.account_outbox_event;"'
 ```
 
-`account_outbox_event.status`가 `PUBLISHED`이고 같은 `event_id`가
-`auditdb.audit_event`에 한 번만 존재하면 정상입니다. 처리할 수 없는 이벤트는
-`account.lifecycle.v1.DLT` 토픽으로 이동합니다.
+`account_outbox_event.status`의 `PUBLISHED`는 Kafka 발행 성공을 나타냅니다.
+현재 감사 소비자와 DLT 처리 구현은 없으므로 업무 처리 완료를 의미하지 않습니다.
 
 기존 로컬 `mydb`에는 Flyway 이력이 없으므로 Compose에서
 `FLYWAY_BASELINE_ON_MIGRATE=true`를 사용해 현재 Account 스키마를 V1으로 등록한 뒤

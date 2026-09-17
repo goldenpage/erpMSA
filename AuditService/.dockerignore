@@ -1,6 +1,0 @@
-.gradle
-build
-.idea
-out
-*.iml
-src/test

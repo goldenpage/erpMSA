@@ -35,11 +35,6 @@ services:
       <<: *java-lab
       FLYWAY_BASELINE_ON_MIGRATE: "false"
     mem_limit: 512m
-  audit-service:
-    image: erpmsa-sprint4/audit-service:lab
-    ports: !reset []
-    environment: *java-lab
-    mem_limit: 512m
   foodmaterials-service:
     image: erpmsa-sprint4/foodmaterials-service:lab
     ports: !reset []
@@ -47,12 +42,6 @@ services:
     mem_limit: 512m
     cpus: 1
 
-  inventory-service:
-    image: erpmsa-sprint4/inventory-service:lab
-    ports: !override ["127.0.0.1:17081:7081"]
-    environment: *java-lab
-    mem_limit: 512m
-    cpus: 1
   gateway-server:
     image: erpmsa-sprint4/gateway-server:lab
     ports: !override ["127.0.0.1:17070:7070"]

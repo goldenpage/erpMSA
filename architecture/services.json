@@ -1,7 +1,7 @@
 {
   "authority": "사용자가 제공한 서비스 설계도",
   "scope": "target-business-services",
-  "runtimeMigrationStatus": "verified-in-disposable-lab",
+  "runtimeMigrationStatus": "pending-runtime-verification",
   "services": [
     {
       "displayName": "Account Service",
@@ -51,18 +51,6 @@
       "port": 7077,
       "path": "/disposals",
       "implementationStatus": "authenticated-shell"
-    }
-  ],
-  "supportServices": [
-    {
-      "applicationName": "AuditService",
-      "port": 7080,
-      "publicGatewayRoute": false
-    },
-    {
-      "applicationName": "InventoryService",
-      "port": 7081,
-      "publicGatewayRoute": false
     }
   ]
 }

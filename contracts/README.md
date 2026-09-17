@@ -1,7 +1,9 @@
 # 이벤트 계약
 
 `account.lifecycle.v1`의 현재 payload는 `account-registered-v1.schema.json`을 따른다.
-생산자: AccountService Outbox. 소비자 그룹: `audit-service-v1`.
+생산자: AccountService Outbox. 현재 배포 구성에는 업무 소비자가 없다.
+기존 AuditService 소비자는 설계도에 맞춰 제거했다. 아래 소비자 멱등성·DLT 항목은
+향후 소비자 구현 시 지켜야 할 계약이며 현재 동작하는 기능으로 간주하지 않는다.
 Kafka record key는 accountId의 십진 문자열이다. 한 계정의 순서가 필요한 이벤트는
 동일한 key를 유지한다. 파티션 사이의 전역 순서, 소비자의 외부 부작용에 대한
 exactly-once 처리는 보장하지 않는다.
@@ -11,15 +13,15 @@ exactly-once 처리는 보장하지 않는다.
 - 선택 필드 추가는 v1의 하위 호환 변경이다. 소비자는 알 수 없는 필드를 무시한다.
 - 필수 필드 제거·타입 변경·의미 변경은 새 버전/토픽으로 분리한다. 소비자를 먼저 배포하고,
   새 생산자를 배포한 뒤 구버전의 잔여 메시지를 처리한다. 호환성을 확인하기 전 토픽만 전환하지 않는다.
-- 비밀번호, 토큰, JWT 개인키, 이메일·전화번호는 현재 감사 이벤트에 넣지 않는다.
-- 감사 저장은 eventId unique constraint와 원자적 insert-if-absent로 중복을 막는다.
+- 비밀번호, 토큰, JWT 개인키, 이메일·전화번호는 현재 계정 이벤트에 넣지 않는다.
+- 향후 소비자의 저장은 eventId unique constraint와 원자적 insert-if-absent로 중복을 막아야 한다.
 - DB와 Kafka는 한 트랜잭션이 아니다. Kafka 발행 성공 뒤 Outbox 상태 커밋 전에 종료되면
   중복 발행될 수 있으므로, 생산자 idempotence 설정만으로 중복을 없앴다고 주장하지 않는다.
-- 일반 처리 실패는 재시도 후 DLT로 이동한다. 잘못된 payload는 즉시 DLT 대상으로 분류한다.
+- 향후 소비자는 일반 처리 실패를 재시도 후 DLT로 이동하고, 잘못된 payload를 즉시 DLT 대상으로 분류해야 한다.
   DLT 발행도 실패하면 원본 처리를 완료로 간주하면 안 된다.
 
 DLT 재처리는 원인 수정, payload 계약 검증, 영향 범위와 eventId 목록 확인 후 수행한다.
-원본 key와 eventId를 유지하고 결과를 audit 테이블에서 대조한다. 무조건 전체 DLT를
+원본 key와 eventId를 유지하고 결과를 해당 소비자의 처리 이력에서 대조한다. 무조건 전체 DLT를
 재발행하거나 eventId를 재생성하면 감사 이력이 중복될 수 있다.
 
 현재 브로커 1개, 복제 계수 1은 개발 구성이다. 소비자 그룹 분리로 처리 독립성을 얻지만

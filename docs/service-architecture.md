@@ -26,23 +26,23 @@ Gateway의 공개 업무 라우트는 위 7개이며 `/purchase`는 단수, `/fo
 - `/items`는 `/foodmaterials`로 바뀌었다. 상세 응답의 `itemId`는 `foodMaterialId`, 목록의 `items`는 `foodMaterials`다.
 - 공개 오류 코드도 `FOOD_MATERIAL_NOT_FOUND`, `FOOD_MATERIAL_CONFLICT` 등으로 변경했다. 호출자는 경로와 응답 필드·코드를 함께 변경해야 한다.
 - 이전 `itemdb.item`과 Flyway V1/V2 SQL은 그대로 유지한다. 기존 데이터를 새로운 빈 DB로 바꾸거나 migration checksum을 변경하지 않는다.
-- Inventory가 소유권 확인에 사용하는 서비스 이름과 호출 경로도 FoodMaterials로 변경했다.
 - `/items`, `/inventories`, `/orders`는 Gateway의 공개 업무 라우트에서 제외했다.
 
 FoodMaterials는 SKU·이름·설명·단가·상태·계정 소유권의 기초 카탈로그다. 단위·유통기한·레시피 등의 업무 기능을
 그림만 보고 새로 확정하거나 구현하지 않았다. 기존 CRUD가 있다는 사실을 전체 식자재 요구사항 완성으로 해석하지 않는다.
 
-## 내부 지원 서비스
+## 설계도 외 서비스 제거
 
-| 내부 서비스 | 내부 포트 | 역할 | 외부 접근 |
-|---|---:|---|---|
-| AuditService | 7080 | 회원가입 이벤트 감사 저장 | 기본 Compose에서 호스트 포트 미공개, Gateway 라우트 없음 |
-| InventoryService | 7081 | 기존 현재고·수량 변경 원장 보존 | 기본 Compose에서 호스트 포트 미공개, Gateway 라우트 없음 |
+사용자 요청에 따라 AuditService와 InventoryService 폴더, Compose 서비스, Eureka 등록 설정,
+Jenkins 단계, 환경변수 예제 및 모니터링 대상을 제거했다. 업무 서비스는 위 7개만 둔다.
+기존 감사 저장·소비자 중복 방지·DLT 처리와 현재고·수량 조정·변경 원장 API는 더 이상 제공하지 않는다.
+이 기능을 Menus·Notices 등 다른 서비스의 구현으로 간주하지 않는다.
+Account의 Outbox와 Kafka 이벤트 발행은 유지하지만 현재 업무 소비자는 없다.
 
-Audit를 Menus로, Inventory를 Notices로 치환하지 않았다. 두 서비스는 7072·7074를 점유하지 않는다.
-재고 소유권이 미확정이므로 Inventory의 DB/API 계약은 내부에서 보존한다. 내부 요청의 `itemId`는 FoodMaterials에서 받은
-`foodMaterialId` 값을 사용한다. 식별자 숫자와 기존 `inventorydb` 참조 관계를 변경하지 않는다.
-현재 보존 방침은 추가 업무 명세를 확인하기 전의 구현 선택이며 최종 재고 도메인 배치 합의를 대신하지 않는다.
+기존 `auditdb`, `inventorydb`와 데이터 볼륨은 삭제하거나 초기화하지 않는다.
+새 환경에서는 두 스키마를 생성하지 않는다. 이전 코드와 migration은 Git 이력에서 확인한다.
+2026-09-15의 [전환 검증](service-transition-results.md)은 제거 전 구성의 기록이다.
+현재 구성의 검증 범위는 [7개 서비스 정리 결과](service-topology-cleanup.md)를 따른다.
 
 ## 신규 서비스의 인증과 미구현 계약
 
@@ -59,9 +59,10 @@ Purchase의 입고 확정 시점, Disposals의 폐기/차감 규칙이다. 주�
 
 1. `.env`의 `ITEM_DB_*`, `ITEM_SERVER_PORT`, `ITEM_FLYWAY_BASELINE_ON_MIGRATE`를 대응하는
    `FOOD_MATERIAL_DB_*`, `FOOD_MATERIAL_SERVER_PORT`, `FOOD_MATERIAL_FLYWAY_BASELINE_ON_MIGRATE`로 옮긴다.
-   Inventory 호출 설정은 `FOOD_MATERIAL_SERVICE_BASE_URL=http://FOODMATERIALSSERVICE`를 사용한다.
-2. 기존 Compose 프로젝트의 컨테이너를 볼륨 보존 상태로 종료한다. 아래 명령은 해당 프로젝트의 서비스 중단을 포함한다.
-3. 새 이미지로 시작한다. 기존 item-service 컨테이너를 남겨 두면 7073 포트가 충돌할 수 있다.
+   제거된 서비스의 `AUDIT_*`, `INVENTORY_*`, `FOOD_MATERIAL_SERVICE_BASE_URL`, `KAFKA_AUDIT_GROUP_ID`,
+   `KAFKA_ACCOUNT_LIFECYCLE_DLT_TOPIC` 설정은 현재 구성에서 사용하지 않는다.
+2. 기존 Compose 프로젝트의 컨테이너와 제거된 서비스의 orphan 컨테이너를 볼륨 보존 상태로 종료한다. 아래 명령은 해당 프로젝트의 서비스 중단을 포함한다.
+3. 새 이미지로 시작한다. 기존 item-service는 포트 충돌을, audit-service·inventory-service는 불필요한 실행을 일으킬 수 있다.
 
 ```bash
 docker compose down --remove-orphans
@@ -76,9 +77,10 @@ IDE 실행 설정도 `FoodMaterialsService` 프로젝트와 새 Application 클�
 ```bash
 python3 scripts/verify-service-architecture.py
 python3 scripts/verify-service-architecture.py --ci
+python3 scripts/verify-service-architecture.py --performance
 ```
 
-검사기는 7개 프로젝트·서비스 이름·포트·Gateway 경로, 공개키 전용 마운트, 내부 지원 서비스의 포트 비공개를 확인한다.
+검사기는 정확히 7개 업무 폴더·Compose 구성·서비스 이름·포트·Gateway 경로·공개키 전용 마운트와 9개 Spring 모니터링 대상을 확인한다.
 Compose 기본·CI·실험 설정과 Prometheus/Grafana 대상, Jenkins 테스트/이미지/경로 검증도 새 구성으로 갱신했다.
 Jenkins는 신규 API의 예상 결과를 501로 검사한다. 원격 CI 실행 여부는 별도 검증 결과에 표시한다.
 

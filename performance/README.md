@@ -1,6 +1,6 @@
 # FoodMaterials 목록 부하·장애 실험
 
-이 도구는 FoodMaterials 카탈로그와 내부 Inventory를 대상으로 한다. 목표 업무 서비스의 명칭과 경로는
+이 도구는 Account 인증·Outbox 발행과 FoodMaterials 카탈로그를 대상으로 한다. 목표 업무 서비스의 명칭과 경로는
 [서비스 설계 기준](../docs/service-architecture.md)을 따르며, 전환 후 데이터·API·검증 항목을 갱신해야 한다.
 
 모든 명령은 저장소 루트에서 실행한다. `lab.py`는 고정 프로젝트 `erpmsa-sprint4-lab`과
@@ -42,7 +42,7 @@ python3 performance/lab.py down
 
 실험의 key·DB 암호는 prepare에서 생성된다. users.json에는 4시간 유효한 실험 전용 토큰이 있으므로
 Git에 추가하지 않는다. 결과 폴더는 기본 ignore 대상이며, 공유 보고서에는 토큰 없는 통계만 옮긴다.
-토큰이 만료되면 실험 환경을 재생성한다. Inventory 검증은 실험 환경에만 공개한 17081 포트로 직접 호출한다. 운영 세션 TTL은 변경하지 않는다.
+토큰이 만료되면 실험 환경을 재생성한다. 운영 세션 TTL은 변경하지 않는다.
 `up`의 Docker 빌드 중에 부하를 측정하지 않는다. 부하 발생기도 같은 Docker VM의 자원을 사용한다.
 
 ## 데이터와 요청 가설
@@ -65,9 +65,10 @@ baseline commit과 인덱스 조건은 보고서에 남긴다. `index`는 Flyway
 임시 실험 조작이다. 실제 환경에서는 V2 migration으로 추가하며 수동 DROP을 실행하지 않는다.
 
 `smoke.py`는 실험 계정을 추가하므로 부하 비교가 끝난 뒤 실행한다. Refresh 회전·로그아웃 후
-재사용 거절, 재고 10개 동시 조정(성공 1/충돌 9), 계정 경계, 중복 이벤트와 DLT를 검사한다.
-DLT에서는 이번 실행의 고유한 malformed payload가 도착했는지 확인해 이전 DLT 메시지와 혼동하지 않는다.
-장애 주입 전에는 Gateway의 Account·Item 경로가 연속 10회 정상 응답하는지 확인한다.
+재사용 거절, FoodMaterials 생성·조회·계정 경계, 5개 서비스의 501 계약, 제거된 경로의 404와 Outbox 발행을 검사한다.
+감사 소비자·재고 동시성·DLT는 현재 구성의 검증 대상이 아니다. Kafka 복구 시간도 Outbox 발행 완료까지로 한정하며
+소비자 처리까지 포함했던 과거 결과와 직접 비교하지 않는다.
+장애 주입 전에는 Gateway의 Account·FoodMaterials 경로가 연속 10회 정상 응답하는지 확인한다.
 Eureka 서버의 UP 등록만으로 Gateway 캐시까지 갱신됐다고 판단하지 않는다. 장애 영향이 겹친 실행은 별도로 표시한다.
 `./scripts/verify-ci-key-transfer.sh`는 별도의 임시 볼륨에서 CI 키 전달/비루트 읽기 권한을 검사한 뒤 정리한다.
 
@@ -91,7 +92,7 @@ Account의 스케줄러 스레드를 2개로 설정해 Kafka 발행 대기 중�
 | DB 대기 증가와 지연 상승 | 쿼리/트랜잭션/연결 병목 | SQL plan·시간·연결 점유를 확인한 뒤 쿼리 개선 |
 | GC 이후 live data 지속 증가 | 장기 보유·누수 가능성 | GC 로그, heap dump, 객체의 retained size/참조 확인 |
 | heap 여유가 있는데 컨테이너 종료 | 네이티브 메모리·컨테이너 제한 등 | RSS·OOMKilled·종료 시각·memory limit·native memory 확인 |
-| Outbox 나이 증가 | Kafka 발행 지연 | broker 상태·재시도·복구 후 같은 eventId의 감사 저장 확인 |
+| Outbox 나이 증가 | Kafka 발행 지연 | broker 상태·재시도·복구 후 Outbox 발행 완료 확인 |
 | replica 증가에도 지연 개선 없음 | 공유 DB/게이트웨이/호스트 병목 | 전체 연결 수·DB CPU·Gateway 지표 확인 |
 
 GC 로그는 컨테이너 stdout에 기록한다. JVM OOM 시 `/tmp`에 heap dump를 생성하도록 했지만,

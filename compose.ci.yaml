@@ -36,22 +36,10 @@ services:
     restart: "no"
     ports: !reset []
 
-  audit-service:
-    image: "${CI_PROJECT_NAME:-erpmsa-ci}/audit-service:${BUILD_NUMBER:-local}"
-    restart: "no"
-    ports: !reset []
-
   foodmaterials-service:
     volumes: !override
       - ci-jwt-public:/run/jwt-public:ro
     image: "${CI_PROJECT_NAME:-erpmsa-ci}/foodmaterials-service:${BUILD_NUMBER:-local}"
-    restart: "no"
-    ports: !reset []
-
-  inventory-service:
-    volumes: !override
-      - ci-jwt-public:/run/jwt-public:ro
-    image: "${CI_PROJECT_NAME:-erpmsa-ci}/inventory-service:${BUILD_NUMBER:-local}"
     restart: "no"
     ports: !reset []
 

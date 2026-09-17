@@ -35,15 +35,9 @@ services:
       - >-
         MYSQL_PWD="$$MARIADB_ROOT_PASSWORD" mariadb
         --host=mariadb --user=root
-        --execute="CREATE DATABASE IF NOT EXISTS auditdb
+        --execute="CREATE DATABASE IF NOT EXISTS itemdb
         CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
-        CREATE DATABASE IF NOT EXISTS itemdb
-        CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
-        CREATE DATABASE IF NOT EXISTS inventorydb
-        CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
-        GRANT ALL PRIVILEGES ON auditdb.* TO 'account'@'%';
         GRANT ALL PRIVILEGES ON itemdb.* TO 'account'@'%';
-        GRANT ALL PRIVILEGES ON inventorydb.* TO 'account'@'%';
         FLUSH PRIVILEGES;"
 
   redis:
@@ -171,36 +165,6 @@ services:
       retries: 30
       start_period: 30s
 
-  audit-service:
-    build:
-      context: ./AuditService
-    image: erpmsa/audit-service:local
-    restart: unless-stopped
-    environment:
-      AUDIT_SERVER_PORT: "7080"
-      AUDIT_DB_URL: jdbc:mariadb://mariadb:3306/auditdb
-      AUDIT_DB_USERNAME: account
-      AUDIT_DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set in .env}"
-      JPA_DDL_AUTO: validate
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      KAFKA_ACCOUNT_LIFECYCLE_TOPIC: "${KAFKA_ACCOUNT_LIFECYCLE_TOPIC:-account.lifecycle.v1}"
-      KAFKA_ACCOUNT_LIFECYCLE_DLT_TOPIC: "${KAFKA_ACCOUNT_LIFECYCLE_DLT_TOPIC:-account.lifecycle.v1.DLT}"
-      KAFKA_AUDIT_GROUP_ID: "${KAFKA_AUDIT_GROUP_ID:-audit-service-v1}"
-      EUREKA_DEFAULT_ZONE: http://eureka-server:8761/eureka
-    depends_on:
-      database-init:
-        condition: service_completed_successfully
-      kafka:
-        condition: service_healthy
-      eureka-server:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/7080"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
-      start_period: 30s
-
   foodmaterials-service:
     build:
       context: .
@@ -234,45 +198,6 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/7073"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
-      start_period: 30s
-
-  inventory-service:
-    build:
-      context: .
-      dockerfile: InventoryService/Dockerfile
-    image: erpmsa/inventory-service:local
-    restart: unless-stopped
-    environment:
-      INVENTORY_SERVER_PORT: "7081"
-      INVENTORY_DB_URL: jdbc:mariadb://mariadb:3306/inventorydb
-      INVENTORY_DB_USERNAME: account
-      INVENTORY_DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set in .env}"
-      JPA_DDL_AUTO: validate
-      INVENTORY_FLYWAY_BASELINE_ON_MIGRATE: "false"
-      FOOD_MATERIAL_SERVICE_BASE_URL: http://FOODMATERIALSSERVICE
-      EUREKA_DEFAULT_ZONE: http://eureka-server:8761/eureka
-      JWT_ISSUER: "${JWT_ISSUER:-kosta-erp-account}"
-      JWT_AUDIENCE: "${JWT_AUDIENCE:-kosta-erp-api}"
-      JWT_PUBLIC_KEY_DIRECTORY: /run/jwt-public
-    volumes:
-      - type: bind
-        source: ${JWT_PUBLIC_KEYS_HOST_DIR:-./secrets/jwt/public}
-        target: /run/jwt-public
-        read_only: true
-        bind:
-          create_host_path: false
-    depends_on:
-      database-init:
-        condition: service_completed_successfully
-      eureka-server:
-        condition: service_healthy
-      foodmaterials-service:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/7081"]
       interval: 5s
       timeout: 3s
       retries: 30
@@ -461,8 +386,6 @@ services:
         condition: service_healthy
       foodmaterials-service:
         condition: service_healthy
-      inventory-service:
-        condition: service_healthy
       menus-service:
         condition: service_healthy
       notices-service:
@@ -498,11 +421,7 @@ services:
         condition: service_healthy
       account-service:
         condition: service_healthy
-      audit-service:
-        condition: service_healthy
       foodmaterials-service:
-        condition: service_healthy
-      inventory-service:
         condition: service_healthy
       gateway-server:
         condition: service_healthy

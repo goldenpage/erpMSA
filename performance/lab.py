@@ -20,7 +20,6 @@ RESULTS = HERE / 'results'
 ENV = HERE / '.env'
 PROJECT = 'erpmsa-sprint4-lab'
 GATEWAY = 'http://127.0.0.1:17070'
-INVENTORY = 'http://127.0.0.1:17081'
 
 def compose(*args, capture=False, input=None, check=True):
     command = ['docker', 'compose', '--env-file', str(ENV), '-p', PROJECT,
@@ -56,7 +55,7 @@ def request(path, method='GET', body=None, token=None):
     headers = {'Content-Type': 'application/json'}
     if token: headers['Authorization'] = 'Bearer ' + token
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request((INVENTORY if path.startswith('/inventories') else GATEWAY) + path, data=data, headers=headers, method=method)
+    req = urllib.request.Request(GATEWAY + path, data=data, headers=headers, method=method)
     try:
         with urllib.request.urlopen(req, timeout=10) as response:
             return response.status, response.read().decode()
@@ -227,12 +226,10 @@ def outage(service, seconds):
         started = time.monotonic()
         for _ in range(90):
             pending = int(sql("SELECT COUNT(*) FROM mydb.account_outbox_event WHERE status='PENDING';"))
-            missing = int(sql('''SELECT COUNT(*) FROM mydb.account_outbox_event o
-                LEFT JOIN auditdb.audit_event a ON o.event_id=a.event_id WHERE a.event_id IS NULL;'''))
-            if pending == 0 and missing == 0: break
+            if pending == 0: break
             time.sleep(2)
-        else: raise RuntimeError('Outbox/audit recovery deadline exceeded')
-        save('kafka-recovery', {'pending': pending, 'missingAudit': missing, 'recoverySeconds': time.monotonic()-started})
+        else: raise RuntimeError('Outbox publish recovery deadline exceeded')
+        save('kafka-recovery', {'pending': pending, 'scope': 'outbox-publish-only', 'recoverySeconds': time.monotonic()-started})
     capture('after-' + service + '-outage')
 
 def kill_one(seconds):
