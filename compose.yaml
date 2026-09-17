@@ -37,6 +37,9 @@ services:
         --host=mariadb --user=root
         --execute="CREATE DATABASE IF NOT EXISTS itemdb
         CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+        CREATE DATABASE IF NOT EXISTS inventorydb
+        CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+        GRANT ALL PRIVILEGES ON inventorydb.* TO 'account'@'%';
         GRANT ALL PRIVILEGES ON itemdb.* TO 'account'@'%';
         FLUSH PRIVILEGES;"
 
@@ -178,6 +181,10 @@ services:
       FOOD_MATERIAL_DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set in .env}"
       JPA_DDL_AUTO: validate
       FOOD_MATERIAL_FLYWAY_BASELINE_ON_MIGRATE: "false"
+      FOOD_MATERIAL_INVENTORY_DB_URL: jdbc:mariadb://mariadb:3306/inventorydb
+      FOOD_MATERIAL_INVENTORY_DB_USERNAME: account
+      FOOD_MATERIAL_INVENTORY_DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set in .env}"
+      FOOD_MATERIAL_INVENTORY_FLYWAY_BASELINE_ON_MIGRATE: "false"
       EUREKA_DEFAULT_ZONE: http://eureka-server:8761/eureka
       JWT_ISSUER: "${JWT_ISSUER:-kosta-erp-account}"
       JWT_AUDIENCE: "${JWT_AUDIENCE:-kosta-erp-api}"

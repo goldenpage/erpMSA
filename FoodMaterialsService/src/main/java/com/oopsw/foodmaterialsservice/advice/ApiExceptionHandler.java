@@ -103,7 +103,8 @@ public class ApiExceptionHandler {
         ObjectOptimisticLockingFailureException exception,
         HttpServletRequest request
     ) {
-        return response(ApiErrorCode.FOOD_MATERIAL_CONFLICT, request);
+        return response(request.getRequestURI().startsWith("/foodmaterials/inventories")
+            ? ApiErrorCode.INVENTORY_CONFLICT : ApiErrorCode.FOOD_MATERIAL_CONFLICT, request);
     }
 
     @ExceptionHandler(NoResourceFoundException.class)

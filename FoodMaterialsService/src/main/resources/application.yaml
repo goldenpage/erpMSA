@@ -48,6 +48,16 @@ management:
         http.server.requests: true
 
 app:
+  inventory:
+    datasource:
+      url: "${FOOD_MATERIAL_INVENTORY_DB_URL:jdbc:mariadb://localhost:3306/inventorydb}"
+      username: "${FOOD_MATERIAL_INVENTORY_DB_USERNAME:${FOOD_MATERIAL_DB_USERNAME:account}}"
+      password: "${FOOD_MATERIAL_INVENTORY_DB_PASSWORD:${FOOD_MATERIAL_DB_PASSWORD:${DB_PASSWORD:}}}"
+      hikari:
+        pool-name: FoodMaterialsInventoryPool
+        maximum-pool-size: ${FOOD_MATERIAL_INVENTORY_DB_POOL_SIZE:10}
+    flyway:
+      baseline-on-migrate: "${FOOD_MATERIAL_INVENTORY_FLYWAY_BASELINE_ON_MIGRATE:false}"
   auth:
     issuer: "${JWT_ISSUER:kosta-erp-account}"
     audience: "${JWT_AUDIENCE:kosta-erp-api}"
