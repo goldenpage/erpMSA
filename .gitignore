@@ -27,3 +27,10 @@
 /performance/results/
 /performance/.env
 **/__pycache__/
+
+# Local GHCR runtime helpers
+/compose.ghcr.yaml
+/scripts/local-runtime.sh
+/scripts/verify-local-runtime.py
+/scripts/verify-local-ghcr-architecture.py
+/docs/local-ghcr-runtime.md
