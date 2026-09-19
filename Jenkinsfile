@@ -455,6 +455,7 @@ pipeline {
                         http://gateway-server:7070/foodmaterials)
 
                     FOOD_MATERIAL_ID=$(jq -r '.foodMaterialId // empty' "$FOOD_MATERIAL_FILE")
+                    printf 'FoodMaterial create status=%s\\n' "$FOOD_MATERIAL_CREATE_STATUS"
 
                     if [ -z "$FOOD_MATERIAL_ID" ]; then
                         echo 'FoodMaterial ID가 반환되지 않았습니다.'
@@ -476,6 +477,7 @@ pipeline {
                         -o "$INVENTORY_FILE" -w '%{http_code}' \
                         -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' \
                         --data "$STOCK_BODY" http://gateway-server:7070/foodmaterials/inventories)
+                    printf 'Inventory create status=%s\\n' "$STOCK_STATUS"
                     test "$STOCK_STATUS" = "201"
                     STOCK_VERSION=$(jq -er '.version' "$INVENTORY_FILE")
                     STOCK_BODY=$(jq -nc --argjson version "$STOCK_VERSION" --arg id "CI-STOCK-$BUILD_NUMBER" \
@@ -484,23 +486,43 @@ pipeline {
                         -o "$INVENTORY_FILE" -w '%{http_code}' \
                         -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' \
                         --data "$STOCK_BODY" "http://gateway-server:7070/foodmaterials/inventories/$FOOD_MATERIAL_ID/adjustments")
+                    printf 'Inventory adjustment status=%s\\n' "$STOCK_STATUS"
                     test "$STOCK_STATUS" = "200"
                     test "$(jq -er '.inventory.onHandQuantity' "$INVENTORY_FILE")" = "17"
                     STOCK_STATUS=$(curl -sS --connect-timeout 2 --max-time 10 \
                         -o "$INVENTORY_FILE" -w '%{http_code}' -H "Authorization: Bearer $ACCESS_TOKEN" \
                         "http://gateway-server:7070/foodmaterials/inventories/$FOOD_MATERIAL_ID/movements")
+                    printf 'Inventory movements status=%s\\n' "$STOCK_STATUS"
                     test "$STOCK_STATUS" = "200"
                     test "$(jq -er '.totalElements' "$INVENTORY_FILE")" = "2"
                     rm -f "$INVENTORY_FILE"
 
                     BUSINESS_FILE=/tmp/erpmsa-ci-business.json
+                    # Health checks can pass before Gateway refreshes its Eureka registry.
+                    for SERVICE_PATH in menus disposals; do
+                        BUSINESS_ROUTE_STATUS=000
+                        for ATTEMPT in $(seq 1 45); do
+                            BUSINESS_ROUTE_STATUS=$(curl -sS --connect-timeout 2 --max-time 5 \
+                                -o /dev/null -w '%{http_code}' \
+                                -H "Authorization: Bearer $ACCESS_TOKEN" \
+                                "http://gateway-server:7070/$SERVICE_PATH" || true)
+                            printf 'Business route check: service=%s attempt=%s status=%s\\n' \
+                                "$SERVICE_PATH" "$ATTEMPT" "$BUSINESS_ROUTE_STATUS"
+                            if [ "$BUSINESS_ROUTE_STATUS" = "200" ]; then break; fi
+                            sleep 2
+                        done
+                        test "$BUSINESS_ROUTE_STATUS" = "200"
+                    done
+
                     MENU_STATUS=$(curl -sS --connect-timeout 2 --max-time 10 -o "$BUSINESS_FILE" -w '%{http_code}' \
                         -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' \
                         --data '{"name":"CI menu","price":12000}' http://gateway-server:7070/menus)
+                    printf 'Menu create status=%s\\n' "$MENU_STATUS"
                     test "$MENU_STATUS" = "201"
                     MENU_ID=$(jq -er '.menuId' "$BUSINESS_FILE")
                     MENU_STATUS=$(curl -sS --connect-timeout 2 --max-time 10 -o /dev/null -w '%{http_code}' \
                         -H "Authorization: Bearer $ACCESS_TOKEN" -X DELETE "http://gateway-server:7070/menus/$MENU_ID")
+                    printf 'Menu delete status=%s\\n' "$MENU_STATUS"
                     test "$MENU_STATUS" = "204"
                     DISPOSAL_BODY=$(jq -nc --arg id "CI-DISPOSAL-$BUILD_NUMBER" --argjson material "$FOOD_MATERIAL_ID" \
                         '{requestId:$id,foodMaterialId:$material,quantity:2,reason:"CI disposal"}')
@@ -508,6 +530,7 @@ pipeline {
                         DISPOSAL_STATUS=$(curl -sS --connect-timeout 2 --max-time 15 -o "$BUSINESS_FILE" -w '%{http_code}' \
                             -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' \
                             --data "$DISPOSAL_BODY" http://gateway-server:7070/disposals)
+                        printf 'Disposal replay=%s http=%s state=%s\\n' "$REPLAY" "$DISPOSAL_STATUS" "$(jq -r '.status // .code // "unknown"' "$BUSINESS_FILE")"
                         test "$DISPOSAL_STATUS" = "200"
                         test "$(jq -r '.status' "$BUSINESS_FILE")" = "COMPLETED"
                         test "$(jq -r '.quantityAfter' "$BUSINESS_FILE")" = "15"

@@ -15,6 +15,8 @@ public class StockClientConfiguration {
         factory.setReadTimeout(Duration.ofSeconds(3));
         return RestClient.builder().requestFactory(factory);
     }
+    // Eureka must contact its configured server directly, without service discovery.
+    @Bean @Primary RestClient.Builder restClientBuilder() {return builder();}
     @Bean @LoadBalanced RestClient.Builder inventoryDiscoveryClient() {return builder();}
     @Bean StockClient stockClient(@Qualifier("inventoryDiscoveryClient") RestClient.Builder discovery,
         @Value("${app.inventory.base-url:http://FOODMATERIALSSERVICE}") String url,
