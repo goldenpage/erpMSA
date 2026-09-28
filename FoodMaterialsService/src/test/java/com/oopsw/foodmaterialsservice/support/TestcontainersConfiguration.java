@@ -1,6 +1,5 @@
 package com.oopsw.foodmaterialsservice.support;
 
-import org.flywaydb.core.Flyway;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -13,34 +12,44 @@ import org.testcontainers.mariadb.MariaDBContainer;
 public class TestcontainersConfiguration {
     @Bean
     @ServiceConnection
-    MariaDBContainer mariaDBContainer() {
-        return new MariaDBContainer("mariadb:10.11")
+    MariaDBContainer mariaDBContainer(@Value("${test.inventory.legacy:false}") boolean legacy) {
+        var database = isolatedDatabase()
             .withDatabaseName("item_service_test")
             .withUsername("item").withPassword("test-password");
+        if (legacy) {
+            database.start();
+            try {
+                LegacyMigrationFixture.prepare(database, "catalog");
+            } catch (RuntimeException exception) {
+                database.stop();
+                throw exception;
+            }
+        }
+        return database;
     }
 
     @Bean(defaultCandidate = false)
     MariaDBContainer inventoryDatabase(@Value("${test.inventory.legacy:false}") boolean legacy) {
-        var database = new MariaDBContainer("mariadb:10.11")
+        var database = isolatedDatabase()
             .withDatabaseName("inventory_service_test")
             .withUsername("inventory").withPassword("test-password");
         database.start();
         if (!legacy) {
             return database;
         }
-        // Model the pre-existing service's schema/history and data before the new app starts.
-        Flyway.configure().dataSource(database.getJdbcUrl(), database.getUsername(), database.getPassword())
-            .locations("classpath:db/inventory-migration").target("1").load().migrate();
-        try (var connection = java.sql.DriverManager.getConnection(
-                database.getJdbcUrl(), database.getUsername(), database.getPassword());
-             var statement = connection.createStatement()) {
-            statement.executeUpdate("INSERT INTO inventory (id,account_id,item_id,on_hand_quantity,version,created_at,updated_at) VALUES (77,101,777,42,3,NOW(),NOW())");
-            statement.executeUpdate("INSERT INTO stock_movement (id,inventory_id,account_id,item_id,request_id,movement_type,quantity_delta,quantity_before,quantity_after,reason,created_at) VALUES (88,77,101,777,'INITIAL-77','INITIAL',42,0,42,'legacy',NOW())");
-        } catch (java.sql.SQLException exception) {
+        try {
+            LegacyMigrationFixture.prepare(database, "inventory");
+        } catch (RuntimeException exception) {
             database.stop();
-            throw new IllegalStateException(exception);
+            throw exception;
         }
         return database;
+    }
+
+    private static MariaDBContainer isolatedDatabase() {
+        return new MariaDBContainer("mariadb:10.11")
+            .withLabel("erpmsa.verification.run", System.getenv().getOrDefault("ERPMSA_VERIFICATION_RUN_ID", "standalone"))
+            .withTmpFs(java.util.Map.of("/var/lib/mysql", "rw")).withReuse(false);
     }
 
     @Bean

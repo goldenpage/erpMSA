@@ -7,6 +7,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasItem;
 
 import com.auth0.jwt.JWT;
 import com.oopsw.security.JwtTestKeys;
@@ -60,6 +62,73 @@ class FoodMaterialsServiceIntegrationTest {
     @BeforeEach
     void cleanData() {
         itemRepository.deleteAllInBatch();
+    }
+
+    @Test
+    void 목록_범위_오류는_400이며_기존_데이터를_보존한다() throws Exception {
+        String access = token(101L, "owner@example.com");
+        create(access, "VALIDATION-PAGE");
+        var before = jdbc.queryForList("SELECT * FROM item ORDER BY id");
+        for (String[] invalid : new String[][] {{"page", "-1"}, {"size", "0"}, {"size", "101"}}) {
+            mockMvc.perform(get("/foodmaterials").param(invalid[0], invalid[1])
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + access))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.fieldErrors[*].field").value(hasItem(invalid[0])));
+        }
+        assertThat(jdbc.queryForList("SELECT * FROM item ORDER BY id")).isEqualTo(before);
+    }
+
+    @Test
+    void 잘못된_품목_ID는_조회_수정_삭제에서_400을_반환한다() throws Exception {
+        String access = token(101L, "owner@example.com");
+        create(access, "VALIDATION-ID");
+        var before = jdbc.queryForList("SELECT * FROM item ORDER BY id");
+        for (long id : new long[] {0L, -1L}) {
+            var requests = java.util.List.of(
+                get("/foodmaterials/{foodMaterialId}", id),
+                put("/foodmaterials/{foodMaterialId}", id)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(updateJson("수정 시도", "100.00", "ACTIVE", 0L)),
+                delete("/foodmaterials/{foodMaterialId}", id)
+            );
+            for (var request : requests) {
+                mockMvc.perform(request.header(HttpHeaders.AUTHORIZATION, "Bearer " + access))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                    .andExpect(jsonPath("$.fieldErrors[*].field").value(hasItem("foodMaterialId")));
+            }
+        }
+        assertThat(jdbc.queryForList("SELECT * FROM item ORDER BY id")).isEqualTo(before);
+    }
+
+    @Test
+    void 정상_페이지_경계는_200을_반환한다() throws Exception {
+        String access = token(101L, "owner@example.com");
+        create(access, "VALIDATION-BOUNDARY");
+        for (String size : new String[] {"1", "100"}) {
+            mockMvc.perform(get("/foodmaterials").param("page", "0").param("size", size)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + access))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1));
+        }
+    }
+
+    @Test
+    void 잘못된_수정_body의_필드_오류_계약을_유지한다() throws Exception {
+        String access = token(101L, "owner@example.com");
+        var created = create(access, "VALIDATION-BODY");
+        long id = objectMapper.readTree(created.getResponse().getContentAsString())
+            .get("foodMaterialId").longValue();
+        var before = jdbc.queryForList("SELECT * FROM item ORDER BY id");
+        mockMvc.perform(put("/foodmaterials/{foodMaterialId}", id)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + access)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(updateJson("", "100.00", "ACTIVE", 0L)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+            .andExpect(jsonPath("$.fieldErrors[*].field").value(hasItem("name")));
+        assertThat(jdbc.queryForList("SELECT * FROM item ORDER BY id")).isEqualTo(before);
     }
 
     @Test

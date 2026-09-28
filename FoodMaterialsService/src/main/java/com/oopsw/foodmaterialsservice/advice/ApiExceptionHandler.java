@@ -4,6 +4,7 @@ import com.oopsw.foodmaterialsservice.api.ApiErrorCode;
 import com.oopsw.foodmaterialsservice.api.ApiErrorResponse;
 import com.oopsw.foodmaterialsservice.api.ApiException;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolationException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -56,6 +57,37 @@ public class ApiExceptionHandler {
             .sorted(Comparator.comparing(
                 ApiErrorResponse.FieldViolation::field
             ))
+            .toList();
+
+        return ResponseEntity.status(ApiErrorCode.INVALID_REQUEST.status())
+            .body(ApiErrorResponse.of(
+                ApiErrorCode.INVALID_REQUEST,
+                request.getRequestURI(),
+                fieldErrors
+            ));
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ApiErrorResponse> handleConstraintViolation(
+        ConstraintViolationException exception,
+        HttpServletRequest request
+    ) {
+        List<ApiErrorResponse.FieldViolation> fieldErrors = exception
+            .getConstraintViolations()
+            .stream()
+            .map(violation -> {
+                String path = violation.getPropertyPath().toString();
+                return new ApiErrorResponse.FieldViolation(
+                    path.substring(path.lastIndexOf('.') + 1),
+                    Objects.requireNonNullElse(
+                        violation.getMessage(),
+                        "올바르지 않은 값입니다."
+                    )
+                );
+            })
+            .distinct()
+            .sorted(Comparator.comparing(ApiErrorResponse.FieldViolation::field)
+                .thenComparing(ApiErrorResponse.FieldViolation::message))
             .toList();
 
         return ResponseEntity.status(ApiErrorCode.INVALID_REQUEST.status())

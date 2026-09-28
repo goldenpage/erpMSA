@@ -27,6 +27,7 @@
 /performance/results/
 /performance/.env
 **/__pycache__/
+/.verification/
 
 # Local GHCR runtime helpers
 /compose.ghcr.yaml
