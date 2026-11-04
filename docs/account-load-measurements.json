@@ -4921,5 +4921,1314 @@
     }
    }
   ]
+ },
+ "loginRateLimit": {
+  "status": "개선 후보 3 구현 후 같은 T1-small 환경 측정",
+  "settings": {
+   "loginPerIpPerMinute": 30,
+   "registerPerIpPerMinute": 10,
+   "failuresBeforeLock": 5,
+   "failureWindow": "15m",
+   "lock": "1m→2배→15m",
+   "ipWindow": "1m 슬라이딩 근사"
+  },
+  "e2e": {
+   "sameIp30Logins": "401",
+   "31st": "429 Retry-After 14",
+   "otherIp": "401",
+   "forgedXClientAddress": "무시(429)"
+  },
+  "failureLatencyMs": {
+   "before": {
+    "unknownP50": 5.2,
+    "wrongpwP50": "약 87~97"
+   },
+   "after": {
+    "unknownP50": 90.9,
+    "wrongpwP50": 92.2
+   }
+  },
+  "runs": [
+   {
+    "label": "rl-a4-wrongpw",
+    "scenario": "login-attack",
+    "startedAt": "2026-11-04T12:41:41.263120+00:00",
+    "k6ExitCode": 99,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "login-attack",
+     "RUN_NO": "0",
+     "MAX_VUS": "800",
+     "STAGES": "10:1m,20:1m,30:1m",
+     "DURATION": "4m",
+     "NORMAL_RATE": "4",
+     "ATTACK_KIND": "wrongpw",
+     "ATTACK_DELAY": "30s"
+    },
+    "windows": [
+     {
+      "window": "0-30s",
+      "goodputRps": 4.0,
+      "p95Ms": 198.5,
+      "byRequest": {
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 128.7,
+        "p95Ms": 198.5,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "30-60s",
+      "goodputRps": 7.27,
+      "p95Ms": 173.6,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 97,
+        "p50Ms": 107.8,
+        "p95Ms": 184.6,
+        "status": {
+         "401": 97
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 121,
+        "p50Ms": 119.1,
+        "p95Ms": 170.3,
+        "status": {
+         "200": 121
+        }
+       }
+      }
+     },
+     {
+      "window": "60-90s",
+      "goodputRps": 11.73,
+      "p95Ms": 288.9,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 233,
+        "p50Ms": 96.3,
+        "p95Ms": 288.4,
+        "status": {
+         "401": 138,
+         "429": 95
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 119,
+        "p50Ms": 127.9,
+        "p95Ms": 308.9,
+        "status": {
+         "200": 119
+        }
+       }
+      }
+     },
+     {
+      "window": "90-120s",
+      "goodputRps": 16.57,
+      "p95Ms": 138.3,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 376,
+        "p50Ms": 13.5,
+        "p95Ms": 33.9,
+        "status": {
+         "401": 5,
+         "429": 371
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 121,
+        "p50Ms": 117.8,
+        "p95Ms": 171.2,
+        "status": {
+         "200": 121
+        }
+       }
+      }
+     },
+     {
+      "window": "120-150s",
+      "goodputRps": 21.47,
+      "p95Ms": 1150.5,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 525,
+        "p50Ms": 15.2,
+        "p95Ms": 1132.4,
+        "status": {
+         "429": 405,
+         "401": 120
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 119,
+        "p50Ms": 130.0,
+        "p95Ms": 1246.7,
+        "status": {
+         "200": 119
+        }
+       }
+      }
+     },
+     {
+      "window": "150-180s",
+      "goodputRps": 26.53,
+      "p95Ms": 126.3,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 676,
+        "p50Ms": 10.2,
+        "p95Ms": 27.1,
+        "status": {
+         "429": 676
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 119.2,
+        "p95Ms": 210.5,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "180-210s",
+      "goodputRps": 30.57,
+      "p95Ms": 2031.0,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 822,
+        "p50Ms": 11.2,
+        "p95Ms": 2024.2,
+        "status": {
+         "429": 688,
+         "401": 110,
+         "503": 24
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 121,
+        "p50Ms": 128.9,
+        "p95Ms": 2039.5,
+        "status": {
+         "200": 119,
+         "503": 2
+        }
+       }
+      }
+     },
+     {
+      "window": "210-240s",
+      "goodputRps": 3.97,
+      "p95Ms": 153.0,
+      "byRequest": {
+       "POST /account/auth/login|normal": {
+        "count": 119,
+        "p50Ms": 111.8,
+        "p95Ms": 153.0,
+        "status": {
+         "200": 119
+        }
+       }
+      }
+     },
+     {
+      "window": "240-241s",
+      "goodputRps": 1.0,
+      "p95Ms": 157.0,
+      "byRequest": {
+       "POST /account/auth/login|normal": {
+        "count": 1,
+        "p50Ms": 157.0,
+        "p95Ms": 157.0,
+        "status": {
+         "200": 1
+        }
+       }
+      }
+     }
+    ],
+    "k6Counters": {
+     "account_attack_limited": 2235,
+     "account_unexpected_5xx": 26,
+     "account_refresh_race_bad": 0,
+     "account_normal_rejected": 2,
+     "account_refresh_replay_accepted": 0,
+     "account_dup_group_bad": 0
+    }
+   },
+   {
+    "label": "rl-a4-unknown",
+    "scenario": "login-attack",
+    "startedAt": "2026-11-04T12:45:51.421124+00:00",
+    "k6ExitCode": 0,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "login-attack",
+     "RUN_NO": "0",
+     "MAX_VUS": "800",
+     "STAGES": "10:1m,20:1m,30:1m",
+     "DURATION": "4m",
+     "NORMAL_RATE": "4",
+     "ATTACK_KIND": "unknown",
+     "ATTACK_DELAY": "30s"
+    },
+    "windows": [
+     {
+      "window": "0-30s",
+      "goodputRps": 4.03,
+      "p95Ms": 150.6,
+      "byRequest": {
+       "POST /account/auth/login|normal": {
+        "count": 121,
+        "p50Ms": 105.9,
+        "p95Ms": 150.6,
+        "status": {
+         "200": 121
+        }
+       }
+      }
+     },
+     {
+      "window": "30-60s",
+      "goodputRps": 7.27,
+      "p95Ms": 166.8,
+      "byRequest": {
+       "POST /account/auth/login|attack-unknown": {
+        "count": 98,
+        "p50Ms": 95.3,
+        "p95Ms": 143.3,
+        "status": {
+         "401": 98
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 107.9,
+        "p95Ms": 191.0,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "60-90s",
+      "goodputRps": 11.77,
+      "p95Ms": 138.2,
+      "byRequest": {
+       "POST /account/auth/login|attack-unknown": {
+        "count": 233,
+        "p50Ms": 86.3,
+        "p95Ms": 125.1,
+        "status": {
+         "401": 142,
+         "429": 91
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 109.3,
+        "p95Ms": 147.0,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "90-120s",
+      "goodputRps": 16.53,
+      "p95Ms": 129.9,
+      "byRequest": {
+       "POST /account/auth/login|attack-unknown": {
+        "count": 376,
+        "p50Ms": 8.9,
+        "p95Ms": 23.5,
+        "status": {
+         "429": 376
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 109.8,
+        "p95Ms": 153.6,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "120-150s",
+      "goodputRps": 21.53,
+      "p95Ms": 203.0,
+      "byRequest": {
+       "POST /account/auth/login|attack-unknown": {
+        "count": 526,
+        "p50Ms": 9.2,
+        "p95Ms": 192.3,
+        "status": {
+         "429": 406,
+         "401": 120
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 108.7,
+        "p95Ms": 217.4,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "150-180s",
+      "goodputRps": 26.53,
+      "p95Ms": 133.1,
+      "byRequest": {
+       "POST /account/auth/login|attack-unknown": {
+        "count": 676,
+        "p50Ms": 8.8,
+        "p95Ms": 26.2,
+        "status": {
+         "429": 676
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 114.9,
+        "p95Ms": 210.0,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "180-210s",
+      "goodputRps": 31.33,
+      "p95Ms": 1514.0,
+      "byRequest": {
+       "POST /account/auth/login|attack-unknown": {
+        "count": 820,
+        "p50Ms": 9.1,
+        "p95Ms": 1464.0,
+        "status": {
+         "429": 700,
+         "401": 120
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 120.8,
+        "p95Ms": 1741.4,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "210-240s",
+      "goodputRps": 4.0,
+      "p95Ms": 154.5,
+      "byRequest": {
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 106.3,
+        "p95Ms": 154.5,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     }
+    ],
+    "k6Counters": {
+     "account_dup_group_bad": 0,
+     "account_refresh_replay_accepted": 0,
+     "account_refresh_race_bad": 0,
+     "account_attack_limited": 2249,
+     "account_unexpected_5xx": 0
+    }
+   },
+   {
+    "label": "rl2-a4-wrongpw",
+    "scenario": "login-attack",
+    "startedAt": "2026-11-04T12:55:26.170969+00:00",
+    "k6ExitCode": 0,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "login-attack",
+     "RUN_NO": "0",
+     "MAX_VUS": "800",
+     "STAGES": "10:1m,20:1m,30:1m",
+     "DURATION": "4m",
+     "NORMAL_RATE": "4",
+     "ATTACK_KIND": "wrongpw",
+     "ATTACK_DELAY": "30s"
+    },
+    "windows": [
+     {
+      "window": "0-30s",
+      "goodputRps": 4.0,
+      "p95Ms": 192.7,
+      "byRequest": {
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 120.9,
+        "p95Ms": 192.7,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "30-60s",
+      "goodputRps": 7.27,
+      "p95Ms": 174.9,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 97,
+        "p50Ms": 109.2,
+        "p95Ms": 170.4,
+        "status": {
+         "401": 97
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 121,
+        "p50Ms": 117.0,
+        "p95Ms": 188.4,
+        "status": {
+         "200": 121
+        }
+       }
+      }
+     },
+     {
+      "window": "60-90s",
+      "goodputRps": 11.73,
+      "p95Ms": 160.7,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 233,
+        "p50Ms": 14.1,
+        "p95Ms": 124.6,
+        "status": {
+         "401": 23,
+         "429": 210
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 119,
+        "p50Ms": 120.1,
+        "p95Ms": 189.6,
+        "status": {
+         "200": 119
+        }
+       }
+      }
+     },
+     {
+      "window": "90-120s",
+      "goodputRps": 16.57,
+      "p95Ms": 142.2,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 376,
+        "p50Ms": 12.1,
+        "p95Ms": 29.8,
+        "status": {
+         "429": 376
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 121,
+        "p50Ms": 120.3,
+        "p95Ms": 177.5,
+        "status": {
+         "200": 121
+        }
+       }
+      }
+     },
+     {
+      "window": "120-150s",
+      "goodputRps": 21.53,
+      "p95Ms": 132.8,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 526,
+        "p50Ms": 10.5,
+        "p95Ms": 23.8,
+        "status": {
+         "429": 526
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 116.7,
+        "p95Ms": 175.9,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "150-180s",
+      "goodputRps": 26.5,
+      "p95Ms": 126.8,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 675,
+        "p50Ms": 9.5,
+        "p95Ms": 20.2,
+        "status": {
+         "429": 675
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 116.6,
+        "p95Ms": 157.2,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "180-210s",
+      "goodputRps": 31.4,
+      "p95Ms": 117.3,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 822,
+        "p50Ms": 8.6,
+        "p95Ms": 20.6,
+        "status": {
+         "429": 822
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 112.0,
+        "p95Ms": 169.0,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "210-240s",
+      "goodputRps": 4.0,
+      "p95Ms": 138.0,
+      "byRequest": {
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 105.8,
+        "p95Ms": 138.0,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     }
+    ],
+    "k6Counters": {
+     "account_attack_limited": 2609,
+     "account_unexpected_5xx": 0,
+     "account_refresh_race_bad": 0,
+     "account_refresh_replay_accepted": 0,
+     "account_dup_group_bad": 0
+    }
+   },
+   {
+    "label": "rl-timing-unknown",
+    "scenario": "login-attack",
+    "startedAt": "2026-11-04T13:00:00.534354+00:00",
+    "k6ExitCode": 0,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "login-attack",
+     "RUN_NO": "0",
+     "MAX_VUS": "200",
+     "STAGES": "3:20s,3:70s",
+     "DURATION": "100s",
+     "NORMAL_RATE": "1",
+     "ATTACK_KIND": "unknown",
+     "ATTACK_DELAY": "10s",
+     "ATTACK_IPS": "50000"
+    },
+    "windows": [
+     {
+      "window": "0-30s",
+      "goodputRps": 2.3,
+      "p95Ms": 147.2,
+      "byRequest": {
+       "POST /account/auth/login|attack-unknown": {
+        "count": 39,
+        "p50Ms": 90.9,
+        "p95Ms": 118.6,
+        "status": {
+         "401": 39
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 30,
+        "p50Ms": 103.6,
+        "p95Ms": 161.5,
+        "status": {
+         "200": 30
+        }
+       }
+      }
+     },
+     {
+      "window": "30-60s",
+      "goodputRps": 4.03,
+      "p95Ms": 136.2,
+      "byRequest": {
+       "POST /account/auth/login|attack-unknown": {
+        "count": 90,
+        "p50Ms": 90.9,
+        "p95Ms": 133.7,
+        "status": {
+         "401": 90
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 31,
+        "p50Ms": 109.4,
+        "p95Ms": 185.6,
+        "status": {
+         "200": 31
+        }
+       }
+      }
+     },
+     {
+      "window": "60-90s",
+      "goodputRps": 3.97,
+      "p95Ms": 136.9,
+      "byRequest": {
+       "POST /account/auth/login|attack-unknown": {
+        "count": 90,
+        "p50Ms": 91.6,
+        "p95Ms": 136.9,
+        "status": {
+         "401": 90
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 29,
+        "p50Ms": 104.9,
+        "p95Ms": 132.7,
+        "status": {
+         "200": 29
+        }
+       }
+      }
+     },
+     {
+      "window": "90-100s",
+      "goodputRps": 4.0,
+      "p95Ms": 136.8,
+      "byRequest": {
+       "POST /account/auth/login|attack-unknown": {
+        "count": 30,
+        "p50Ms": 89.5,
+        "p95Ms": 121.0,
+        "status": {
+         "401": 30
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 10,
+        "p50Ms": 108.7,
+        "p95Ms": 148.6,
+        "status": {
+         "200": 10
+        }
+       }
+      }
+     }
+    ],
+    "k6Counters": {
+     "account_refresh_replay_accepted": 0,
+     "account_refresh_race_bad": 0,
+     "account_dup_group_bad": 0,
+     "account_unexpected_5xx": 0
+    }
+   },
+   {
+    "label": "rl-timing-wrongpw",
+    "scenario": "login-attack",
+    "startedAt": "2026-11-04T13:01:49.732118+00:00",
+    "k6ExitCode": 0,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "login-attack",
+     "RUN_NO": "0",
+     "MAX_VUS": "200",
+     "STAGES": "3:20s,3:70s",
+     "DURATION": "100s",
+     "NORMAL_RATE": "1",
+     "ATTACK_KIND": "wrongpw",
+     "ATTACK_DELAY": "10s",
+     "ATTACK_IPS": "50000"
+    },
+    "windows": [
+     {
+      "window": "0-30s",
+      "goodputRps": 2.33,
+      "p95Ms": 133.2,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 40,
+        "p50Ms": 91.5,
+        "p95Ms": 126.2,
+        "status": {
+         "401": 40
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 30,
+        "p50Ms": 102.2,
+        "p95Ms": 143.4,
+        "status": {
+         "200": 30
+        }
+       }
+      }
+     },
+     {
+      "window": "30-60s",
+      "goodputRps": 4.03,
+      "p95Ms": 145.9,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 90,
+        "p50Ms": 91.9,
+        "p95Ms": 137.3,
+        "status": {
+         "401": 90
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 31,
+        "p50Ms": 106.1,
+        "p95Ms": 201.8,
+        "status": {
+         "200": 31
+        }
+       }
+      }
+     },
+     {
+      "window": "60-90s",
+      "goodputRps": 3.93,
+      "p95Ms": 129.1,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 89,
+        "p50Ms": 92.0,
+        "p95Ms": 122.0,
+        "status": {
+         "401": 89
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 29,
+        "p50Ms": 105.1,
+        "p95Ms": 135.1,
+        "status": {
+         "200": 29
+        }
+       }
+      }
+     },
+     {
+      "window": "90-100s",
+      "goodputRps": 4.1,
+      "p95Ms": 131.6,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 30,
+        "p50Ms": 93.6,
+        "p95Ms": 120.3,
+        "status": {
+         "401": 30
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 11,
+        "p50Ms": 105.4,
+        "p95Ms": 134.4,
+        "status": {
+         "200": 11
+        }
+       }
+      }
+     }
+    ],
+    "k6Counters": {
+     "account_unexpected_5xx": 0,
+     "account_refresh_race_bad": 0,
+     "account_refresh_replay_accepted": 0,
+     "account_dup_group_bad": 0
+    }
+   },
+   {
+    "label": "rl-a1-c1-r1",
+    "scenario": "login",
+    "startedAt": "2026-11-04T13:04:44.234740+00:00",
+    "k6ExitCode": 99,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "login",
+     "RUN_NO": "0",
+     "MAX_VUS": "600",
+     "STAGES": "3:1m,6:1m,9:1m,12:1m,15:1m,20:1m"
+    },
+    "windows": [
+     {
+      "window": "3/s",
+      "goodputRps": 2.27,
+      "p95Ms": 135.4,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 102,
+        "p50Ms": 103.1,
+        "p95Ms": 135.4,
+        "status": {
+         "200": 102
+        }
+       }
+      }
+     },
+     {
+      "window": "6/s",
+      "goodputRps": 4.91,
+      "p95Ms": 152.9,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 221,
+        "p50Ms": 101.8,
+        "p95Ms": 152.9,
+        "status": {
+         "200": 221
+        }
+       }
+      }
+     },
+     {
+      "window": "9/s",
+      "goodputRps": 7.87,
+      "p95Ms": 596.2,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 354,
+        "p50Ms": 105.3,
+        "p95Ms": 596.2,
+        "status": {
+         "200": 354
+        }
+       }
+      }
+     },
+     {
+      "window": "12/s",
+      "goodputRps": 10.24,
+      "p95Ms": 2181.8,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 467,
+        "p50Ms": 460.0,
+        "p95Ms": 2181.8,
+        "status": {
+         "200": 461,
+         "503": 6
+        }
+       }
+      }
+     },
+     {
+      "window": "15/s",
+      "goodputRps": 9.98,
+      "p95Ms": 2312.0,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 623,
+        "p50Ms": 2191.1,
+        "p95Ms": 2312.0,
+        "status": {
+         "200": 449,
+         "503": 174
+        }
+       }
+      }
+     },
+     {
+      "window": "20/s",
+      "goodputRps": 8.98,
+      "p95Ms": 2364.5,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 812,
+        "p50Ms": 2127.8,
+        "p95Ms": 2364.5,
+        "status": {
+         "200": 404,
+         "503": 408
+        }
+       }
+      }
+     }
+    ],
+    "k6Counters": {
+     "account_refresh_race_bad": 0,
+     "account_refresh_replay_accepted": 0,
+     "account_unexpected_5xx": 716,
+     "account_dup_group_bad": 0
+    }
+   },
+   {
+    "label": "rl-a1-c1-r1-b",
+    "scenario": "login",
+    "startedAt": "2026-11-04T13:18:34.394991+00:00",
+    "k6ExitCode": 99,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "login",
+     "RUN_NO": "0",
+     "MAX_VUS": "600",
+     "STAGES": "3:1m,6:1m,9:1m,12:1m,15:1m,20:1m"
+    },
+    "windows": [
+     {
+      "window": "3/s",
+      "goodputRps": 2.27,
+      "p95Ms": 150.4,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 102,
+        "p50Ms": 105.2,
+        "p95Ms": 150.4,
+        "status": {
+         "200": 102
+        }
+       }
+      }
+     },
+     {
+      "window": "6/s",
+      "goodputRps": 4.91,
+      "p95Ms": 135.2,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 221,
+        "p50Ms": 104.6,
+        "p95Ms": 135.2,
+        "status": {
+         "200": 221
+        }
+       }
+      }
+     },
+     {
+      "window": "9/s",
+      "goodputRps": 7.91,
+      "p95Ms": 137.7,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 356,
+        "p50Ms": 100.7,
+        "p95Ms": 137.7,
+        "status": {
+         "200": 356
+        }
+       }
+      }
+     },
+     {
+      "window": "12/s",
+      "goodputRps": 10.49,
+      "p95Ms": 1551.4,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 472,
+        "p50Ms": 143.6,
+        "p95Ms": 1551.4,
+        "status": {
+         "200": 472
+        }
+       }
+      }
+     },
+     {
+      "window": "15/s",
+      "goodputRps": 10.69,
+      "p95Ms": 2277.6,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 623,
+        "p50Ms": 2180.4,
+        "p95Ms": 2277.6,
+        "status": {
+         "200": 481,
+         "503": 142
+        }
+       }
+      }
+     },
+     {
+      "window": "20/s",
+      "goodputRps": 10.33,
+      "p95Ms": 2293.5,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 813,
+        "p50Ms": 2168.9,
+        "p95Ms": 2293.5,
+        "status": {
+         "200": 465,
+         "503": 348
+        }
+       }
+      }
+     }
+    ],
+    "k6Counters": {
+     "account_refresh_race_bad": 0,
+     "account_refresh_replay_accepted": 0,
+     "account_dup_group_bad": 0,
+     "account_unexpected_5xx": 594
+    }
+   },
+   {
+    "label": "rl-a5-dup-email",
+    "scenario": "register-dup",
+    "startedAt": "2026-11-04T13:10:55.714879+00:00",
+    "k6ExitCode": 99,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "register-dup",
+     "RUN_NO": "10",
+     "MAX_VUS": "300",
+     "RATE": "2",
+     "DURATION": "90s",
+     "DUP_SIZE": "5",
+     "DUP_MODE": "email"
+    },
+    "windows": [
+     {
+      "window": "0-30s",
+      "goodputRps": 9.7,
+      "p95Ms": 2128.8,
+      "byRequest": {
+       "POST /account/auth/register|dup-email": {
+        "count": 295,
+        "p50Ms": 1630.8,
+        "p95Ms": 2128.8,
+        "status": {
+         "201": 59,
+         "409": 232,
+         "503": 4
+        }
+       }
+      }
+     },
+     {
+      "window": "30-60s",
+      "goodputRps": 10.5,
+      "p95Ms": 1637.9,
+      "byRequest": {
+       "POST /account/auth/register|dup-email": {
+        "count": 315,
+        "p50Ms": 751.4,
+        "p95Ms": 1637.9,
+        "status": {
+         "201": 63,
+         "409": 252
+        }
+       }
+      }
+     },
+     {
+      "window": "60-90s",
+      "goodputRps": 9.83,
+      "p95Ms": 849.7,
+      "byRequest": {
+       "POST /account/auth/register|dup-email": {
+        "count": 295,
+        "p50Ms": 354.1,
+        "p95Ms": 849.7,
+        "status": {
+         "201": 59,
+         "409": 236
+        }
+       }
+      }
+     }
+    ],
+    "check": {
+     "summary": {
+      "accounts": 181,
+      "outboxEvents": 181,
+      "outboxStatus": {
+       "PUBLISHED": 181
+      },
+      "accountsWithoutEvent": 0,
+      "accountsWithMultipleEvents": 0,
+      "kafkaRecords": 181,
+      "kafkaUniqueEvents": 181,
+      "kafkaDuplicateRecords": 0,
+      "publishedMissingInKafka": 0,
+      "kafkaUnknownEvents": 0,
+      "dupGroupBad": 3
+     },
+     "verdict": {
+      "result": "FAIL",
+      "failures": [
+       "duplicate groups without exactly one 201: 3"
+      ],
+      "duplicatePublications": 0
+     }
+    },
+    "k6Counters": {
+     "account_refresh_race_bad": 0,
+     "account_dup_group_ok": 178,
+     "account_unexpected_5xx": 4,
+     "account_refresh_replay_accepted": 0,
+     "account_dup_group_bad": 3
+    }
+   },
+   {
+    "label": "rl-a5-dup-email-r2",
+    "scenario": "register-dup",
+    "startedAt": "2026-11-04T13:15:25.554539+00:00",
+    "k6ExitCode": 0,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "register-dup",
+     "RUN_NO": "11",
+     "MAX_VUS": "300",
+     "RATE": "2",
+     "DURATION": "90s",
+     "DUP_SIZE": "5",
+     "DUP_MODE": "email"
+    },
+    "windows": [
+     {
+      "window": "0-30s",
+      "goodputRps": 10.1,
+      "p95Ms": 360.2,
+      "byRequest": {
+       "POST /account/auth/register|dup-email": {
+        "count": 303,
+        "p50Ms": 207.5,
+        "p95Ms": 360.2,
+        "status": {
+         "201": 61,
+         "409": 242
+        }
+       }
+      }
+     },
+     {
+      "window": "30-60s",
+      "goodputRps": 10.03,
+      "p95Ms": 286.0,
+      "byRequest": {
+       "POST /account/auth/register|dup-email": {
+        "count": 301,
+        "p50Ms": 171.9,
+        "p95Ms": 286.0,
+        "status": {
+         "409": 241,
+         "201": 60
+        }
+       }
+      }
+     },
+     {
+      "window": "60-90s",
+      "goodputRps": 9.87,
+      "p95Ms": 284.6,
+      "byRequest": {
+       "POST /account/auth/register|dup-email": {
+        "count": 296,
+        "p50Ms": 165.2,
+        "p95Ms": 284.6,
+        "status": {
+         "409": 237,
+         "201": 59
+        }
+       }
+      }
+     },
+     {
+      "window": "90-91s",
+      "goodputRps": 5.0,
+      "p95Ms": 322.8,
+      "byRequest": {
+       "POST /account/auth/register|dup-email": {
+        "count": 5,
+        "p50Ms": 253.4,
+        "p95Ms": 322.8,
+        "status": {
+         "201": 1,
+         "409": 4
+        }
+       }
+      }
+     }
+    ],
+    "check": {
+     "summary": {
+      "accounts": 181,
+      "outboxEvents": 181,
+      "outboxStatus": {
+       "PUBLISHED": 181
+      },
+      "accountsWithoutEvent": 0,
+      "accountsWithMultipleEvents": 0,
+      "kafkaRecords": 181,
+      "kafkaUniqueEvents": 181,
+      "kafkaDuplicateRecords": 0,
+      "publishedMissingInKafka": 0,
+      "kafkaUnknownEvents": 0,
+      "dupGroupBad": 0
+     },
+     "verdict": {
+      "result": "PASS",
+      "failures": [],
+      "duplicatePublications": 0
+     }
+    },
+    "k6Counters": {
+     "account_unexpected_5xx": 0,
+     "account_dup_group_bad": 0,
+     "account_dup_group_ok": 181,
+     "account_refresh_race_bad": 0,
+     "account_refresh_replay_accepted": 0
+    }
+   }
+  ]
  }
 }
