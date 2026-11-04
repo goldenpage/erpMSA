@@ -4,6 +4,17 @@ spring:
   threads:
     virtual:
       enabled: true # Tomcat 기반의 동기 처리를 극대화하는 가상 스레드 활성화
+  # 하류 서비스 호출 클라이언트.
+  # Eureka 클라이언트가 Apache HttpClient 5를 함께 가져오면 Gateway가 그것을 자동 선택하고, 기본 연결 풀
+  # (호스트당 5개, 전체 25개)이 숨은 동시 처리 상한이 된다(docs/account-load-results.md 개선 후 측정).
+  # JDK 클라이언트를 명시하고 동시 처리 상한은 RouteInFlightLimitFilter 한 곳에서 관리한다.
+  # 제한 시간은 응답 없는 하류에 Gateway 요청이 무한정 묶이지 않게 한다.
+  http:
+    clients:
+      imperative:
+        factory: jdk
+      connect-timeout: "${GATEWAY_DOWNSTREAM_CONNECT_TIMEOUT:2s}"
+      read-timeout: "${GATEWAY_DOWNSTREAM_READ_TIMEOUT:10s}"
   cloud:
     gateway:
       server:
@@ -70,6 +81,10 @@ management:
         http.server.requests: true
 
 app:
+  gateway:
+    # 경로별 동시 처리 상한(RouteInFlightLimitFilter). 넘는 요청은 기다리지 않고 503 ROUTE_BUSY.
+    in-flight:
+      max-per-route: "${GATEWAY_MAX_IN_FLIGHT_PER_ROUTE:50}"
   auth:
     issuer: "${JWT_ISSUER:kosta-erp-account}"
     audience: "${JWT_AUDIENCE:kosta-erp-api}"

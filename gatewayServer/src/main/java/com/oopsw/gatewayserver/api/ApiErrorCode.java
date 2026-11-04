@@ -10,6 +10,10 @@ public enum ApiErrorCode {
     INVALID_ACCESS_TOKEN(
         HttpStatus.UNAUTHORIZED,
         "유효하지 않은 Access Token입니다."
+    ),
+    ROUTE_BUSY(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "요청이 많아 처리할 수 없습니다. 잠시 후 다시 시도하세요."
     );
 
     private final HttpStatus status;
