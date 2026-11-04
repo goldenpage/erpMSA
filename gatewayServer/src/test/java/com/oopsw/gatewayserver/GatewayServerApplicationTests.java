@@ -8,9 +8,56 @@ import org.springframework.boot.http.client.JdkClientHttpRequestFactoryBuilder;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.cloud.gateway.server.mvc.filter.BeforeFilterFunctions.uri;
+import static org.springframework.cloud.gateway.server.mvc.handler.GatewayRouterFunctions.route;
+import static org.springframework.cloud.gateway.server.mvc.handler.HandlerFunctions.http;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.auth0.jwt.JWT;
+import java.time.Instant;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.servlet.function.RouterFunction;
+import org.springframework.web.servlet.function.ServerResponse;
 
 @SpringBootTest
+@AutoConfigureMockMvc
+@Import(GatewayServerApplicationTests.UnreachableRoute.class)
 class GatewayServerApplicationTests {
+
+    /** 연결이 즉시 거부되는 하류로 보내는 시험 경로. 실제 라우팅·예외 처리 경로를 그대로 탄다. */
+    @TestConfiguration
+    static class UnreachableRoute {
+        @Bean
+        RouterFunction<ServerResponse> unreachableAccountRoute() {
+            return route("unreachable-test").GET("/account/unreachable-test", http())
+                .before(uri("http://127.0.0.1:1")).build();
+        }
+    }
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Test
+    void 하류에_연결할_수_없으면_500_대신_503과_재시도_시간을_돌려준다() throws Exception {
+        Instant now = Instant.now();
+        String token = JWT.create().withKeyId(JwtTestKeys.PRIMARY.kid())
+            .withIssuer("kosta-erp-account").withAudience("kosta-erp-api").withSubject("1")
+            .withIssuedAt(now).withExpiresAt(now.plusSeconds(300))
+            .withClaim("token_type", "access").withClaim("email", "user@example.com").withClaim("role", "ROLE_USER")
+            .sign(JwtTestKeys.PRIMARY.algorithm());
+
+        mockMvc.perform(get("/account/unreachable-test").header("Authorization", "Bearer " + token))
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(header().string("Retry-After", "1"))
+            .andExpect(jsonPath("$.code").value("UPSTREAM_UNAVAILABLE"));
+    }
     @org.springframework.test.context.DynamicPropertySource
     static void jwtProperties(org.springframework.test.context.DynamicPropertyRegistry registry) {
         registry.add("app.auth.public-key-directory", JwtTestKeys.PRIMARY::publicDirectory);
