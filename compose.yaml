@@ -165,6 +165,8 @@ services:
         condition: service_healthy
       eureka-server:
         condition: service_healthy
+    # 종료 시 Eureka DOWN 알림 후 15초 drain + graceful shutdown. Docker 기본 10초면 drain 중 강제 종료된다.
+    stop_grace_period: 45s
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/7071"]
       interval: 5s

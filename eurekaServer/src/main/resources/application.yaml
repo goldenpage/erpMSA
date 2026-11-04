@@ -10,6 +10,10 @@ eureka:
   client:
     register-with-eureka: false #자기 자신을 등록하지 않는다.
     fetch-registry: false # 자기 자신을 등록하지 않는다.
+  server:
+    # 읽기 전용 응답 캐시(기본 30초 갱신)를 끈다. 인스턴스의 DOWN·등록 변경이 조회에 바로 보인다.
+    # 업무 서비스 9개 규모에서는 캐시 없이 조회해도 부담이 작다. 재배포 반영 속도를 우선한다.
+    use-read-only-response-cache: "${EUREKA_USE_READ_ONLY_RESPONSE_CACHE:false}"
 
 management:
   endpoints:
