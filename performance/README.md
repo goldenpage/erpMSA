@@ -1,5 +1,7 @@
 # FoodMaterials 목록 부하·장애 실험
 
+> 대규모 부하 테스트의 설계·사전 분석은 [load-test-design.md](../docs/load-test-design.md)에 있다. 이 문서의 도구는 그 설계의 P0 작업 전 상태다.
+
 이 도구는 Account 인증·Outbox 발행과 FoodMaterials 카탈로그·재고를 대상으로 한다. 목표 업무 서비스의 명칭과 경로는
 [서비스 설계 기준](../docs/service-architecture.md)을 따르며, 전환 후 데이터·API·검증 항목을 갱신해야 한다.
 
