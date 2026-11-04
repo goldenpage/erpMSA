@@ -64,6 +64,18 @@ class ReconcileTest(unittest.TestCase):
         self.assertEqual(al.verdict(summary, 1, 1)['result'], 'FAIL')
 
 
+class RedeployProbeTest(unittest.TestCase):
+    def test_summary_counts_failures_and_recovery_lag(self):
+        samples = [(0.0, 405), (1.0, 500), (2.0, 0), (3.0, 503), (4.0, 405), (6.0, 500), (7.0, 405)]
+        summary = al.summarize_probe(samples, healthy_at=3.5)
+        self.assertEqual(summary['failures'], 4)
+        self.assertEqual(summary['statusCounts']['500'], 2)
+        self.assertEqual(summary['failuresAfterHealthy'], 1)
+        self.assertEqual(summary['recoveryLagSeconds'], 2.5)
+        self.assertEqual(summary['firstSuccessAfterHealthy'], 4.0)
+        self.assertEqual(al.summarize_probe([(0.0, 405)])['failures'], 0)
+
+
 class ParsingTest(unittest.TestCase):
     def test_k6_counter_reads_summary_shapes(self):
         self.assertEqual(al.k6_counter({'metrics': {'c': {'values': {'count': 7}}}}, 'c'), 7)

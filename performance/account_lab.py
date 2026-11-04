@@ -370,9 +370,90 @@ def check(args):
     raise SystemExit(0 if result['result'] == 'PASS' else 1)
 
 
+def summarize_probe(samples, healthy_at=None):
+    """재배포 중 표본 [(t, status)]을 상태별 건수와 실패 구간으로 요약한다. status 0은 연결 실패·시간 초과."""
+    ok = {200, 401, 405}
+    counts = {}
+    for _, status in samples:
+        counts[str(status)] = counts.get(str(status), 0) + 1
+    failures = [t for t, status in samples if status not in ok]
+    result = {'requests': len(samples), 'statusCounts': counts, 'failures': len(failures),
+              'firstFailureAt': round(failures[0], 2) if failures else None,
+              'lastFailureAt': round(failures[-1], 2) if failures else None}
+    if healthy_at is not None:
+        after = [t for t, status in samples if t >= healthy_at and status in ok]
+        result['newInstanceHealthyAt'] = round(healthy_at, 2)
+        result['firstSuccessAfterHealthy'] = round(after[0], 2) if after else None
+        later_failures = [t for t in failures if t >= healthy_at]
+        result['failuresAfterHealthy'] = len(later_failures)
+        result['recoveryLagSeconds'] = round(max(later_failures) - healthy_at, 2) if later_failures else 0.0
+    return result
+
+
+def account_containers():
+    ids = lab.compose('ps', '-q', 'account-service', capture=True).stdout.split()
+    inspected = json.loads(subprocess.check_output(['docker', 'inspect', *ids], text=True)) if ids else []
+    return {c['Id']: c for c in inspected}
+
+
+def redeploy(args):
+    """재배포 중 Gateway 경유 요청의 실패를 잰다. rolling: 새 인스턴스를 띄운 뒤 옛 인스턴스를 SIGTERM으로 내린다.
+    recreate: 인스턴스 하나를 새 컨테이너로 바꾼다(중단 불가피). 측정 요청은 BCrypt가 없는 GET /account/auth/login(정상 405)."""
+    lab.verify_lab()
+    lab.wait_gateway()
+    samples, stop = [], threading.Event()
+    started = time.monotonic()
+
+    def probe():
+        while not stop.is_set():
+            t = time.monotonic() - started
+            try:
+                status, _ = lab.request('/account/auth/login')
+            except Exception:
+                status = 0
+            samples.append((t, status))
+            stop.wait(1 / args.probe_rate)
+
+    thread = threading.Thread(target=probe, daemon=True)
+    thread.start()
+    events = []
+    healthy_at = None
+    try:
+        stop.wait(5)
+        before = account_containers()
+        if args.mode == 'rolling':
+            target = len(before) + 1
+            lab.compose('up', '-d', '--no-build', '--no-deps', '--no-recreate', '--wait', '--wait-timeout', '240',
+                        '--scale', f'account-service={target}', 'account-service')
+            events.append(('new-instance-healthy', time.monotonic() - started))
+            # 새 인스턴스가 Gateway에 반영될 시간을 둔 뒤 가장 오래된 인스턴스를 내린다.
+            stop.wait(args.settle)
+            oldest = sorted(before.values(), key=lambda c: c['Created'])[0]
+            events.append(('old-stop-begin', time.monotonic() - started))
+            subprocess.run(['docker', 'stop', '--time', str(args.stop_timeout), oldest['Id']], check=True, stdout=subprocess.DEVNULL)
+            events.append(('old-stopped', time.monotonic() - started))
+            subprocess.run(['docker', 'rm', oldest['Id']], check=True, stdout=subprocess.DEVNULL)
+        else:
+            events.append(('recreate-begin', time.monotonic() - started))
+            lab.compose('up', '-d', '--no-build', '--no-deps', '--force-recreate', '--wait', '--wait-timeout', '240',
+                        'account-service')
+            healthy_at = time.monotonic() - started
+            events.append(('new-instance-healthy', healthy_at))
+        stop.wait(args.observe)
+    finally:
+        stop.set()
+        thread.join(timeout=10)
+    report = {'mode': args.mode, 'at': now(), 'probeRatePerSecond': args.probe_rate, 'settleSeconds': args.settle,
+              'stopTimeoutSeconds': args.stop_timeout, 'events': [(name, round(t, 2)) for name, t in events],
+              'summary': summarize_probe(samples, healthy_at),
+              'timeline': [(round(t, 2), status) for t, status in samples if status not in (200, 401, 405)][:500]}
+    lab.save(args.label + '-redeploy', report)
+    print(json.dumps({k: report[k] for k in ('mode', 'events', 'summary')}, ensure_ascii=False, indent=1))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('command', choices=['seed', 'run', 'check', 'scale', 'kafka'])
+    parser.add_argument('command', choices=['seed', 'run', 'check', 'scale', 'kafka', 'redeploy'])
     parser.add_argument('--accounts', type=int, default=1_000_000)
     parser.add_argument('--scenario', choices=SCENARIOS, default='login')
     parser.add_argument('--label', default='account-run')
@@ -401,6 +482,11 @@ def main():
     parser.add_argument('--action', choices=['stop', 'start'])
     parser.add_argument('--topic', default=TOPIC)
     parser.add_argument('--drain-timeout', type=int, default=900)
+    parser.add_argument('--mode', choices=['rolling', 'recreate'], default='rolling')
+    parser.add_argument('--probe-rate', type=int, default=20)
+    parser.add_argument('--settle', type=int, default=30, help='rolling: 새 인스턴스 기동 후 옛 인스턴스를 내리기까지 대기(초)')
+    parser.add_argument('--stop-timeout', type=int, default=30, help='docker stop 유예(초). 넘으면 SIGKILL')
+    parser.add_argument('--observe', type=int, default=60, help='작업 후 관찰 시간(초)')
     args = parser.parse_args()
 
     if not re.fullmatch('[A-Za-z0-9_-]{1,64}', args.label):
@@ -437,6 +523,8 @@ def main():
         lab.verify_lab()
         lab.compose('up', '-d', '--no-deps', '--wait', '--wait-timeout', '180',
                     '--scale', f'account-service={args.replicas}', 'account-service')
+    elif args.command == 'redeploy':
+        redeploy(args)
     elif args.command == 'kafka':
         if not args.action:
             parser.error('--action stop|start is required')
