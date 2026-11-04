@@ -5,7 +5,9 @@ import com.oopsw.accountservice.advice.dto.RegisterRequest;
 
 import com.oopsw.accountservice.auth.AuthPrincipal;
 import com.oopsw.accountservice.auth.AuthProperties;
+import com.oopsw.accountservice.auth.ClientAddressResolver;
 import com.oopsw.accountservice.service.AccountService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.time.Duration;
 import lombok.RequiredArgsConstructor;
@@ -30,20 +32,23 @@ public class AccountServiceRestController {
 
     private final AccountService accountService;
     private final AuthProperties properties;
+    private final ClientAddressResolver clientAddressResolver;
 
     @PostMapping("/register")
     public ResponseEntity<AccountService.RegisterResponse> register(
-        @Valid @RequestBody RegisterRequest request
+        @Valid @RequestBody RegisterRequest request,
+        HttpServletRequest servletRequest
     ) {
         return ResponseEntity.status(HttpStatus.CREATED)
-            .body(accountService.register(request));
+            .body(accountService.register(request, clientAddressResolver.resolve(servletRequest)));
     }
 
     @PostMapping("/login")
     public ResponseEntity<AccessTokenResponse> login(
-        @Valid @RequestBody LoginRequest request
+        @Valid @RequestBody LoginRequest request,
+        HttpServletRequest servletRequest
     ) {
-        return tokenResponse(accountService.login(request));
+        return tokenResponse(accountService.login(request, clientAddressResolver.resolve(servletRequest)));
     }
 
     @PostMapping("/refresh")

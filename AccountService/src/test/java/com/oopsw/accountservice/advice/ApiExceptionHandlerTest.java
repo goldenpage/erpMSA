@@ -56,6 +56,18 @@ class ApiExceptionHandlerTest {
     }
 
     @Test
+    void 시도_제한_거절에는_남은_시간을_Retry_After로_알린다() {
+        ResponseEntity<ApiErrorResponse> response = handler.handleApiException(
+            new ApiException(ApiErrorCode.LOGIN_RATE_LIMITED, 37L),
+            new MockHttpServletRequest("POST", "/account/auth/login")
+        );
+
+        assertThat(response.getStatusCode().value()).isEqualTo(429);
+        assertThat(response.getHeaders().getFirst("Retry-After")).isEqualTo("37");
+        assertThat(Objects.requireNonNull(response.getBody()).code()).isEqualTo("LOGIN_RATE_LIMITED");
+    }
+
+    @Test
     void 검증_예외에는_필드명과_메시지만_포함한다() {
         Object target = new Object();
         BeanPropertyBindingResult bindingResult =

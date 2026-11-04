@@ -6,7 +6,9 @@ import com.oopsw.accountservice.advice.dto.LoginRequest;
 import com.oopsw.accountservice.advice.dto.RegisterRequest;
 import com.oopsw.accountservice.api.ApiErrorCode;
 import com.oopsw.accountservice.api.ApiException;
+import com.oopsw.accountservice.auth.DummyPasswordHash;
 import com.oopsw.accountservice.auth.JwtProvider;
+import com.oopsw.accountservice.auth.LoginAttemptLimiter;
 import com.oopsw.accountservice.auth.PasswordHashGate;
 import com.oopsw.accountservice.auth.RefreshTokenStore;
 import com.oopsw.accountservice.entity.AccountEntity;
@@ -30,8 +32,13 @@ public class AccountService {
     private final AccountEventOutbox accountEventOutbox;
     private final PasswordHashGate passwordHashGate;
     private final TransactionTemplate transactionTemplate;
+    private final LoginAttemptLimiter loginAttemptLimiter;
+    private final DummyPasswordHash dummyPasswordHash;
 
-    public RegisterResponse register(RegisterRequest request) {
+    public RegisterResponse register(RegisterRequest request, String clientAddress) {
+        // IP 기준 제한은 다른 모든 처리보다 먼저 한다.
+        loginAttemptLimiter.checkRegister(clientAddress);
+
         String email = emailNormalizer.normalize(request.email());
 
         // 명백한 중복은 BCrypt 계산 전에 거절한다.
@@ -84,23 +91,30 @@ public class AccountService {
         }
     }
 
-    public IssuedTokens login(LoginRequest request) {
+    public IssuedTokens login(LoginRequest request, String clientAddress) {
         String email = emailNormalizer.normalize(request.email());
 
-        AccountEntity account = accountRepository.findByEmail(email)
-            .orElseThrow(this::badCredentials);
+        // 시도 제한은 DB 조회·BCrypt보다 먼저 검사한다. 막힌 시도는 CPU를 쓰지 않는다.
+        loginAttemptLimiter.checkLogin(clientAddress, email);
 
+        AccountEntity account = accountRepository.findByEmail(email).orElse(null);
+
+        // 없는 이메일도 같은 비용의 BCrypt를 수행하고 같은 방식으로 실패를 센다.
+        // 응답시간과 시도 제한 동작으로 가입 여부를 알 수 없게 하기 위해서다.
+        String expectedHash = account == null ? dummyPasswordHash.value() : account.getPwHash();
         boolean matches = passwordHashGate.run(
             () -> passwordEncoder.matches(
                 request.password(),
-                account.getPwHash()
+                expectedHash
             )
         );
 
-        if (!matches) {
+        if (account == null || !matches) {
+            loginAttemptLimiter.recordFailure(email);
             throw badCredentials();
         }
 
+        loginAttemptLimiter.recordSuccess(email);
         validateLoginStatus(account);
 
         return issueTokens(account);

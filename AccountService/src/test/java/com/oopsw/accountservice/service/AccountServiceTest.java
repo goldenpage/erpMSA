@@ -18,7 +18,9 @@ import com.oopsw.accountservice.advice.dto.LoginRequest;
 import com.oopsw.accountservice.advice.dto.RegisterRequest;
 import com.oopsw.accountservice.api.ApiErrorCode;
 import com.oopsw.accountservice.api.ApiException;
+import com.oopsw.accountservice.auth.DummyPasswordHash;
 import com.oopsw.accountservice.auth.JwtProvider;
+import com.oopsw.accountservice.auth.LoginAttemptLimiter;
 import com.oopsw.accountservice.auth.PasswordHashGate;
 import com.oopsw.accountservice.auth.RefreshTokenStore;
 import com.oopsw.accountservice.entity.AccountEntity;
@@ -55,6 +57,8 @@ class AccountServiceTest {
     private static final String REFRESH_TOKEN = "refresh-token";
     private static final String OLD_REFRESH_TOKEN = "old-refresh-token";
     private static final Duration REFRESH_TTL = Duration.ofDays(14);
+    private static final String CLIENT_IP = "198.51.100.7";
+    private static final String DUMMY_HASH = "dummy-hash";
 
     @Mock
     private AccountRepository accountRepository;
@@ -79,6 +83,12 @@ class AccountServiceTest {
 
     @Mock
     private TransactionTemplate transactionTemplate;
+
+    @Mock
+    private LoginAttemptLimiter loginAttemptLimiter;
+
+    @Mock
+    private DummyPasswordHash dummyPasswordHash;
 
     @InjectMocks
     private AccountService accountService;
@@ -120,7 +130,7 @@ class AccountServiceTest {
                 return account;
             });
 
-        accountService.register(registerRequest);
+        accountService.register(registerRequest, CLIENT_IP);
 
         InOrder order = inOrder(passwordHashGate, passwordEncoder, transactionTemplate, accountRepository);
         order.verify(passwordHashGate).run(any());
@@ -135,7 +145,7 @@ class AccountServiceTest {
         when(accountRepository.existsByEmail(NORMALIZED_EMAIL)).thenReturn(false, true);
         when(passwordEncoder.encode(PASSWORD)).thenReturn(PASSWORD_HASH);
 
-        ApiException exception = assertThrows(ApiException.class, () -> accountService.register(registerRequest));
+        ApiException exception = assertThrows(ApiException.class, () -> accountService.register(registerRequest, CLIENT_IP));
 
         assertThat(exception.errorCode()).isEqualTo(ApiErrorCode.EMAIL_ALREADY_EXISTS);
         verify(accountRepository, never()).saveAndFlush(any(AccountEntity.class));
@@ -149,9 +159,9 @@ class AccountServiceTest {
             .thenReturn(Optional.of(createAccount(AccountStatus.ACTIVE)));
         doThrow(new ApiException(ApiErrorCode.AUTH_BUSY)).when(passwordHashGate).run(any());
 
-        assertThat(assertThrows(ApiException.class, () -> accountService.register(registerRequest)).errorCode())
+        assertThat(assertThrows(ApiException.class, () -> accountService.register(registerRequest, CLIENT_IP)).errorCode())
             .isEqualTo(ApiErrorCode.AUTH_BUSY);
-        assertThat(assertThrows(ApiException.class, () -> accountService.login(loginRequest)).errorCode())
+        assertThat(assertThrows(ApiException.class, () -> accountService.login(loginRequest, CLIENT_IP)).errorCode())
             .isEqualTo(ApiErrorCode.AUTH_BUSY);
         verifyNoInteractions(passwordEncoder, jwtProvider, refreshTokenStore, accountEventOutbox);
         verify(accountRepository, never()).saveAndFlush(any(AccountEntity.class));
@@ -175,7 +185,7 @@ class AccountServiceTest {
             });
 
         AccountService.RegisterResponse response =
-            accountService.register(registerRequest);
+            accountService.register(registerRequest, CLIENT_IP);
 
         assertThat(response.accountId()).isEqualTo(ACCOUNT_ID);
         assertThat(response.email()).isEqualTo(NORMALIZED_EMAIL);
@@ -205,7 +215,7 @@ class AccountServiceTest {
 
         ApiException exception = assertThrows(
             ApiException.class,
-            () -> accountService.register(registerRequest)
+            () -> accountService.register(registerRequest, CLIENT_IP)
         );
 
         assertThat(exception.errorCode())
@@ -227,7 +237,7 @@ class AccountServiceTest {
 
         ApiException exception = assertThrows(
             ApiException.class,
-            () -> accountService.register(registerRequest)
+            () -> accountService.register(registerRequest, CLIENT_IP)
         );
 
         assertThat(exception.errorCode())
@@ -250,11 +260,13 @@ class AccountServiceTest {
         prepareTokenIssue(account);
 
         AccountService.IssuedTokens tokens =
-            accountService.login(loginRequest);
+            accountService.login(loginRequest, CLIENT_IP);
 
         assertThat(tokens.accessToken()).isEqualTo(ACCESS_TOKEN);
         assertThat(tokens.accessTokenExpiresIn()).isEqualTo(900L);
         assertThat(tokens.refreshToken()).isEqualTo(REFRESH_TOKEN);
+        verify(loginAttemptLimiter).checkLogin(CLIENT_IP, NORMALIZED_EMAIL);
+        verify(loginAttemptLimiter).recordSuccess(NORMALIZED_EMAIL);
         verify(refreshTokenStore).save(
             REFRESH_TOKEN,
             ACCOUNT_ID,
@@ -274,11 +286,13 @@ class AccountServiceTest {
 
         ApiException exception = assertThrows(
             ApiException.class,
-            () -> accountService.login(loginRequest)
+            () -> accountService.login(loginRequest, CLIENT_IP)
         );
 
         assertThat(exception.errorCode())
             .isEqualTo(ApiErrorCode.INVALID_CREDENTIALS);
+        verify(loginAttemptLimiter).recordFailure(NORMALIZED_EMAIL);
+        verify(loginAttemptLimiter, never()).recordSuccess(any());
         verifyNoInteractions(jwtProvider, refreshTokenStore);
     }
 
@@ -289,14 +303,45 @@ class AccountServiceTest {
         when(accountRepository.findByEmail(NORMALIZED_EMAIL))
             .thenReturn(Optional.empty());
 
+        when(dummyPasswordHash.value()).thenReturn(DUMMY_HASH);
+        when(passwordEncoder.matches(PASSWORD, DUMMY_HASH)).thenReturn(false);
+
         ApiException exception = assertThrows(
             ApiException.class,
-            () -> accountService.login(loginRequest)
+            () -> accountService.login(loginRequest, CLIENT_IP)
         );
 
         assertThat(exception.errorCode())
             .isEqualTo(ApiErrorCode.INVALID_CREDENTIALS);
-        verifyNoInteractions(passwordEncoder, jwtProvider, refreshTokenStore);
+        // 없는 이메일도 같은 비용의 BCrypt를 수행하고 실패로 센다(응답시간·제한 동작으로 가입 여부를 숨긴다).
+        verify(passwordHashGate).run(any());
+        verify(passwordEncoder).matches(PASSWORD, DUMMY_HASH);
+        verify(loginAttemptLimiter).recordFailure(NORMALIZED_EMAIL);
+        verifyNoInteractions(jwtProvider, refreshTokenStore);
+    }
+
+    @Test
+    void 시도_제한에_걸리면_DB_조회와_BCrypt_없이_거절한다() {
+        when(emailNormalizer.normalize(EMAIL)).thenReturn(NORMALIZED_EMAIL);
+        doThrow(new ApiException(ApiErrorCode.LOGIN_RATE_LIMITED, 42L))
+            .when(loginAttemptLimiter).checkLogin(CLIENT_IP, NORMALIZED_EMAIL);
+
+        ApiException exception = assertThrows(ApiException.class, () -> accountService.login(loginRequest, CLIENT_IP));
+
+        assertThat(exception.errorCode()).isEqualTo(ApiErrorCode.LOGIN_RATE_LIMITED);
+        assertThat(exception.retryAfterSeconds()).isEqualTo(42L);
+        verifyNoInteractions(accountRepository, passwordHashGate, passwordEncoder, jwtProvider, refreshTokenStore);
+    }
+
+    @Test
+    void 가입_시도_제한에_걸리면_중복_확인과_BCrypt_없이_거절한다() {
+        doThrow(new ApiException(ApiErrorCode.REGISTER_RATE_LIMITED, 10L))
+            .when(loginAttemptLimiter).checkRegister(CLIENT_IP);
+
+        ApiException exception = assertThrows(ApiException.class, () -> accountService.register(registerRequest, CLIENT_IP));
+
+        assertThat(exception.errorCode()).isEqualTo(ApiErrorCode.REGISTER_RATE_LIMITED);
+        verifyNoInteractions(emailNormalizer, accountRepository, passwordHashGate, passwordEncoder, accountEventOutbox);
     }
 
     @Test
@@ -311,7 +356,7 @@ class AccountServiceTest {
 
         ApiException exception = assertThrows(
             ApiException.class,
-            () -> accountService.login(loginRequest)
+            () -> accountService.login(loginRequest, CLIENT_IP)
         );
 
         assertThat(exception.errorCode())
