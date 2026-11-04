@@ -242,6 +242,33 @@ class Sampler(threading.Thread):
             self.stop.wait(self.interval)
 
 
+PROM_QUERIES = {
+    'accountCpu': 'process_cpu_usage{job="account-service"}',
+    'gatewayCpu': 'process_cpu_usage{job="gateway-server"}',
+    'accountPoolActive': 'hikaricp_connections_active{job="account-service"}',
+    'accountPoolPending': 'hikaricp_connections_pending{job="account-service"}',
+    'accountRps': 'sum by(instance,uri,status)(rate(http_server_requests_seconds_count{job="account-service"}[30s]))',
+    'accountP95': 'histogram_quantile(0.95,sum by(instance,uri,le)(rate(http_server_requests_seconds_bucket{job="account-service"}[30s])))',
+    'gatewayP95': 'histogram_quantile(0.95,sum by(le)(rate(http_server_requests_seconds_bucket{job="gateway-server"}[30s])))',
+    'accountGcPause': 'rate(jvm_gc_pause_seconds_sum{job="account-service"}[30s])',
+    'accountHeap': 'sum by(instance)(jvm_memory_used_bytes{job="account-service",area="heap"})',
+    'outboxPending': 'account_outbox_pending',
+}
+
+
+def prometheus_window(start, end, step=5):
+    """실행 구간의 서버 지표 시계열. 수집 주기(15초)보다 촘촘한 step은 같은 표본을 반복한다."""
+    output = {'start': start, 'end': end, 'step': step, 'series': {}}
+    for name, query in PROM_QUERIES.items():
+        params = urllib.parse.urlencode({'query': query, 'start': start, 'end': end, 'step': step})
+        try:
+            with urllib.request.urlopen('http://127.0.0.1:19090/api/v1/query_range?' + params, timeout=10) as response:
+                output['series'][name] = json.load(response)['data']['result']
+        except Exception as exception:
+            output['series'][name] = {'unavailable': type(exception).__name__}
+    return output
+
+
 def k6_env(args, run_no):
     env = {'BASE_URL': args.base_url, 'SCENARIO': args.scenario, 'LABEL': args.label, 'RUN_NO': run_no,
            'FIXTURE_FILE': f'/work/{lab.RESULTS.relative_to(lab.HERE)}/account-fixture.json',
@@ -270,12 +297,19 @@ def run(args):
     if args.prometheus_rw:
         command += ['-e', 'K6_PROMETHEUS_RW_SERVER_URL=http://prometheus:9090/api/v1/write',
                     '-e', 'K6_PROMETHEUS_RW_TREND_STATS=p(50),p(95),p(99),max']
-    command += ['k6', 'run'] + (['-o', 'experimental-prometheus-rw'] if args.prometheus_rw else []) + ['/work/account.js']
+    outputs = ['-o', 'experimental-prometheus-rw'] if args.prometheus_rw else []
+    if not args.no_raw:
+        # 요청 단위 원시 기록: 단계별·태그별 분석(account_report.py)에 쓴다.
+        command += ['-e', 'K6_CSV_TIME_FORMAT=unix_milli']
+        outputs += ['-o', f'csv=/work/{lab.RESULTS.relative_to(lab.HERE)}/{args.label}.csv.gz']
+    command += ['k6', 'run'] + outputs + ['/work/account.js']
+    started_epoch = time.time()
     result = lab.compose(*command, check=False)
     finished = now()
     sampler.stop.set()
     sampler.join(timeout=30)
     lab.save(args.label + '-samples', sampler.samples)
+    lab.save(args.label + '-prom', prometheus_window(started_epoch, time.time() + 15))
     lab.capture(args.label + '-after')
     lab.save(args.label + '-conditions', {
         'scenario': args.scenario, 'runNo': run_no, 'exitCode': result.returncode, 'startedAt': started,
@@ -360,6 +394,7 @@ def main():
     parser.add_argument('--base-url', default='http://gateway-server:7070',
                         choices=['http://gateway-server:7070', 'http://account-service:7071'])
     parser.add_argument('--prometheus-rw', action='store_true')
+    parser.add_argument('--no-raw', action='store_true', help='요청 단위 CSV 기록을 끈다(장시간 실행의 파일 크기 절감)')
     parser.add_argument('--replicas', type=int, choices=[1, 2, 3], default=2)
     parser.add_argument('--action', choices=['stop', 'start'])
     parser.add_argument('--topic', default=TOPIC)

@@ -29,7 +29,8 @@ const refreshOk = new Counter('account_refresh_ok');
 const replayRejected = new Counter('account_refresh_replay_rejected');
 const replayAccepted = new Counter('account_refresh_replay_accepted');
 const raceOk = new Counter('account_refresh_race_ok');
-const raceBad = new Counter('account_refresh_race_bad');
+const raceBad = new Counter('account_refresh_race_bad'); // 같은 토큰으로 두 요청이 모두 성공(이중 사용)
+const raceInconclusive = new Counter('account_refresh_race_inconclusive'); // 인프라 오류 등으로 판정 불가
 const sessionLost = new Counter('account_session_lost');
 
 // 결정적 해시: 같은 iteration은 실행마다 같은 계정·분기를 고른다.
@@ -205,11 +206,19 @@ export function register_dup() {
 
 // A3: 로그인 → 주기적 API 호출 → 주기적 갱신(회전). 일부는 이전 토큰 재사용·동시 갱신을 섞는다.
 let state = null;
+let loginFailures = 0;
 export function session() {
   const vu = exec.vu.idInTest;
   if (!state) {
     const response = postLogin(seededEmail(activeSeq(hash(vu + 101), fixture.accounts)), fixture.password, 'session-start', OK_200);
-    if (!check(response, { 'session login 200': r => r.status === 200 })) { sessionLost.add(1); sleep(1); return; }
+    if (!check(response, { 'session login 200': r => r.status === 200 })) {
+      // 실패한 세션이 매초 재로그인하면 BCrypt 부하를 증폭한다. 지수 백오프(최대 30초)와 지터를 둔다.
+      sessionLost.add(1);
+      loginFailures += 1;
+      sleep(Math.min(30, 2 ** loginFailures) * (0.5 + Math.random()));
+      return;
+    }
+    loginFailures = 0;
     state = { access: response.json('accessToken'), refresh: refreshCookie(response), refreshedAt: Date.now(), n: 0 };
   }
   const me = http.get(`${BASE}/account/auth/me`, { headers: { Authorization: `Bearer ${state.access}` },
@@ -231,7 +240,9 @@ export function session() {
       pair.forEach(count5xx);
       const won = pair.filter(r => r.status === 200);
       const lost = pair.filter(r => r.status === 401);
-      (won.length === 1 && lost.length === 1 ? raceOk : raceBad).add(1);
+      if (won.length > 1) raceBad.add(1);
+      else if (won.length === 1 && lost.length === 1) raceOk.add(1);
+      else raceInconclusive.add(1);
       winner = won[0] || null;
     } else {
       const response = refresh(old, { name: 'POST /account/auth/refresh', kind: 'rotate' }, OK_200);
@@ -245,7 +256,8 @@ export function session() {
     if (roll >= 100 - Number(__ENV.REPLAY_PCT || 5)) {
       const replay = refresh(old, { name: 'POST /account/auth/refresh', kind: 'replay' }, OK_401);
       count5xx(replay);
-      (replay.status === 401 ? replayRejected : replayAccepted).add(1);
+      if (replay.status === 401) replayRejected.add(1);
+      else if (replay.status === 200) replayAccepted.add(1);
     }
   }
   sleep(Number(__ENV.THINK || 5));

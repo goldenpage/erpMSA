@@ -52,7 +52,8 @@ services:
     # 원격 부하 발생기는 사설망 주소만 지정한다(LAB_GATEWAY_BIND). 공인 인터페이스에 노출하지 않는다.
     ports: !override ["${LAB_GATEWAY_BIND:-127.0.0.1}:17070:7070"]
     environment: *java-lab
-    mem_limit: 512m
+    # 2026-11-04 Account 부하 중 512m에서 메모리 한계 종료가 반복됐다(docs/account-load-results.md). 대조 실험용으로 조절한다.
+    mem_limit: ${LAB_GATEWAY_MEMORY:-512m}
     cpus: 1
   prometheus:
     image: erpmsa-sprint4/prometheus:lab

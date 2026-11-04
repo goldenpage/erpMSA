@@ -440,7 +440,8 @@ k6 임계값(실패 시 종료 코드 99)은 다음과 같다.
 
 - `http_req_failed < 1%`. 시나리오별로 기대 상태(401·403·409)는 실패로 세지 않는다.
 - `checks > 99%`, `dropped_iterations == 0`
-- `account_unexpected_5xx == 0`, `account_dup_group_bad == 0`, `account_refresh_replay_accepted == 0`, `account_refresh_race_bad == 0`
+- `account_unexpected_5xx == 0`, `account_dup_group_bad == 0`, `account_refresh_replay_accepted == 0`(이전 토큰 재사용이 200), `account_refresh_race_bad == 0`(같은 토큰의 동시 갱신 2건이 모두 200)
+- 인프라 오류로 판정할 수 없는 경합은 `account_refresh_race_inconclusive`로 따로 센다. 실패한 세션 로그인은 지수 백오프(최대 30초) 후 재시도한다
 
 `check` 명령(가입 실험)은 Outbox 적체가 해소될 때까지 최대 `--drain-timeout`초 기다린 뒤 다음을 대조하고 `<label>-check.json`을 남긴다.
 
@@ -474,12 +475,13 @@ k6 임계값(실패 시 종료 코드 99)은 다음과 같다.
 |---|---|
 | `performance/account_lab.py` | `seed`(100만 계정), `run`(k6 + 5초 표본 + 전후 capture), `check`(계정·Outbox·Kafka 대조), `scale`(Account 증설), `kafka`(A8 중단·재개) |
 | `performance/account.js` | 시나리오 `me`, `login`, `login-attack`, `register`, `register-dup`, `session` |
-| `performance/test_account_lab.py` | 시드 규칙, 범위 분할, 대조·판정, 입력 검증 단위 테스트 11개 |
-| `compose.performance.yaml` | Account CPU·메모리·풀, Redis 메모리, k6 자원, Gateway 바인드 주소를 환경변수로 조절. Prometheus remote write 수신 활성화 |
+| `performance/account_report.py` | 요청 단위 CSV·서버 지표로 단계별(각 단계 처음 15초 제외)·요청 종류별 성공 처리량, p50/p95/p99, Account CPU, 풀 대기, 포화 판정 |
+| `performance/test_account_lab.py`, `test_account_report.py` | 시드 규칙, 범위 분할, 대조·판정, 입력 검증, 단계 목표율·백분위 단위 테스트 14개 |
+| `compose.performance.yaml` | Account CPU·메모리·풀, Gateway 메모리(`LAB_GATEWAY_MEMORY`), Redis 메모리, k6 자원, Gateway 바인드 주소를 환경변수로 조절. Prometheus remote write 수신 활성화 |
 
 2026-11-04에 이 클라우드 컨테이너에서 확인한 범위는 다음과 같다.
 
 - 단위 테스트 14개(기존 3개 + 신규 11개) 통과.
 - k6 1.7.1로 6개 시나리오를 **모의 Account API**에 실행해 모두 임계값을 통과했다. 토큰 재사용을 허용하고 중복 가입을 막지 않는 결함 모의 서버에서는 `refresh_replay_accepted`, `refresh_race_bad`, `dup_group_bad` 임계값 실패(종료 코드 99)로 결함을 검출했다.
 - 실제 MariaDB 10.11에 Account Flyway V1·V2를 적용해 seed SQL(100만 행)과 `check`의 조인 쿼리를 실행했다. 실행계획은 Outbox 인덱스 범위 조회 + account 기본키 `eq_ref`였다.
-- **실제 Account·Gateway·Kafka와 연결한 실행은 하지 못했다.** Maven Central이 429를 반환해 서비스 JAR을 빌드할 수 없었다. 따라서 `seed`의 API 가입·로그인 확인, `run`의 표본 수집, `check`의 Kafka 소비는 실제 실험실 첫 실행(T1)에서 확인해야 한다.
+- ~~실제 Account·Gateway·Kafka와 연결한 실행은 하지 못했다.~~ 같은 날 후속으로 실제 14개 컨테이너 실험실에서 `seed`·`run`·`check`·`report` 전 과정을 실행했다. 결과와 발견 사항은 [account-load-results.md](account-load-results.md)에 있다(T1-small, 1회 측정).

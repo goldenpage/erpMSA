@@ -59,13 +59,16 @@ python3 performance/account_lab.py run --scenario me --label a0-me --rate 200 --
 python3 performance/account_lab.py run --scenario login --label a1-login-r1 --stages 20:3m,40:3m,80:3m,160:3m --max-vus 2000
 python3 performance/account_lab.py run --scenario register --label a2-reg --stages 10:3m,20:3m,40:3m
 python3 performance/account_lab.py check --label a2-reg
+python3 performance/account_report.py a2-reg --baseline-p95 130
 python3 performance/lab.py down
 ```
 
 - `seed`는 fixture 계정 하나를 API로 가입시키고, 앱이 만든 BCrypt 해시를 SQL로 복사해 계정을 대량 생성한다. 비밀번호는 `results/account-fixture.json`(0600)에만 있다.
 - `run`은 k6 실행 동안 5초마다 Outbox·Redis 표본을 `results/<label>-samples.json`에 남긴다. 가입 시나리오는 실행번호를 새로 받으며 label을 재사용할 수 없다.
 - `check`는 부하 직후 실행한다. 계정·Outbox·Kafka를 대조하고 누락은 FAIL, 같은 eventId 중복 발행은 별도 보고한다.
-- 자원은 `.env`의 `LAB_ACCOUNT_CPUS`(기본 2), `LAB_ACCOUNT_MEMORY`(512m), `LAB_ACCOUNT_DB_POOL_SIZE`(10), `LAB_REDIS_MEMORY`(1g), `LAB_K6_CPUS`(1), `LAB_K6_MEMORY`(512m)로 바꾸고 결과에 함께 기록한다.
+- `run`은 요청 단위 기록(`<label>.csv.gz`)과 실행 구간의 서버 지표(`<label>-prom.json`)도 남긴다. `account_report.py`가 단계별 성공 처리량·p95·CPU·풀 대기와 포화 판정을 만든다. 측정 전에는 워밍업 실행을 먼저 한다.
+- 결과 예시와 발견 사항: [account-load-results.md](../docs/account-load-results.md)
+- 자원은 `.env`의 `LAB_GATEWAY_MEMORY`(512m), `LAB_ACCOUNT_CPUS`(기본 2), `LAB_ACCOUNT_MEMORY`(512m), `LAB_ACCOUNT_DB_POOL_SIZE`(10), `LAB_REDIS_MEMORY`(1g), `LAB_K6_CPUS`(1), `LAB_K6_MEMORY`(512m)로 바꾸고 결과에 함께 기록한다.
 - 원격 부하 발생기는 `LAB_GATEWAY_BIND`에 사설망 주소만 지정해 접속한다.
 
 ## 데이터와 요청 가설
