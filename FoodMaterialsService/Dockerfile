@@ -4,12 +4,14 @@ WORKDIR /workspace/FoodMaterialsService
 
 COPY FoodMaterialsService/gradlew FoodMaterialsService/build.gradle FoodMaterialsService/settings.gradle ./
 COPY shared/jwt-security/build.gradle /workspace/shared/jwt-security/build.gradle
+COPY shared/service-foundation/build.gradle /workspace/shared/service-foundation/build.gradle
 COPY FoodMaterialsService/gradle ./gradle
 RUN chmod +x gradlew
 RUN ./gradlew dependencies --no-daemon
 
 COPY FoodMaterialsService/src ./src
 COPY shared/jwt-security/src/main /workspace/shared/jwt-security/src/main
+COPY shared/service-foundation/src/main /workspace/shared/service-foundation/src/main
 RUN ./gradlew bootJar --no-daemon -x test \
     && cp "$(find build/libs -type f -name '*.jar' ! -name '*-plain.jar' -print -quit)" app.jar
 

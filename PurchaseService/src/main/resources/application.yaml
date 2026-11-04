@@ -26,6 +26,10 @@ management:
       percentiles-histogram:
         http.server.requests: true
 app:
+  shutdown:
+    # 종료 시 Eureka에 DOWN을 알리고 이 시간 동안 요청을 계속 받는다(shared/service-foundation DiscoveryDrainLifecycle).
+    # 호출하는 쪽(Gateway, Disposals→FoodMaterials)의 레지스트리 갱신(5s) + 로드밸런서 캐시(5s)보다 길어야 한다. 0이면 끈다.
+    discovery-drain: "${SHUTDOWN_DISCOVERY_DRAIN:15s}"
   service:
     base-path: /purchase
   auth:

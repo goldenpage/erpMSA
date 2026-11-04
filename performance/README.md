@@ -71,6 +71,7 @@ python3 performance/lab.py down
 - 자원은 `.env`의 `LAB_GATEWAY_MEMORY`(512m), `LAB_ACCOUNT_CPUS`(기본 2), `LAB_ACCOUNT_MEMORY`(512m), `LAB_ACCOUNT_DB_POOL_SIZE`(10), `LAB_REDIS_MEMORY`(1g), `LAB_K6_CPUS`(1), `LAB_K6_MEMORY`(512m)로 바꾸고 결과에 함께 기록한다.
 - 원격 부하 발생기는 `LAB_GATEWAY_BIND`에 사설망 주소만 지정해 접속한다.
 - 재배포 중 오류 측정: `python3 performance/account_lab.py redeploy --mode rolling --label <label>`(새 인스턴스를 띄운 뒤 옛 인스턴스 SIGTERM) 또는 `--mode recreate`(단일 인스턴스 재생성). Gateway 경유 `GET /account/auth/login`을 초당 20건 보내 상태별 건수·실패 구간·새 인스턴스 정상 후 복구 지연을 `results/<label>-redeploy.json`에 남긴다.
+  `--service foodmaterials`면 FoodMaterials를 교체하며 토큰 없는 `GET /foodmaterials`(FoodMaterials가 내는 401)를 보낸다. drain 전후 대조는 `performance/.env`의 `LAB_SHUTDOWN_DISCOVERY_DRAIN`(기본 15s, `0s`면 drain 없음)을 바꾼 뒤 FoodMaterials를 다시 띄워 잰다.
 - Account에는 IP·계정 기준 로그인·가입 시도 제한이 있다(IP당 로그인 30/분, 가입 10/분, 이메일당 15분에 실패 5회). k6는 요청마다 모의 클라이언트 IP(`X-Forwarded-For`, 정상 198.18.0.0/16·공격자 198.19.0.0/16)를 보내고, 실험실 Gateway는 Docker 사설망을 신뢰 프록시로 두어(`LAB_GATEWAY_TRUSTED_UPSTREAMS`, 기본 172.16.0.0/12) 이 값을 클라이언트 주소로 쓴다. `--client-ips off`로 끄면 모든 요청이 한 IP로 집계되어 분당 30회에서 막힌다. 공격자 IP 수는 `--attack-ips`(기본 4)로 정한다.
 
 ## 데이터와 요청 가설

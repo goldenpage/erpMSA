@@ -9,5 +9,9 @@ dependencies {
     api 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
     implementation project(':jwt-security')
     runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
+// 이 모듈을 포함한 각 서비스의 `gradlew test`가 공통 drain 단위 테스트도 함께 실행한다.
+tasks.named('test') { useJUnitPlatform() }
 layout.buildDirectory = rootProject.layout.buildDirectory.dir('service-foundation')

@@ -43,7 +43,10 @@ services:
   foodmaterials-service:
     image: erpmsa-sprint4/foodmaterials-service:lab
     ports: !reset []
-    environment: *java-lab
+    environment:
+      <<: *java-lab
+      # 재배포 drain 전후 대조용(docs/account-load-results.md 재배포 절). 0s면 drain 없이 바로 종료한다.
+      SHUTDOWN_DISCOVERY_DRAIN: ${LAB_SHUTDOWN_DISCOVERY_DRAIN:-15s}
     mem_limit: 512m
     cpus: 1
 

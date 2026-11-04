@@ -1,4 +1,6 @@
 rootProject.name = 'FoodMaterialsService'
 
-include 'jwt-security'
+include 'jwt-security', 'service-foundation'
 project(':jwt-security').projectDir = file('../shared/jwt-security')
+// 종료 시 Eureka DOWN 알림 후 drain(DiscoveryDrainAutoConfiguration)만 쓴다. 501 셸 컨트롤러는 가져오지 않는다.
+project(':service-foundation').projectDir = file('../shared/service-foundation')

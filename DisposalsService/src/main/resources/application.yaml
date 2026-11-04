@@ -16,6 +16,12 @@ spring:
   flyway:
     enabled: true
     baseline-on-migrate: false
+  cloud:
+    loadbalancer:
+      cache:
+        # FoodMaterials 호출용 로드밸런서 인스턴스 목록 캐시(기본 35초). FoodMaterials가 재배포로 DOWN을 알리면
+        # drain(15s) 안에 목록에서 빠져야 한다. Gateway와 같은 5초.
+        ttl: "${DISPOSALS_LB_CACHE_TTL:5s}"
 server:
   port: "${DISPOSALS_SERVER_PORT:7077}"
 eureka:
@@ -24,6 +30,9 @@ eureka:
   client:
     register-with-eureka: true
     fetch-registry: true
+    # FoodMaterials 재배포 반영 속도: 레지스트리를 5초마다 받는다(기본 30초). 이 주기 + 로드밸런서 캐시가
+    # FoodMaterials drain 시간보다 짧아야 종료 중인 인스턴스로 재고 차감을 보내지 않는다.
+    registry-fetch-interval-seconds: "${DISPOSALS_REGISTRY_FETCH_SECONDS:5}"
     service-url:
       defaultZone: "${EUREKA_DEFAULT_ZONE:http://127.0.0.1:8761/eureka}"
 management:
@@ -41,6 +50,10 @@ management:
       percentiles-histogram:
         http.server.requests: true
 app:
+  shutdown:
+    # 종료 시 Eureka에 DOWN을 알리고 이 시간 동안 요청을 계속 받는다(shared/service-foundation DiscoveryDrainLifecycle).
+    # 호출하는 쪽(Gateway, Disposals→FoodMaterials)의 레지스트리 갱신(5s) + 로드밸런서 캐시(5s)보다 길어야 한다. 0이면 끈다.
+    discovery-drain: "${SHUTDOWN_DISCOVERY_DRAIN:15s}"
   inventory:
     base-url: "${FOOD_MATERIAL_SERVICE_BASE_URL:http://FOODMATERIALSSERVICE}"
     discovery-enabled: "${FOOD_MATERIAL_DISCOVERY_ENABLED:true}"

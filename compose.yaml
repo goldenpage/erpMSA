@@ -210,6 +210,8 @@ services:
         condition: service_completed_successfully
       eureka-server:
         condition: service_healthy
+    # 종료 시 Eureka DOWN 알림 후 15초 drain + graceful shutdown. Docker 기본 10초면 drain 중 강제 종료된다.
+    stop_grace_period: 45s
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/7073"]
       interval: 5s
@@ -246,6 +248,8 @@ services:
         condition: service_completed_successfully
       eureka-server:
         condition: service_healthy
+    # 종료 시 Eureka DOWN 알림 후 15초 drain + graceful shutdown. Docker 기본 10초면 drain 중 강제 종료된다.
+    stop_grace_period: 45s
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/7072"]
       interval: 5s
@@ -277,6 +281,8 @@ services:
     depends_on:
       eureka-server:
         condition: service_healthy
+    # 종료 시 Eureka DOWN 알림 후 15초 drain + graceful shutdown. Docker 기본 10초면 drain 중 강제 종료된다.
+    stop_grace_period: 45s
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/7074"]
       interval: 5s
@@ -308,6 +314,8 @@ services:
     depends_on:
       eureka-server:
         condition: service_healthy
+    # 종료 시 Eureka DOWN 알림 후 15초 drain + graceful shutdown. Docker 기본 10초면 drain 중 강제 종료된다.
+    stop_grace_period: 45s
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/7075"]
       interval: 5s
@@ -339,6 +347,8 @@ services:
     depends_on:
       eureka-server:
         condition: service_healthy
+    # 종료 시 Eureka DOWN 알림 후 15초 drain + graceful shutdown. Docker 기본 10초면 drain 중 강제 종료된다.
+    stop_grace_period: 45s
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/7076"]
       interval: 5s
@@ -379,6 +389,8 @@ services:
         condition: service_completed_successfully
       eureka-server:
         condition: service_healthy
+    # 종료 시 Eureka DOWN 알림 후 15초 drain + graceful shutdown. Docker 기본 10초면 drain 중 강제 종료된다.
+    stop_grace_period: 45s
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/7077"]
       interval: 5s

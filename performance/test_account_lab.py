@@ -1,6 +1,8 @@
+import json
 import unittest
 
 import account_lab as al
+import lab
 
 
 class SeedRuleTest(unittest.TestCase):
@@ -74,6 +76,13 @@ class RedeployProbeTest(unittest.TestCase):
         self.assertEqual(summary['recoveryLagSeconds'], 2.5)
         self.assertEqual(summary['firstSuccessAfterHealthy'], 4.0)
         self.assertEqual(al.summarize_probe([(0.0, 405)])['failures'], 0)
+
+    def test_targets_use_approved_service_paths(self):
+        services = json.loads((lab.ROOT / 'architecture/services.json').read_text())['services']
+        approved = {s['path'][1:] + '-service': s['path'] for s in services}
+        for service, path in al.REDEPLOY_TARGETS.values():
+            self.assertIn(service, approved)
+            self.assertTrue(path.startswith(approved[service]), path)
 
 
 class ParsingTest(unittest.TestCase):

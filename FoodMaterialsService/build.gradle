@@ -30,6 +30,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
     implementation project(':jwt-security')
+    implementation project(':service-foundation')
     testImplementation testFixtures(project(':jwt-security'))
 
     compileOnly 'org.projectlombok:lombok'

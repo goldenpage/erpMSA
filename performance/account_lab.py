@@ -370,6 +370,15 @@ def check(args):
     raise SystemExit(0 if result['result'] == 'PASS' else 1)
 
 
+# 재배포 측정 대상: Compose 서비스 이름과 Gateway 경유 측정 요청. 정상 응답은 하류 인스턴스가 직접 낸 것이다.
+# account: BCrypt가 없는 GET /account/auth/login(정상 405).
+# foodmaterials: 토큰 없는 GET /foodmaterials(FoodMaterials의 JWT 필터가 내는 401. DB를 거치지 않는다).
+REDEPLOY_TARGETS = {
+    'account': ('account-service', '/account/auth/login'),
+    'foodmaterials': ('foodmaterials-service', '/foodmaterials?page=0&size=20'),
+}
+
+
 def summarize_probe(samples, healthy_at=None):
     """재배포 중 표본 [(t, status)]을 상태별 건수와 실패 구간으로 요약한다. status 0은 연결 실패·시간 초과."""
     ok = {200, 401, 405}
@@ -390,15 +399,16 @@ def summarize_probe(samples, healthy_at=None):
     return result
 
 
-def account_containers():
-    ids = lab.compose('ps', '-q', 'account-service', capture=True).stdout.split()
+def service_containers(service='account-service'):
+    ids = lab.compose('ps', '-q', service, capture=True).stdout.split()
     inspected = json.loads(subprocess.check_output(['docker', 'inspect', *ids], text=True)) if ids else []
     return {c['Id']: c for c in inspected}
 
 
 def redeploy(args):
     """재배포 중 Gateway 경유 요청의 실패를 잰다. rolling: 새 인스턴스를 띄운 뒤 옛 인스턴스를 SIGTERM으로 내린다.
-    recreate: 인스턴스 하나를 새 컨테이너로 바꾼다(중단 불가피). 측정 요청은 BCrypt가 없는 GET /account/auth/login(정상 405)."""
+    recreate: 인스턴스 하나를 새 컨테이너로 바꾼다(중단 불가피). 측정 요청은 REDEPLOY_TARGETS(--service)."""
+    service, path = REDEPLOY_TARGETS[args.service]
     lab.verify_lab()
     lab.wait_gateway()
     samples, stop = [], threading.Event()
@@ -408,7 +418,7 @@ def redeploy(args):
         while not stop.is_set():
             t = time.monotonic() - started
             try:
-                status, _ = lab.request('/account/auth/login')
+                status, _ = lab.request(path)
             except Exception:
                 status = 0
             samples.append((t, status))
@@ -420,11 +430,11 @@ def redeploy(args):
     healthy_at = None
     try:
         stop.wait(5)
-        before = account_containers()
+        before = service_containers(service)
         if args.mode == 'rolling':
             target = len(before) + 1
             lab.compose('up', '-d', '--no-build', '--no-deps', '--no-recreate', '--wait', '--wait-timeout', '240',
-                        '--scale', f'account-service={target}', 'account-service')
+                        '--scale', f'{service}={target}', service)
             events.append(('new-instance-healthy', time.monotonic() - started))
             # 새 인스턴스가 Gateway에 반영될 시간을 둔 뒤 가장 오래된 인스턴스를 내린다.
             stop.wait(args.settle)
@@ -436,19 +446,19 @@ def redeploy(args):
         else:
             events.append(('recreate-begin', time.monotonic() - started))
             lab.compose('up', '-d', '--no-build', '--no-deps', '--force-recreate', '--wait', '--wait-timeout', '240',
-                        'account-service')
+                        service)
             healthy_at = time.monotonic() - started
             events.append(('new-instance-healthy', healthy_at))
         stop.wait(args.observe)
     finally:
         stop.set()
         thread.join(timeout=10)
-    report = {'mode': args.mode, 'at': now(), 'probeRatePerSecond': args.probe_rate, 'settleSeconds': args.settle,
+    report = {'service': service, 'probePath': path, 'mode': args.mode, 'at': now(), 'probeRatePerSecond': args.probe_rate, 'settleSeconds': args.settle,
               'stopTimeoutSeconds': args.stop_timeout, 'events': [(name, round(t, 2)) for name, t in events],
               'summary': summarize_probe(samples, healthy_at),
               'timeline': [(round(t, 2), status) for t, status in samples if status not in (200, 401, 405)][:500]}
     lab.save(args.label + '-redeploy', report)
-    print(json.dumps({k: report[k] for k in ('mode', 'events', 'summary')}, ensure_ascii=False, indent=1))
+    print(json.dumps({k: report[k] for k in ('service', 'mode', 'events', 'summary')}, ensure_ascii=False, indent=1))
 
 
 def main():
@@ -483,6 +493,7 @@ def main():
     parser.add_argument('--topic', default=TOPIC)
     parser.add_argument('--drain-timeout', type=int, default=900)
     parser.add_argument('--mode', choices=['rolling', 'recreate'], default='rolling')
+    parser.add_argument('--service', choices=sorted(REDEPLOY_TARGETS), default='account', help='redeploy 대상(기본 account)')
     parser.add_argument('--probe-rate', type=int, default=20)
     parser.add_argument('--settle', type=int, default=30, help='rolling: 새 인스턴스 기동 후 옛 인스턴스를 내리기까지 대기(초)')
     parser.add_argument('--stop-timeout', type=int, default=30, help='docker stop 유예(초). 넘으면 SIGKILL')
