@@ -10,6 +10,7 @@ import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -21,6 +22,8 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    static final String AUTH_BUSY_RETRY_AFTER_SECONDS = "1";
 
     private static final Logger log = LoggerFactory.getLogger(
         ApiExceptionHandler.class
@@ -124,7 +127,12 @@ public class ApiExceptionHandler {
         ApiErrorCode errorCode,
         HttpServletRequest request
     ) {
-        return ResponseEntity.status(errorCode.status())
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(errorCode.status());
+        if (errorCode == ApiErrorCode.AUTH_BUSY) {
+            // 과부하 거절은 일시적이다. 클라이언트가 즉시 재시도하지 않도록 대기 시간을 알려 준다.
+            builder.header(HttpHeaders.RETRY_AFTER, AUTH_BUSY_RETRY_AFTER_SECONDS);
+        }
+        return builder
             .body(ApiErrorResponse.of(
                 errorCode,
                 request.getRequestURI()

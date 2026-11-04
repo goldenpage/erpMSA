@@ -90,6 +90,14 @@ public class AccountOutboxEvent {
         return event;
     }
 
+    /**
+     * 발행 선점. 선점 기간 동안 다른 인스턴스의 조회 대상에서 빠진다.
+     * 발행에 실패하면 {@link #markFailed}가, 프로세스가 중단되면 선점 만료가 재시도 시각을 정한다.
+     */
+    public void claimUntil(Instant until) {
+        this.nextAttemptAt = until;
+    }
+
     public void markPublished(Instant publishedAt) {
         this.status = OutboxStatus.PUBLISHED;
         this.publishedAt = publishedAt;

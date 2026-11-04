@@ -8,6 +8,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 
 import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.auth0.jwt.interfaces.DecodedJWT;
@@ -16,6 +19,7 @@ import com.oopsw.accountservice.advice.dto.RegisterRequest;
 import com.oopsw.accountservice.api.ApiErrorCode;
 import com.oopsw.accountservice.api.ApiException;
 import com.oopsw.accountservice.auth.JwtProvider;
+import com.oopsw.accountservice.auth.PasswordHashGate;
 import com.oopsw.accountservice.auth.RefreshTokenStore;
 import com.oopsw.accountservice.entity.AccountEntity;
 import com.oopsw.accountservice.entity.AccountRepository;
@@ -24,15 +28,19 @@ import com.oopsw.accountservice.entity.AccountStatus;
 import com.oopsw.accountservice.outbox.AccountEventOutbox;
 import java.time.Duration;
 import java.util.Optional;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @ExtendWith(MockitoExtension.class)
 class AccountServiceTest {
@@ -66,6 +74,12 @@ class AccountServiceTest {
     @Mock
     private AccountEventOutbox accountEventOutbox;
 
+    @Mock
+    private PasswordHashGate passwordHashGate;
+
+    @Mock
+    private TransactionTemplate transactionTemplate;
+
     @InjectMocks
     private AccountService accountService;
 
@@ -87,6 +101,60 @@ class AccountServiceTest {
         );
 
         loginRequest = new LoginRequest(EMAIL, PASSWORD);
+
+        // 게이트·트랜잭션은 그대로 통과시킨다. 거절 동작은 별도 테스트에서 검사한다.
+        lenient().when(passwordHashGate.run(any()))
+            .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(0)).get());
+        lenient().when(transactionTemplate.execute(any()))
+            .thenAnswer(invocation -> ((TransactionCallback<?>) invocation.getArgument(0)).doInTransaction(null));
+    }
+
+    @Test
+    void 회원가입은_BCrypt를_트랜잭션_밖에서_계산한다() {
+        when(emailNormalizer.normalize(EMAIL)).thenReturn(NORMALIZED_EMAIL);
+        when(passwordEncoder.encode(PASSWORD)).thenReturn(PASSWORD_HASH);
+        when(accountRepository.saveAndFlush(any(AccountEntity.class)))
+            .thenAnswer(invocation -> {
+                AccountEntity account = invocation.getArgument(0);
+                ReflectionTestUtils.setField(account, "id", ACCOUNT_ID);
+                return account;
+            });
+
+        accountService.register(registerRequest);
+
+        InOrder order = inOrder(passwordHashGate, passwordEncoder, transactionTemplate, accountRepository);
+        order.verify(passwordHashGate).run(any());
+        order.verify(passwordEncoder).encode(PASSWORD);
+        order.verify(transactionTemplate).execute(any());
+        order.verify(accountRepository).saveAndFlush(any(AccountEntity.class));
+    }
+
+    @Test
+    void 해시_계산_중_같은_이메일이_가입되면_저장하지_않는다() {
+        when(emailNormalizer.normalize(EMAIL)).thenReturn(NORMALIZED_EMAIL);
+        when(accountRepository.existsByEmail(NORMALIZED_EMAIL)).thenReturn(false, true);
+        when(passwordEncoder.encode(PASSWORD)).thenReturn(PASSWORD_HASH);
+
+        ApiException exception = assertThrows(ApiException.class, () -> accountService.register(registerRequest));
+
+        assertThat(exception.errorCode()).isEqualTo(ApiErrorCode.EMAIL_ALREADY_EXISTS);
+        verify(accountRepository, never()).saveAndFlush(any(AccountEntity.class));
+        verifyNoInteractions(accountEventOutbox);
+    }
+
+    @Test
+    void BCrypt_허가를_얻지_못하면_가입과_로그인을_계산_없이_거절한다() {
+        when(emailNormalizer.normalize(EMAIL)).thenReturn(NORMALIZED_EMAIL);
+        when(accountRepository.findByEmail(NORMALIZED_EMAIL))
+            .thenReturn(Optional.of(createAccount(AccountStatus.ACTIVE)));
+        doThrow(new ApiException(ApiErrorCode.AUTH_BUSY)).when(passwordHashGate).run(any());
+
+        assertThat(assertThrows(ApiException.class, () -> accountService.register(registerRequest)).errorCode())
+            .isEqualTo(ApiErrorCode.AUTH_BUSY);
+        assertThat(assertThrows(ApiException.class, () -> accountService.login(loginRequest)).errorCode())
+            .isEqualTo(ApiErrorCode.AUTH_BUSY);
+        verifyNoInteractions(passwordEncoder, jwtProvider, refreshTokenStore, accountEventOutbox);
+        verify(accountRepository, never()).saveAndFlush(any(AccountEntity.class));
     }
 
     @Test

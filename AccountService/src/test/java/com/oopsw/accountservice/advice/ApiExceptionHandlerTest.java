@@ -42,6 +42,20 @@ class ApiExceptionHandlerTest {
     }
 
     @Test
+    void 인증_과부하_거절에는_재시도_대기_시간을_알린다() {
+        ResponseEntity<ApiErrorResponse> response = handler.handleApiException(
+            new ApiException(ApiErrorCode.AUTH_BUSY),
+            new MockHttpServletRequest("POST", "/account/auth/login")
+        );
+
+        assertThat(response.getStatusCode().value()).isEqualTo(503);
+        assertThat(response.getHeaders().getFirst("Retry-After")).isEqualTo("1");
+        assertThat(Objects.requireNonNull(response.getBody()).code()).isEqualTo("AUTH_BUSY");
+        assertThat(handler.handleApiException(new ApiException(ApiErrorCode.INVALID_CREDENTIALS),
+            new MockHttpServletRequest("POST", "/account/auth/login")).getHeaders().getFirst("Retry-After")).isNull();
+    }
+
+    @Test
     void 검증_예외에는_필드명과_메시지만_포함한다() {
         Object target = new Object();
         BeanPropertyBindingResult bindingResult =

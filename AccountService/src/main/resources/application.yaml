@@ -88,6 +88,10 @@ app:
     outbox:
       publish-delay: "${OUTBOX_PUBLISH_DELAY:1s}"
       retry-delay: "${OUTBOX_RETRY_DELAY:5s}"
+      # 다중 인스턴스 중복 발행 방지: 발행 대상을 SKIP LOCKED로 선점하고 선점 기간 안에서만 발행한다.
+      claim-lease: "${OUTBOX_CLAIM_LEASE:120s}"
+      lease-safety-margin: "${OUTBOX_LEASE_SAFETY_MARGIN:30s}"
+      batch-size: "${OUTBOX_BATCH_SIZE:100}"
 
   auth:
     issuer: "${JWT_ISSUER:kosta-erp-account}"
@@ -98,3 +102,7 @@ app:
     access-ttl: "${JWT_ACCESS_TTL:15m}"
     refresh-ttl: "${JWT_REFRESH_TTL:14d}"
     secure-cookie: "${COOKIE_SECURE:true}"
+    password-hash:
+      # BCrypt 동시 계산 상한(0이면 CPU 수, 최소 2)과 허가 대기 한도. 한도 안에 허가를 못 얻으면 503 AUTH_BUSY.
+      max-concurrent: "${AUTH_PASSWORD_HASH_MAX_CONCURRENT:0}"
+      max-wait: "${AUTH_PASSWORD_HASH_MAX_WAIT:2s}"
