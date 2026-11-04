@@ -51,7 +51,11 @@ services:
     image: erpmsa-sprint4/gateway-server:lab
     # 원격 부하 발생기는 사설망 주소만 지정한다(LAB_GATEWAY_BIND). 공인 인터페이스에 노출하지 않는다.
     ports: !override ["${LAB_GATEWAY_BIND:-127.0.0.1}:17070:7070"]
-    environment: *java-lab
+    environment:
+      <<: *java-lab
+      # 실험실 전용: Docker 사설망(k6 포함)을 신뢰 프록시로 두어 k6가 보낸 모의 클라이언트 IP(X-Forwarded-For)를 쓴다.
+      # 운영 기본값은 비어 있다(직접 연결 주소 사용).
+      GATEWAY_TRUSTED_UPSTREAMS: ${LAB_GATEWAY_TRUSTED_UPSTREAMS:-172.16.0.0/12}
     # 2026-11-04 Account 부하 중 512m에서 메모리 한계 종료가 반복됐다(docs/account-load-results.md). 대조 실험용으로 조절한다.
     mem_limit: ${LAB_GATEWAY_MEMORY:-512m}
     cpus: 1

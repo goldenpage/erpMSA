@@ -277,7 +277,7 @@ def k6_env(args, run_no):
                 'NORMAL_RATE': args.normal_rate, 'ATTACK_KIND': args.attack_kind, 'ATTACK_DELAY': args.attack_delay,
                 'LOGIN_SET': args.login_set, 'DUP_SIZE': args.dup_size, 'DUP_MODE': args.dup_mode,
                 'REFRESH_EVERY': args.refresh_every, 'THINK': args.think, 'REPLAY_PCT': args.replay_pct,
-                'RACE_PCT': args.race_pct}
+                'RACE_PCT': args.race_pct, 'ATTACK_IPS': args.attack_ips, 'CLIENT_IPS': args.client_ips}
     env.update({k: v for k, v in optional.items() if v is not None})
     return {k: str(v) for k, v in env.items()}
 
@@ -391,6 +391,8 @@ def main():
     parser.add_argument('--think', type=float)
     parser.add_argument('--replay-pct', type=int)
     parser.add_argument('--race-pct', type=int)
+    parser.add_argument('--attack-ips', type=int, help='login-attack 공격자 모의 IP 수(기본 4)')
+    parser.add_argument('--client-ips', choices=['on', 'off'], help='모의 클라이언트 IP(X-Forwarded-For) 사용 여부(기본 on)')
     parser.add_argument('--base-url', default='http://gateway-server:7070',
                         choices=['http://gateway-server:7070', 'http://account-service:7071'])
     parser.add_argument('--prometheus-rw', action='store_true')
@@ -417,7 +419,8 @@ def main():
     except ValueError as error:
         parser.error(str(error))
     for name, low, high in [('rate', 1, 20000), ('normal_rate', 1, 20000), ('vus', 1, 50000), ('max_vus', 1, 50000),
-                            ('dup_size', 2, 10), ('refresh_every', 1, 3600), ('replay_pct', 0, 100), ('race_pct', 0, 100)]:
+                            ('dup_size', 2, 10), ('refresh_every', 1, 3600), ('replay_pct', 0, 100), ('race_pct', 0, 100),
+                            ('attack_ips', 1, 65536)]:
         value = getattr(args, name)
         if value is not None and not low <= value <= high:
             parser.error(f'--{name.replace("_", "-")} must be {low}..{high}')

@@ -17,6 +17,7 @@ const JSON_HEADERS = { 'Content-Type': 'application/json' };
 const OK_200 = http.expectedStatuses(200);
 const OK_201 = http.expectedStatuses(201);
 const OK_401 = http.expectedStatuses(401);
+const OK_ATTACK = http.expectedStatuses(401, 429);
 const OK_403 = http.expectedStatuses(403);
 const OK_REGISTER_RACE = http.expectedStatuses(201, 409);
 const OK_REFRESH_RACE = http.expectedStatuses(200, 401);
@@ -32,6 +33,8 @@ const raceOk = new Counter('account_refresh_race_ok');
 const raceBad = new Counter('account_refresh_race_bad'); // 같은 토큰으로 두 요청이 모두 성공(이중 사용)
 const raceInconclusive = new Counter('account_refresh_race_inconclusive'); // 인프라 오류 등으로 판정 불가
 const sessionLost = new Counter('account_session_lost');
+const attackLimited = new Counter('account_attack_limited'); // 공격 요청이 429로 BCrypt 전에 막힌 수
+const normalRejected = new Counter('account_normal_rejected'); // 정상 로그인이 429·503을 받은 수
 
 // 결정적 해시: 같은 iteration은 실행마다 같은 계정·분기를 고른다.
 export function hash(n) {
@@ -49,6 +52,14 @@ export function activeSeq(k, accounts) {
   return Math.floor(i / 98) * 100 + (i % 98) + 2;
 }
 export function seededEmail(seq) { return `acct-${pad(seq, 8)}@${DOMAIN}`; }
+
+// 모의 클라이언트 IP: 벤치마크 전용 대역 198.18.0.0/15(RFC 2544)에서 결정적으로 고른다.
+// 실험실 Gateway가 k6를 신뢰 프록시로 두면(X-Forwarded-For) Account의 IP 기준 제한이 사용자별로 동작한다.
+// 정상 사용자는 198.18.0.0/16, 공격자는 198.19.0.0/16을 써서 섞이지 않게 한다(각 최대 65,536개).
+function ipOf(prefix, n) { const i = ((n % 65536) + 65536) % 65536; return `${prefix}.${(i >> 8) & 255}.${i & 255}`; }
+export function clientIp(n) { return ipOf('198.18', n); }
+export function attackerIp(i) { return ipOf('198.19', i % Math.min(65536, Math.max(1, Number(__ENV.ATTACK_IPS || 4)))); }
+function ipHeaders(ip, extra) { return (__ENV.CLIENT_IPS || 'on') === 'off' ? extra : { ...extra, 'X-Forwarded-For': ip }; }
 
 // "50:2m,100:2m" → ramping-arrival-rate stages
 export function parseStages(text) {
@@ -105,9 +116,9 @@ function count5xx(response) { if (response.status >= 500 || response.status === 
 function codeOf(response) { try { return response.json('code'); } catch (_) { return null; } }
 function refreshCookie(response) { const c = response.cookies.refreshToken; return c && c.length ? c[0].value : null; }
 
-function postLogin(email, password, kind, expected) {
+function postLogin(email, password, kind, expected, ip) {
   const response = http.post(`${BASE}/account/auth/login`, JSON.stringify({ email, password }), {
-    headers: JSON_HEADERS, tags: { name: 'POST /account/auth/login', kind }, responseCallback: expected, timeout: '10s' });
+    headers: ip ? ipHeaders(ip, JSON_HEADERS) : JSON_HEADERS, tags: { name: 'POST /account/auth/login', kind }, responseCallback: expected, timeout: '10s' });
   count5xx(response);
   return response;
 }
@@ -139,28 +150,33 @@ export function login_scenario() {
     const seq = (hash(i + 17) % fixture.accounts) + 1;
     const status = statusOf(seq);
     const response = postLogin(seededEmail(seq), fixture.password, status === 'ACTIVE' ? 'active' : 'forbidden',
-      status === 'ACTIVE' ? OK_200 : OK_403);
+      status === 'ACTIVE' ? OK_200 : OK_403, clientIp(seq));
     check(response, { 'login status matches account state': r => status === 'ACTIVE'
       ? r.status === 200 && !!r.json('accessToken') && !!refreshCookie(r)
       : r.status === 403 && codeOf(r) === 'ACCOUNT_LOGIN_FORBIDDEN' });
     return;
   }
-  const response = postLogin(seededEmail(activeSeq(hash(i + 17), fixture.accounts)), fixture.password, 'active', OK_200);
+  const seq = activeSeq(hash(i + 17), fixture.accounts);
+  const response = postLogin(seededEmail(seq), fixture.password, 'active', OK_200, clientIp(seq));
   check(response, { 'login 200 with tokens': r => r.status === 200 && !!r.json('accessToken') && !!refreshCookie(r) });
 }
 
 // A4: 정상 로그인 유지 + 실패 로그인 폭주
 export function normal_login() {
   const i = exec.scenario.iterationInTest;
-  const response = postLogin(seededEmail(activeSeq(hash(i + 29), fixture.accounts)), fixture.password, 'normal', OK_200);
+  const seq = activeSeq(hash(i + 29), fixture.accounts);
+  const response = postLogin(seededEmail(seq), fixture.password, 'normal', OK_200, clientIp(seq));
+  if (response.status === 429 || response.status === 503) normalRejected.add(1);
   check(response, { 'normal login 200': r => r.status === 200 });
 }
 export function attack_login() {
   const i = exec.scenario.iterationInTest;
   const kind = __ENV.ATTACK_KIND || 'wrongpw';
   const email = kind === 'unknown' ? `nobody-r${pad(RUN_NO, 2)}-${i}@${DOMAIN}` : seededEmail(activeSeq(hash(i + 31), fixture.accounts));
-  const response = postLogin(email, `wrong-${hash(i)}-password`, `attack-${kind}`, OK_401);
-  check(response, { 'attack rejected 401': r => r.status === 401 && codeOf(r) === 'INVALID_CREDENTIALS' });
+  const response = postLogin(email, `wrong-${hash(i)}-password`, `attack-${kind}`, OK_ATTACK, attackerIp(i));
+  if (response.status === 429) attackLimited.add(1);
+  check(response, { 'attack rejected 401 or limited 429': r => (r.status === 401 && codeOf(r) === 'INVALID_CREDENTIALS')
+    || (r.status === 429 && codeOf(r) === 'LOGIN_RATE_LIMITED') });
 }
 
 function registerBody(email, businessId, i) {
@@ -174,7 +190,7 @@ export function register() {
   if (i >= 10000000) exec.test.abort('register iteration space exhausted');
   const response = http.post(`${BASE}/account/auth/register`,
     registerBody(`reg-r${pad(RUN_NO, 2)}-${i}@${DOMAIN}`, `7${pad(RUN_NO, 2)}${pad(i, 7)}`, i), {
-      headers: JSON_HEADERS, tags: { name: 'POST /account/auth/register' }, responseCallback: OK_201, timeout: '15s' });
+      headers: ipHeaders(clientIp(hash(i + 401)), JSON_HEADERS), tags: { name: 'POST /account/auth/register' }, responseCallback: OK_201, timeout: '15s' });
   count5xx(response);
   if (response.status === 201) registerCreated.add(1);
   check(response, { 'register 201': r => r.status === 201 && Number.isInteger(r.json('accountId')) });
@@ -191,7 +207,7 @@ export function register_dup() {
     const email = mode === 'email' ? `dup-r${pad(RUN_NO, 2)}-${g}@${DOMAIN}` : `dup-r${pad(RUN_NO, 2)}-${g}-${m}@${DOMAIN}`;
     const bid = `6${pad(RUN_NO, 2)}${pad(g, 6)}${mode === 'email' ? m : 0}`;
     requests.push({ method: 'POST', url: `${BASE}/account/auth/register`, body: registerBody(email, bid, g * 10 + m),
-      params: { headers: JSON_HEADERS, tags: { name: 'POST /account/auth/register', kind: `dup-${mode}` },
+      params: { headers: ipHeaders(clientIp(hash(g + 409)), JSON_HEADERS), tags: { name: 'POST /account/auth/register', kind: `dup-${mode}` },
         responseCallback: OK_REGISTER_RACE, timeout: '15s' } });
   }
   const responses = http.batch(requests);
@@ -210,7 +226,8 @@ let loginFailures = 0;
 export function session() {
   const vu = exec.vu.idInTest;
   if (!state) {
-    const response = postLogin(seededEmail(activeSeq(hash(vu + 101), fixture.accounts)), fixture.password, 'session-start', OK_200);
+    const seq = activeSeq(hash(vu + 101), fixture.accounts);
+    const response = postLogin(seededEmail(seq), fixture.password, 'session-start', OK_200, clientIp(seq));
     if (!check(response, { 'session login 200': r => r.status === 200 })) {
       // 실패한 세션이 매초 재로그인하면 BCrypt 부하를 증폭한다. 지수 백오프(최대 30초)와 지터를 둔다.
       sessionLost.add(1);
