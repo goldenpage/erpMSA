@@ -47,6 +47,27 @@ Git에 추가하지 않는다. 결과 폴더는 기본 ignore 대상이며, 공�
 토큰이 만료되면 실험 환경을 재생성한다. 운영 세션 TTL은 변경하지 않는다.
 `up`의 Docker 빌드 중에 부하를 측정하지 않는다. 부하 발생기도 같은 Docker VM의 자원을 사용한다.
 
+## Account(로그인·회원가입) 대규모 부하
+
+설계·가설·판정 기준은 [load-test-design.md §13](../docs/load-test-design.md)에 있다. 같은 일회용 실험 프로젝트를 쓴다.
+
+```bash
+python3 performance/lab.py prepare
+python3 performance/lab.py up
+python3 performance/account_lab.py seed --accounts 1000000
+python3 performance/account_lab.py run --scenario me --label a0-me --rate 200 --duration 5m
+python3 performance/account_lab.py run --scenario login --label a1-login-r1 --stages 20:3m,40:3m,80:3m,160:3m --max-vus 2000
+python3 performance/account_lab.py run --scenario register --label a2-reg --stages 10:3m,20:3m,40:3m
+python3 performance/account_lab.py check --label a2-reg
+python3 performance/lab.py down
+```
+
+- `seed`는 fixture 계정 하나를 API로 가입시키고, 앱이 만든 BCrypt 해시를 SQL로 복사해 계정을 대량 생성한다. 비밀번호는 `results/account-fixture.json`(0600)에만 있다.
+- `run`은 k6 실행 동안 5초마다 Outbox·Redis 표본을 `results/<label>-samples.json`에 남긴다. 가입 시나리오는 실행번호를 새로 받으며 label을 재사용할 수 없다.
+- `check`는 부하 직후 실행한다. 계정·Outbox·Kafka를 대조하고 누락은 FAIL, 같은 eventId 중복 발행은 별도 보고한다.
+- 자원은 `.env`의 `LAB_ACCOUNT_CPUS`(기본 2), `LAB_ACCOUNT_MEMORY`(512m), `LAB_ACCOUNT_DB_POOL_SIZE`(10), `LAB_REDIS_MEMORY`(1g), `LAB_K6_CPUS`(1), `LAB_K6_MEMORY`(512m)로 바꾸고 결과에 함께 기록한다.
+- 원격 부하 발생기는 `LAB_GATEWAY_BIND`에 사설망 주소만 지정해 접속한다.
+
 ## 데이터와 요청 가설
 
 - 계정 6개, 각각 1만/1만/2만/2만/5만/10만 건: 총 21만 품목.

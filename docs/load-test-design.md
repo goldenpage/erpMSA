@@ -3,6 +3,8 @@
 > 상태: **설계 문서이며 실행 결과가 아니다.** 아래 병목 분석은 코드·설정을 읽고 세운 가설이며 측정으로 확인해야 한다.
 > 기준 커밋: `6268d9c` · 작성일: 2026-11-04 · 실행 주체: 사용자 (클라우드 또는 전용 장비)
 >
+> **진행 트랙**: 사용자 결정에 따라 Account(로그인·회원가입) 시험을 먼저 진행한다. §13 참고.
+>
 > 4차 스프린트의 Item/Inventory 측정값([sprint4-results.md](sprint4-results.md))은 비교 기준으로 쓰지 않는다.
 > 새 결과는 현재 7개 서비스 구조와 현재 이미지로 다시 측정한 값만 기록한다.
 
@@ -348,3 +350,105 @@ WHERE d.status = 'PENDING' GROUP BY kind;
 3. 본 측정 데이터 규모(D2 또는 D3)
 4. P1의 관측 전용 제품 코드 변경(Disposals 지표) 허용 여부
 5. 풀 크기·DB 설정 튜닝 실험을 이번 범위에 넣을지. 넣는다면 기준선 측정과 분리해 별도 조건으로 기록한다.
+
+## 13. Account(로그인·회원가입·토큰 갱신) 대규모 부하 시험 — 진행 트랙
+
+> 2026-11-04 사용자 결정: 담당 영역인 로그인·회원가입을 대상으로 먼저 진행한다. 통계 기능은 이 저장소(`main`, 현재 브랜치)에 코드가 없어 범위에서 제외했다.
+> 코드 위치가 확인되면 별도로 분석한다. 아래 수치는 모두 가설이며 측정 결과가 아니다.
+
+### 13.1 코드 기반 분석
+
+| 경로 | 코드상 동작 | 부하에서 예상되는 현상 (가설) |
+|---|---|---|
+| 회원가입 | `AccountService.register`(`AccountService.java:31`)가 `@Transactional` 안에서 중복 조회 후 BCrypt 해시(`:48`), 저장, Outbox 적재 | **BCrypt 계산 동안 DB 연결을 점유.** 인스턴스당 상한 ≈ `풀 10 ÷ (BCrypt 시간 + SQL)` ≈ 초당 100건 안팎. CPU가 부족하면 BCrypt 시간이 늘어 상한이 더 내려감 |
+| 중복 가입 | `existsByEmail`·`existsByBusinessId` 확인 뒤 저장. 동시 요청은 DB 유일 제약(`accountEmail`, `accountBusinessId`)에서 갈리고 `DataIntegrityViolationException` → `ACCOUNT_CONFLICT`(409) | 묶음마다 201 1건·409 나머지여야 함. 500이 나오면 결함 |
+| 로그인 | 트랜잭션 없이 이메일 조회 후 BCrypt 검증(`:68`, `:74`), RS256 서명 2회, Redis 저장 | **CPU 코어 수에 비례.** 상태 없는 서비스라 증설 효율이 가장 높을 것으로 예상(H-A1) |
+| 로그인 실패 | 없는 이메일은 BCrypt 없이 즉시 401, 있는 이메일의 틀린 비밀번호는 BCrypt 후 401. 시도 제한·잠금 없음 | 실패 유형별 비용 차이가 큼. 응답시간 차이로 가입 여부를 추정할 수 있음(보안 관찰). 공격 부하가 정상 로그인을 밀어낼 수 있음 |
+| 토큰 갱신 | Redis GETDEL로 1회만 소비(`:111`), DB 조회, RS256 서명 2회 | 동시 갱신 2건 중 1건만 성공해야 함. 재사용 토큰은 401 |
+| Refresh 저장 | 로그인마다 Redis 키 1개, TTL 14일. 기본 Compose의 Redis에는 `maxmemory`가 없음 | 로그아웃 없는 로그인이 반복되면 키가 계속 증가. 메모리 한계에서의 동작 확인 필요 |
+| Outbox 발행 | `OutboxPublisher`가 1초 간격으로 최대 100건을 조회하고 `OutboxPublicationService.publish`가 **한 건씩 동기 발행**(`.get(10s)`) | 발행 처리량 상한이 있어 가입 폭주 때 적체 가능 |
+| Outbox 다중 인스턴스 | 대기 이벤트를 잠금이나 선점 없이 조회하고 `findById` 뒤 상태 확인 | **Account 2개 이상에서 같은 이벤트 중복 발행 가능**(H-A6). 이벤트 계약에 `eventId`가 있어 소비자 중복 제거는 가능 |
+
+### 13.2 데이터: 회원 100만 명
+
+- `account_lab.py seed --accounts 1000000`은 계정 1개를 API로 가입시켜 앱이 만든 BCrypt 해시를 얻는다. 그 해시를 SQL로 100만 행에 복사한다. 해시 cost가 같으므로 로그인 계산량은 실제와 같다.
+- 이메일 `acct-{8자리}@load.example.com`, 사업자번호 `9{9자리}`. 상태는 `seq%100==0` SUSPENDED, `==1` PENDING, 나머지 ACTIVE(98%)다. k6 스크립트도 같은 규칙으로 기대 응답을 계산한다.
+- 사업자번호 대역은 seed `9…`, fixture `8000000000`, 가입 실행 `7{실행번호 2자리}…`, 중복 가입 `6{실행번호 2자리}…`로 나눠 서로 충돌하지 않는다.
+- 생성 뒤 상태별 건수를 기대값과 대조하고, 시드 계정 하나로 실제 로그인이 200인지 확인한다. 테이블 크기, 생성 시간, BCrypt cost를 `account-dataset.json`에 기록한다.
+- 사전 검증(2026-11-04, 이 저장소의 클라우드 컨테이너, 4 CPU, MariaDB 10.11 tmpfs): 100만 행 생성 18.1초, 상태 분포 일치, 중복 이메일 0, 데이터 약 214 MB + 인덱스 약 72 MB. **도구 검증 기록이며 성능 결과가 아니다.**
+
+### 13.3 시나리오와 실행 명령
+
+모든 명령은 저장소 루트에서 실행한다. 실험실 준비(`lab.py prepare`, `up`) 뒤 `account_lab.py seed`를 한 번 실행한다.
+표의 `run`, `check`, `scale`, `kafka`는 모두 `python3 performance/account_lab.py`의 하위 명령이다.
+
+| ID | 시나리오 | 명령 예시 | 판정·관찰 |
+|---|---|---|---|
+| A0 | 인증 오버헤드 기준선 | `python3 performance/account_lab.py run --scenario me --label a0-me --rate 200 --duration 5m` | Gateway·JWT·Account 필터만의 지연. 이후 실험의 기준 |
+| A1 | 출근 시간 로그인 몰림 | `run --scenario login --label a1-login-r1 --stages 20:3m,40:3m,80:3m,160:3m,320:3m --max-vus 2000` → `scale --replicas 2`·`3` 후 반복 | 포화점(§7.1), Account CPU, 증설 효율 `knee(n)/(n×knee(1))`, Gateway를 공유하는 다른 경로 영향 |
+| A1b | 로그인 불가 상태 혼합 | `run --scenario login --login-set all ...` | 1% SUSPENDED·1% PENDING이 403 `ACCOUNT_LOGIN_FORBIDDEN`인지 |
+| A2 | 회원가입 폭주·Outbox 적체 | `run --scenario register --label a2-reg --stages 10:3m,20:3m,40:3m,80:3m` → 즉시 `check --label a2-reg` | Hikari pending(연결 점유 가설), Outbox 적체·해소 시간, 201 수 = 계정 행 = Outbox = Kafka 고유 eventId |
+| A3 | 정상 운영 중 토큰 갱신 | `run --scenario session --label a3-session --stages 5000:10m,5000:50m --refresh-every 60 --think 5`. 세션 시작 로그인이 한꺼번에 몰리지 않도록 VU를 10분에 걸쳐 늘린다 | 갱신 p95, Redis 메모리, 재사용 토큰 401, 동시 갱신 1건만 성공 |
+| A4 | 실패 로그인 폭주 속 정상 로그인 | `run --scenario login-attack --label a4-wrongpw --normal-rate 20 --attack-kind wrongpw --stages 50:3m,100:3m,200:3m --duration 12m`, 이어서 `--attack-kind unknown` | 정상 로그인 p95 악화 정도, 실패 유형별 응답시간 분포 차이 |
+| A5 | 동시 중복 가입 | `run --scenario register-dup --label a5-dup-email --dup-size 5 --dup-mode email --rate 50 --duration 5m` → `check`, 이어서 `--dup-mode bid` | 묶음마다 201 정확히 1건, 409 나머지, 500 0건. 계정당 Outbox 1건 |
+| A6 | Account 증설 시 Outbox 중복 발행 | `scale --replicas 2` 후 A2 반복 → `check` | `duplicatePublications`(Kafka 레코드 − 고유 eventId). 누락은 FAIL, 중복은 따로 보고 |
+| A7 | Refresh 키 누적 | `run --scenario login --label a7-accumulate --rate 200 --duration 1h`, 필요하면 `LAB_REDIS_MEMORY`로 한계 지정 | 표본의 Redis `keys`·`used_memory` 증가 기울기, 한계 도달 시 로그인 실패 유형 |
+| A8 | Kafka 장애 중 가입 폭주 | `kafka --action stop` → `run --scenario register --label a8-reg --rate 20 --duration 10m` → `kafka --action start` → 즉시 `check --label a8-reg` | 적체 규모, 복구 뒤 해소 시간, 누락 0. 장애 중 이벤트당 대기(최소 10초, 브로커 메타데이터 대기 설정에 따라 더 길 수 있음)가 발행 루프를 멈추는지 |
+
+공통 규칙은 다음과 같다.
+
+- 결과 비교는 같은 `account-dataset.json`과 같은 자원 설정(`LAB_ACCOUNT_CPUS`, `LAB_ACCOUNT_MEMORY`, `LAB_ACCOUNT_DB_POOL_SIZE`, `LAB_REDIS_MEMORY`)끼리만 한다. 기본값은 CPU 2, 메모리 512 MiB, 풀 10, Redis 1 GiB다.
+- 가입 실험(A2, A5, A6, A8)은 데이터가 늘어나므로 실행마다 새 실행번호(0~99)를 쓴다. 같은 label은 재사용할 수 없다.
+- A1과 A4는 서로 섞지 않는다. A4의 공격 부하는 격리된 실험실의 자기 시스템을 대상으로 하는 방어 측면 시험이며 다른 대상에 사용하지 않는다.
+- 원격 부하 발생기를 쓸 때는 `LAB_GATEWAY_BIND`에 **사설망 주소만** 지정한다. `account.js`를 `BASE_URL=http://<사설IP>:17070`, `FIXTURE_FILE=<복사한 fixture>`로 직접 실행한다. fixture에는 실험용 비밀번호가 있으므로 권한 0600으로만 복사한다.
+- `--prometheus-rw`를 주면 k6 지표가 실험 Prometheus로 들어가 서버 지표와 같은 시간축으로 볼 수 있다.
+
+### 13.4 판정
+
+k6 임계값(실패 시 종료 코드 99)은 다음과 같다.
+
+- `http_req_failed < 1%`. 시나리오별로 기대 상태(401·403·409)는 실패로 세지 않는다.
+- `checks > 99%`, `dropped_iterations == 0`
+- `account_unexpected_5xx == 0`, `account_dup_group_bad == 0`, `account_refresh_replay_accepted == 0`, `account_refresh_race_bad == 0`
+
+`check` 명령(가입 실험)은 Outbox 적체가 해소될 때까지 최대 `--drain-timeout`초 기다린 뒤 다음을 대조하고 `<label>-check.json`을 남긴다.
+
+| 항목 | 기대 | 위반 시 |
+|---|---|---|
+| k6 201 수(A5는 묶음 수) = 실행 계정 행 수 | 같음 | FAIL |
+| Outbox 이벤트가 없는 계정 / 2건 이상인 계정 | 0 / 0 | FAIL |
+| PUBLISHED인데 Kafka에 없는 eventId, Outbox에 없는 Kafka eventId | 0 / 0 | FAIL |
+| 대기 시간 안에 해소되지 않은 Outbox | 0 | FAIL |
+| Kafka 중복 레코드(같은 eventId) | 보고 | at-least-once 결과로 별도 보고(H-A6 증거). 누락과 구분 |
+
+시계열 표본(`<label>-samples.json`, 5초 간격)에는 Outbox 상태별 건수, `account_outbox_oldest_age_seconds`, Redis 메모리·키 수·ops·연결 수가 들어간다.
+실행 전후의 `capture` 결과에는 Prometheus 지표와 컨테이너 자원 제한이 들어간다.
+
+### 13.5 검증할 가설
+
+| ID | 가설 | 맞다면 보일 증거 |
+|---|---|---|
+| H-A1 | 로그인 처리량은 Account CPU에 비례하고 증설 효율이 0.8 이상이다 | A1에서 포화 시 Account CPU ≈ 100%, `knee(2)/2×knee(1)` ≥ 0.8 |
+| H-A2 | 가입의 첫 병목은 BCrypt를 감싼 트랜잭션의 연결 점유다 | A2 포화 시 Account `hikaricp_connections_pending > 0`이 CPU 포화보다 먼저 나타남 |
+| H-A3 | Outbox 발행 처리량 상한 때문에 가입 폭주 중 적체가 선형으로 쌓인다 | A2 표본의 PENDING 증가 기울기 ≈ 가입률 − 발행률 |
+| H-A4 | 틀린 비밀번호 공격은 정상 로그인 p95를 크게 악화시키고, 없는 이메일 공격은 영향이 작다 | A4 두 실행의 정상 로그인 p95 차이, 실패 유형별 응답시간 분포 분리 |
+| H-A6 | Account 2개 이상에서 Outbox 이벤트가 중복 발행된다 | A6 `duplicatePublications > 0`, 단일 인스턴스에서는 0 |
+| H-A7 | Refresh 키는 로그인 수에 비례해 증가하고 메모리 한계에서 로그인이 5xx로 실패한다 | A7 표본의 키 수 기울기, 한계 도달 뒤 5xx |
+
+가설이 맞더라도 이번 시험에서 제품 코드를 바로 고치지 않는다. 개선 후보(해시를 트랜잭션 밖으로 이동, Outbox 선점 `SKIP LOCKED`, 로그인 시도 제한, 계정당 Refresh 키 상한)는 결과를 근거로 따로 검토한다.
+
+### 13.6 도구와 사전 검증 상태
+
+| 파일 | 역할 |
+|---|---|
+| `performance/account_lab.py` | `seed`(100만 계정), `run`(k6 + 5초 표본 + 전후 capture), `check`(계정·Outbox·Kafka 대조), `scale`(Account 증설), `kafka`(A8 중단·재개) |
+| `performance/account.js` | 시나리오 `me`, `login`, `login-attack`, `register`, `register-dup`, `session` |
+| `performance/test_account_lab.py` | 시드 규칙, 범위 분할, 대조·판정, 입력 검증 단위 테스트 11개 |
+| `compose.performance.yaml` | Account CPU·메모리·풀, Redis 메모리, k6 자원, Gateway 바인드 주소를 환경변수로 조절. Prometheus remote write 수신 활성화 |
+
+2026-11-04에 이 클라우드 컨테이너에서 확인한 범위는 다음과 같다.
+
+- 단위 테스트 14개(기존 3개 + 신규 11개) 통과.
+- k6 1.7.1로 6개 시나리오를 **모의 Account API**에 실행해 모두 임계값을 통과했다. 토큰 재사용을 허용하고 중복 가입을 막지 않는 결함 모의 서버에서는 `refresh_replay_accepted`, `refresh_race_bad`, `dup_group_bad` 임계값 실패(종료 코드 99)로 결함을 검출했다.
+- 실제 MariaDB 10.11에 Account Flyway V1·V2를 적용해 seed SQL(100만 행)과 `check`의 조인 쿼리를 실행했다. 실행계획은 Outbox 인덱스 범위 조회 + account 기본키 `eq_ref`였다.
+- **실제 Account·Gateway·Kafka와 연결한 실행은 하지 못했다.** Maven Central이 429를 반환해 서비스 JAR을 빌드할 수 없었다. 따라서 `seed`의 API 가입·로그인 확인, `run`의 표본 수집, `check`의 Kafka 소비는 실제 실험실 첫 실행(T1)에서 확인해야 한다.
