@@ -49,7 +49,7 @@ Git에 추가하지 않는다. 결과 폴더는 기본 ignore 대상이며, 공�
 
 ## Account(로그인·회원가입) 대규모 부하
 
-설계·가설·판정 기준은 [load-test-design.md §13](../docs/load-test-design.md)에 있다. 같은 일회용 실험 프로젝트를 쓴다.
+목적·설계·가설·판정 기준은 [load-test-design.md §13](../docs/load-test-design.md)에 있다(목적은 §13.0). 같은 일회용 실험 프로젝트를 쓴다.
 
 ```bash
 python3 performance/lab.py prepare
