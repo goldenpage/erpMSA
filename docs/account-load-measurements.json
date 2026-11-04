@@ -6230,5 +6230,177 @@
     }
    }
   ]
+ },
+ "redeploy": {
+  "status": "개선 후보 5 구현 전후 같은 T1-small 환경 측정. Gateway 경유 GET /account/auth/login(정상 405) 20/s 탐침",
+  "changes": [
+   "Account DiscoveryDrainLifecycle: 종료 시 Eureka DOWN 후 15s drain",
+   "compose account-service stop_grace_period 45s",
+   "Gateway 레지스트리 갱신 30s→5s, 로드밸런서 캐시 35s→5s",
+   "Eureka 서버 읽기 전용 응답 캐시 끔",
+   "Gateway UpstreamFailureFilter: 연결 실패·인스턴스 없음 → 503 UPSTREAM_UNAVAILABLE + Retry-After, 읽기 시간 초과 → 504"
+  ],
+  "runs": {
+   "base-rolling": {
+    "mode": "rolling",
+    "events": [
+     [
+      "new-instance-healthy",
+      51.99
+     ],
+     [
+      "old-stop-begin",
+      82.0
+     ],
+     [
+      "old-stopped",
+      85.44
+     ]
+    ],
+    "summary": {
+     "requests": 1829,
+     "statusCounts": {
+      "405": 1610,
+      "500": 219
+     },
+     "failures": 219,
+     "firstFailureAt": 82.11,
+     "lastFailureAt": 130.67
+    }
+   },
+   "base-recreate": {
+    "mode": "recreate",
+    "events": [
+     [
+      "recreate-begin",
+      5.26
+     ],
+     [
+      "new-instance-healthy",
+      55.04
+     ]
+    ],
+    "summary": {
+     "requests": 2176,
+     "statusCounts": {
+      "405": 1073,
+      "500": 1103
+     },
+     "failures": 1103,
+     "firstFailureAt": 5.77,
+     "lastFailureAt": 83.88,
+     "newInstanceHealthyAt": 55.04,
+     "firstSuccessAfterHealthy": 83.94,
+     "failuresAfterHealthy": 495,
+     "recoveryLagSeconds": 28.84
+    }
+   },
+   "after-rolling": {
+    "mode": "rolling",
+    "events": [
+     [
+      "new-instance-healthy",
+      46.67
+     ],
+     [
+      "old-stop-begin",
+      76.67
+     ],
+     [
+      "old-stopped",
+      95.15
+     ]
+    ],
+    "summary": {
+     "requests": 2413,
+     "statusCounts": {
+      "405": 2413
+     },
+     "failures": 0,
+     "firstFailureAt": null,
+     "lastFailureAt": null
+    }
+   },
+   "after-recreate": {
+    "mode": "recreate",
+    "events": [
+     [
+      "recreate-begin",
+      5.3
+     ],
+     [
+      "new-instance-healthy",
+      65.36
+     ]
+    ],
+    "summary": {
+     "requests": 2557,
+     "statusCounts": {
+      "405": 1627,
+      "500": 930
+     },
+     "failures": 930,
+     "firstFailureAt": 10.99,
+     "lastFailureAt": 66.78,
+     "newInstanceHealthyAt": 65.36,
+     "firstSuccessAfterHealthy": 66.84,
+     "failuresAfterHealthy": 25,
+     "recoveryLagSeconds": 1.43
+    }
+   },
+   "after2-recreate": {
+    "mode": "recreate",
+    "events": [
+     [
+      "recreate-begin",
+      5.3
+     ],
+     [
+      "new-instance-healthy",
+      70.22
+     ]
+    ],
+    "summary": {
+     "requests": 2600,
+     "statusCounts": {
+      "405": 1580,
+      "503": 1020
+     },
+     "failures": 1020,
+     "firstFailureAt": 11.02,
+     "lastFailureAt": 70.71,
+     "newInstanceHealthyAt": 70.22,
+     "firstSuccessAfterHealthy": 70.77,
+     "failuresAfterHealthy": 9,
+     "recoveryLagSeconds": 0.5
+    }
+   },
+   "after2-rolling": {
+    "mode": "rolling",
+    "events": [
+     [
+      "new-instance-healthy",
+      46.57
+     ],
+     [
+      "old-stop-begin",
+      76.57
+     ],
+     [
+      "old-stopped",
+      95.01
+     ]
+    ],
+    "summary": {
+     "requests": 2541,
+     "statusCounts": {
+      "405": 2541
+     },
+     "failures": 0,
+     "firstFailureAt": null,
+     "lastFailureAt": null
+    }
+   }
+  }
  }
 }
