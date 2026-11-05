@@ -90,6 +90,8 @@ docker compose down
 
 GitHub의 Ubuntu 러너에서 Java 21로 단위·Testcontainers 통합 테스트, Python 테스트, Compose 구조 검사, Grafana 지표 수집을 검증합니다. **Actions** 실행 페이지의 `spring-ci-reports`에서 JUnit·JaCoCo·지표 파일을 내려받을 수 있습니다. Grafana 수집 확인에는 러너의 임시 모니터링 스택을 사용합니다.
 
+별도 `Service images and stack smoke` 작업에서 Spring 서비스 9개와 Prometheus·Grafana 이미지를 빌드합니다. 격리한 Compose에서 Gateway 인증·업무 API, Spring 모니터링 대상, Outbox 발행과 Kafka 메시지 수신을 확인합니다. Jenkins도 같은 스모크 스크립트를 사용합니다.
+
 ## Jenkins 실행 및 이미지 갱신
 
 Jenkins는 기본 Compose와 분리되어 있으므로 별도로 실행합니다. 최초 실행과
