@@ -84,6 +84,12 @@ docker compose down
 
 `docker compose down -v`는 MariaDB, Redis, Kafka, Prometheus, Grafana 데이터를 삭제하므로 초기화가 필요한 경우에만 사용합니다.
 
+## GitHub Actions CI
+
+`main`을 대상으로 한 PR과 `main` 푸시에서 `Spring CI`가 자동으로 실행됩니다. 워크플로가 기본 브랜치에 등록된 뒤에는 **Actions → Spring CI → Run workflow**에서도 브랜치를 선택해 실행할 수 있습니다.
+
+GitHub의 Ubuntu 러너에서 Java 21로 단위·Testcontainers 통합 테스트, Python 테스트, Compose 구조 검사, Grafana 지표 수집을 검증합니다. **Actions** 실행 페이지의 `spring-ci-reports`에서 JUnit·JaCoCo·지표 파일을 내려받을 수 있습니다. Grafana 수집 확인에는 러너의 임시 모니터링 스택을 사용합니다.
+
 ## Jenkins 실행 및 이미지 갱신
 
 Jenkins는 기본 Compose와 분리되어 있으므로 별도로 실행합니다. 최초 실행과
