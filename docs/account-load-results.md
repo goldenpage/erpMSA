@@ -4,7 +4,7 @@
 > 설계 문서의 T1 조건(같은 호스트)이며 **운영 용량이나 대규모 결과로 인용하지 않는다.** 각 조건은 1회씩만 측정했다(설계 기준은 3회 반복).
 > 설계·가설: [load-test-design.md §13](load-test-design.md) · 원시 추출본: [account-load-measurements.json](account-load-measurements.json)
 
-> **개선 후 재측정**: 같은 날 개선 후보 1·2·4와 새로 찾은 Gateway 연결 풀 문제를 고친 뒤 같은 조건으로 다시 측정했다([개선 후 재측정](#개선-후-재측정)). 이어서 개선 후보 3(로그인 시도 제한)을 구현하고 재측정했다([로그인 시도 제한](#로그인-시도-제한-개선-후보-3)).
+> **개선 후 재측정**: 같은 날 개선 후보 1·2·4와 새로 찾은 Gateway 연결 풀 문제를 고친 뒤 같은 조건으로 다시 측정했다([개선 후 재측정](#개선-후-재측정)). 이어서 개선 후보 3(로그인 시도 제한)을 구현하고 재측정했다([로그인 시도 제한](#로그인-시도-제한-개선-후보-3)). 재배포 drain(개선 후보 5)은 Account에 이어 나머지 업무 서비스 6개에 적용하고 FoodMaterials로 전후를 측정했다([나머지 업무 서비스 적용](#나머지-업무-서비스-적용)).
 
 ## 요약
 
@@ -173,7 +173,7 @@ JRE 이미지에 `jcmd`가 없어 네이티브 메모리 내역은 확인하지 
 | 2 | Account | BCrypt 동시 실행 상한(대기 한도 초과 시 503), 가입 해시를 트랜잭션 밖으로 이동 | 발견 2, 7, H-A2 | **구현·재측정 완료** |
 | 3 | Account | 계정·IP 기준 로그인 시도 제한. 없는 이메일에도 같은 비용의 검증을 수행해 응답시간 차이 제거 | 발견 4, 5 | **구현·재측정 완료**([로그인 시도 제한](#로그인-시도-제한-개선-후보-3)) |
 | 4 | Account Outbox | 발행 전 선점(`SELECT … FOR UPDATE SKIP LOCKED`) | 발견 3 | **구현·재측정 완료** |
-| 5 | Gateway·배포 | 재배포 시 등록 해제·캐시 갱신·기존 요청 drain 절차 | 발견 8 | **Account 구현·재측정 완료**([재배포 중 오류](#재배포-중-오류-개선-후보-5)). 다른 서비스는 남음 |
+| 5 | Gateway·배포 | 재배포 시 등록 해제·캐시 갱신·기존 요청 drain 절차 | 발견 8 | **업무 서비스 7개 구현 완료, Account·FoodMaterials 재측정 완료**([재배포 중 오류](#재배포-중-오류-개선-후보-5), [나머지 업무 서비스 적용](#나머지-업무-서비스-적용)) |
 
 ## 개선 후 재측정
 
@@ -348,12 +348,55 @@ Gateway 테스트에는 연결이 거부되는 하류로 실제 라우팅해 503
 
 첫 개선 후 재생성 측정에서는 중단 중 응답이 아직 500이었다(복구 지연은 1.4초). 이번에는 Account가 정상적으로 등록 해제되어 Gateway가 고를 인스턴스가 없었고, Gateway가 이를 응답 대신 503 상태의 예외로 던져 500이 됐다. 이 경우도 503으로 바꾸도록 분류를 추가한 뒤 두 번째 측정에서 확인했다.
 
+### 나머지 업무 서비스 적용
+
+**바꾼 것**
+
+| 위치 | 변경 | 설정(기본값) |
+|---|---|---|
+| shared/service-foundation | `DiscoveryDrainLifecycle`(Account와 같은 동작)과 `DiscoveryDrainAutoConfiguration`. 자동 구성이라 이 모듈을 쓰는 서비스는 `@Import` 없이 적용된다 | `SHUTDOWN_DISCOVERY_DRAIN`(15s), 0이면 끔 |
+| Menus·Disposals·Notices·Bills·Purchase | 기존 service-foundation 의존으로 적용. Dockerfile은 이미 공통 모듈을 복사한다 | `application.yaml` `app.shutdown.discovery-drain` |
+| FoodMaterials | service-foundation을 포함(settings·build.gradle·Dockerfile 복사 추가). 자동 구성만 쓰며 501 셸 컨트롤러·공통 JWT 필터는 가져오지 않는다(명시 `@Import`가 없으면 등록되지 않음) | 같음 |
+| Compose | 6개 서비스에 `stop_grace_period: 45s` | - |
+| Disposals | FoodMaterials 호출용 레지스트리 갱신 30초 → 5초, 로드밸런서 캐시 35초 → 5초. FoodMaterials drain(15초) 안에 종료 중 인스턴스가 목록에서 빠진다 | `DISPOSALS_REGISTRY_FETCH_SECONDS`(5), `DISPOSALS_LB_CACHE_TTL`(5s) |
+| 검사 | `scripts/verify-service-architecture.py`가 업무 서비스 7개의 `stop_grace_period`(45초 이상)와 drain 설정을 확인 | - |
+
+Account는 자기 구현(`com.oopsw.accountservice.config`)을 그대로 둔다. Account는 service-foundation을 쓰지 않는다.
+
+**종료 순서(실험실 컨테이너 로그로 확인)**: Menus·Notices·Disposals를 2개로 늘린 뒤 하나를 `docker stop`하면
+① Spring Cloud `EurekaServiceRegistry`가 종료 시작 시 상태를 DOWN으로 바꾸고, ② `DiscoveryDrainLifecycle`이 DOWN을 알린 뒤 15초 기다리고,
+③ 웹 서버 graceful shutdown, ④ Eureka 등록 취소 순서였다. 종료에 18.3~18.6초가 걸렸다.
+①은 Spring Cloud가 ContextClosedEvent에서 하는 동작이다. drain이 없으면 ①과 거의 동시에 ③이 시작돼 Gateway가 아직 DOWN을 받기 전(최대 갱신 5초 + 캐시 5초)인 동안 요청이 실패한다.
+따라서 이 Lifecycle의 실제 효과는 **웹 서버 종료를 15초 늦추는 것**이고, DOWN 알림은 Spring Cloud 동작에 의존하지 않도록 한 번 더 하는 것이다.
+
+**테스트**: 공통 단위 테스트 4개(phase가 웹 서버 graceful shutdown보다 높음, 종료 시 DOWN 후 drain만큼 대기, Eureka가 없거나 0이면 바로 끝남, 음수 거부)는 service-foundation에 있고, 각 서비스의 `gradlew test`가 함께 실행한다.
+각 서비스 테스트에는 실제 애플리케이션 컨텍스트에서 drain 빈이 등록되고, 웹 서버 graceful shutdown 빈보다 phase가 높고(FoodMaterials는 MockMvc라 상수와 비교), drain이 15초이고, 테스트처럼 Eureka가 꺼져 있으면 바로 끝나는지 확인하는 경우 1개를 더했다.
+결과: Notices 9개, Bills 9개, Purchase 9개, Menus 10개, Disposals 12개, FoodMaterials 49개 모두 통과(각각 drain 관련 5개 포함). Menus·Disposals·FoodMaterials는 Testcontainers MariaDB를 썼다.
+
+**측정(FoodMaterials 무중단 교체)**: 같은 T1-small 실험실(`performance/lab.py`의 erpmsa-sprint4-lab, tmpfs DB)에서 같은 이미지로 `LAB_SHUTDOWN_DISCOVERY_DRAIN`만 `0s`/`15s`로 바꿔 대조했다. Gateway·Eureka 설정은 두 조건 모두 위 개선 후 값이다.
+Gateway 경유 `GET /foodmaterials`(실험실 계정 토큰, 정상 200) 초당 20건과 폐기 `POST /disposals` 초당 2건(수량 1, 매번 새 requestId)을 보내면서 FoodMaterials를 1개 → 2개로 늘리고 30초 뒤 옛 인스턴스를 SIGTERM했다.
+폐기는 끝난 뒤 PENDING을 같은 폐기 식별자로 재시도(`POST /disposals/{id}/retry`)하고, 최종 상태를 FoodMaterials 원장·현재고와 맞췄다(`account_lab.py redeploy --service foodmaterials --disposal-rate 2`).
+
+| 항목 | drain 0s (r1 / r2) | drain 15s (r1 / r2) |
+|---|---|---|
+| Gateway 경유 조회 실패 | **503 30 / 29건**(옛 인스턴스 종료 시작 직후부터 7.7 / 3.5초 동안) | **0 / 0건**(2,105·2,178건 모두 200) |
+| 옛 인스턴스 종료에 걸린 시간 | 3.7 / 3.6초 | 18.7 / 18.7초(drain 15초 포함) |
+| 폐기 첫 응답 | 200 214건 + **PENDING(202) 4건** / 200 228건 + **PENDING 5건** | **200 259 / 261건, PENDING 0** |
+| PENDING 재시도 후 최종 상태 | 모두 COMPLETED(재시도 4 / 5회) | 재시도 없음, 모두 COMPLETED |
+| 원장 대조(완료 폐기 = DISPOSAL 원장 행, 중복 차감 없음, 현재고 = 초기 − 완료 수량) | PASS / PASS | PASS / PASS |
+
+- 조회 실패가 503인 것은 Gateway `UpstreamFailureFilter`가 하류 연결 실패를 503 `UPSTREAM_UNAVAILABLE`로 바꾸기 때문이다. Account 개선 전(500 219건, 약 48초)보다 작은 것은 Gateway·Eureka 갱신 주기를 이미 줄였기 때문이다. drain은 남은 이 3.5~7.7초 구간을 없앴다.
+- drain 0s에서 폐기 4·5건은 옛 FoodMaterials 종료 시작 뒤 약 4초 안에 들어와 Disposals가 차감 결과를 받지 못했고 PENDING(202)이 됐다. 같은 폐기 식별자(`DISPOSAL-<disposalId>`)로 재시도해 한 번씩만 차감됐다. **drain은 폐기 계약(같은 requestId 재시도, 중복 차감 없음, 불명확하면 PENDING)을 바꾸지 않는다.** 종료 중 인스턴스가 drain 동안 요청을 계속 처리해 PENDING이 생길 기회를 줄일 뿐이다.
+- 처음 두 번의 drain 0s 측정은 토큰 없는 `GET /foodmaterials`를 보내 Gateway JWT 필터가 401로 응답했고 FoodMaterials까지 가지 않았다(실패 0건). 측정이 아니므로 결과에서 뺐고(원시 추출본에 `valid: false`로 남김), 탐침을 토큰 요청으로 바꿨다.
+- 각 조건 2회씩만 측정했고 단일 인스턴스 재생성(`--mode recreate`)은 재지 않았다(인스턴스 1개면 중단은 피할 수 없다). Menus·Notices·Bills·Purchase·Disposals의 Gateway 경유 교체 실패는 따로 재지 않았다. 같은 공통 구현과 같은 종료 순서(위 로그)를 근거로 같은 효과를 기대하지만, 측정값으로 쓰지 않는다.
+- 이번 실험도 Maven Central·Docker Hub 요청 제한(429) 때문에 호스트에서 빌드한 JAR로 같은 이름의 실험 이미지를 만들고 빌드 없이 기동했다. Gradle은 실행마다 넘긴 init 스크립트로 Maven Central 미러를 썼고(저장소 설정은 바꾸지 않음), 기반 이미지는 mirror.gcr.io에서 받아 같은 이름으로 붙였다.
+
 ### 남은 한계
 
-- **drain은 Account에만 넣었다.** Menus·FoodMaterials·Disposals·Notices·Bills·Purchase는 무중단 교체 때 같은 방식의 실패가 남는다. Gateway 설정(갱신 주기, 503 응답)은 모든 경로에 적용된다.
+- ~~**drain은 Account에만 넣었다.**~~ → 나머지 업무 서비스 6개에도 적용했다(위 [나머지 업무 서비스 적용](#나머지-업무-서비스-적용)).
 - **단일 인스턴스 재생성의 중단은 남는다.** 무중단 배포에는 인스턴스 2개 이상과 순차 교체가 필요하다. 인스턴스가 하나면 DOWN 알림 뒤 Gateway가 먼저 라우팅을 끊으므로, drain 시간 일부(이번 측정에서 약 5.7초 뒤부터)는 쓰이지 않는다.
 - **비정상 종료(SIGKILL·호스트 장애)는 다루지 않았다.** 등록 해제가 없으므로 Eureka가 임대 만료로 제거할 때까지(기본 90초 + 제거 주기 60초) Gateway가 죽은 인스턴스로 보낸다. 지금은 503으로 나가지만 실패는 그대로다. 연결 단계 실패만 다른 인스턴스로 재시도하는 방식을 후속으로 검토한다.
-- Disposals→FoodMaterials 내부 호출은 Disposals의 기본 레지스트리 갱신(30초)을 쓴다. FoodMaterials 재배포 중 폐기 요청은 설계대로 PENDING(202)으로 남을 수 있다.
+- ~~Disposals→FoodMaterials 내부 호출은 Disposals의 기본 레지스트리 갱신(30초)을 쓴다.~~ → 5초·로드밸런서 캐시 5초로 줄였다. 통신 결과가 불명확하면 PENDING(202)으로 남는 계약은 그대로다.
 - Eureka 서버 읽기 전용 캐시를 끄면 조회마다 쓰기 캐시를 읽는다. 이번 규모(서비스 9개)에서는 문제가 없었지만 인스턴스가 많아지면 다시 판단한다.
 
 ## 한계와 다음 단계
@@ -376,7 +419,11 @@ python3 performance/account_lab.py run --scenario login --label a1-login-c1-r1 -
 python3 performance/account_report.py a1-login-c1-r1 --baseline-p95 130
 python3 performance/account_lab.py run --scenario register --label a6-reg-r2 --stages 4:1m,8:1m,12:1m,16:1m,16:2m
 python3 performance/account_lab.py check --label a6-reg-r2
+python3 performance/account_lab.py redeploy --service account --mode rolling --label after
+python3 performance/account_lab.py redeploy --service foodmaterials --mode rolling --disposal-rate 2 --label fm-drain15-auth-r1
 ```
+
+FoodMaterials drain 대조는 `performance/.env`에 `LAB_SHUTDOWN_DISCOVERY_DRAIN=0s`를 두고 FoodMaterials를 다시 띄운 뒤 같은 명령을 실행한다.
 
 `.env`에 `LAB_ACCOUNT_CPUS=1`을 두고, 증설은 `account_lab.py scale --replicas 2`로 한다. 증설·재생성 뒤에는 Gateway 경로 캐시 때문에 워밍업 실행을 먼저 한다.
 이번 실험은 Maven Central 제한 때문에 `lab.py up` 대신 호스트에서 빌드한 JAR로 같은 이름의 실험 이미지를 만들고 빌드 없이 기동했다.

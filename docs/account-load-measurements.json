@@ -6402,5 +6402,334 @@
     }
    }
   }
+ },
+ "redeployAllServices": {
+  "status": "2026-11-04 같은 T1-small 실험실(erpmsa-sprint4-lab, tmpfs DB). FoodMaterials 무중단 교체(1개 → 2개 → 옛 인스턴스 SIGTERM, 30초 정착). 같은 이미지에서 SHUTDOWN_DISCOVERY_DRAIN만 0s/15s로 바꿔 대조. Gateway 경유 GET /foodmaterials(토큰, 정상 200) 20/s + 폐기 POST /disposals 2/s(수량 1, 매번 새 requestId)",
+  "changes": [
+   "shared/service-foundation DiscoveryDrainLifecycle·자동 구성: Menus·FoodMaterials·Disposals·Notices·Bills·Purchase",
+   "compose 6개 서비스 stop_grace_period 45s",
+   "Disposals 레지스트리 갱신 30s→5s, 로드밸런서 캐시 35s→5s(FoodMaterials 호출 경로)"
+  ],
+  "unchanged": "Gateway·Eureka 설정은 두 조건 모두 개선 후 값(갱신 5s, LB 캐시 5s, 응답 캐시 끔, 503 UPSTREAM_UNAVAILABLE)",
+  "stopTimesSeconds": {
+   "menus": 18.36,
+   "notices": 18.32,
+   "disposals": 18.59
+  },
+  "runs": {
+   "fm-drain0-r1": {
+    "mode": "rolling",
+    "events": [
+     [
+      "new-instance-healthy",
+      31.59
+     ],
+     [
+      "old-stop-begin",
+      61.59
+     ],
+     [
+      "old-stopped",
+      64.86
+     ]
+    ],
+    "summary": {
+     "requests": 2311,
+     "statusCounts": {
+      "401": 2311
+     },
+     "failures": 0,
+     "firstFailureAt": null,
+     "lastFailureAt": null
+    },
+    "probePath": "/foodmaterials?page=0&size=20",
+    "valid": false,
+    "invalidReason": "토큰 없는 요청이라 Gateway JWT 필터가 401로 응답해 FoodMaterials까지 가지 않았다. 측정에서 제외"
+   },
+   "fm-drain0-r2": {
+    "mode": "rolling",
+    "events": [
+     [
+      "new-instance-healthy",
+      31.4
+     ],
+     [
+      "old-stop-begin",
+      61.4
+     ],
+     [
+      "old-stopped",
+      64.69
+     ]
+    ],
+    "summary": {
+     "requests": 2354,
+     "statusCounts": {
+      "401": 2354
+     },
+     "failures": 0,
+     "firstFailureAt": null,
+     "lastFailureAt": null
+    },
+    "probePath": "/foodmaterials?page=0&size=20",
+    "valid": false,
+    "invalidReason": "토큰 없는 요청이라 Gateway JWT 필터가 401로 응답해 FoodMaterials까지 가지 않았다. 측정에서 제외"
+   },
+   "fm-drain0-auth-r1": {
+    "mode": "rolling",
+    "events": [
+     [
+      "new-instance-healthy",
+      32.04
+     ],
+     [
+      "old-stop-begin",
+      62.04
+     ],
+     [
+      "old-stopped",
+      65.71
+     ]
+    ],
+    "summary": {
+     "requests": 1693,
+     "statusCounts": {
+      "200": 1663,
+      "503": 30
+     },
+     "failures": 30,
+     "firstFailureAt": 62.17,
+     "lastFailureAt": 69.91
+    },
+    "probePath": "/foodmaterials?page=0&size=20",
+    "disposals": {
+     "disposals": 218,
+     "finalStatusCounts": {
+      "COMPLETED": 218
+     },
+     "ledgerRows": 218,
+     "initialQuantity": 100000,
+     "onHandQuantity": 99782,
+     "checks": {
+      "ledgerMatchesCompleted": true,
+      "noDuplicateDeduction": true,
+      "ledgerQuantityMatches": true,
+      "onHandMatches": true
+     },
+     "result": "PASS",
+     "requests": 218,
+     "firstResponseCounts": {
+      "200": 214,
+      "202": 4
+     },
+     "firstResponsePending": 4,
+     "unansweredOrNoRecord": 0,
+     "retryCalls": 4,
+     "pendingTimeline": [
+      [
+       62.67,
+       202,
+       "PENDING"
+      ],
+      [
+       63.79,
+       202,
+       "PENDING"
+      ],
+      [
+       64.87,
+       202,
+       "PENDING"
+      ],
+      [
+       65.95,
+       202,
+       "PENDING"
+      ]
+     ]
+    }
+   },
+   "fm-drain0-auth-r2": {
+    "mode": "rolling",
+    "events": [
+     [
+      "new-instance-healthy",
+      36.26
+     ],
+     [
+      "old-stop-begin",
+      66.26
+     ],
+     [
+      "old-stopped",
+      69.9
+     ]
+    ],
+    "summary": {
+     "requests": 1945,
+     "statusCounts": {
+      "200": 1916,
+      "503": 29
+     },
+     "failures": 29,
+     "firstFailureAt": 66.35,
+     "lastFailureAt": 69.89
+    },
+    "probePath": "/foodmaterials?page=0&size=20",
+    "disposals": {
+     "disposals": 233,
+     "finalStatusCounts": {
+      "COMPLETED": 233
+     },
+     "ledgerRows": 233,
+     "initialQuantity": 100000,
+     "onHandQuantity": 99767,
+     "checks": {
+      "ledgerMatchesCompleted": true,
+      "noDuplicateDeduction": true,
+      "ledgerQuantityMatches": true,
+      "onHandMatches": true
+     },
+     "result": "PASS",
+     "requests": 233,
+     "firstResponseCounts": {
+      "200": 228,
+      "202": 5
+     },
+     "firstResponsePending": 5,
+     "unansweredOrNoRecord": 0,
+     "retryCalls": 5,
+     "pendingTimeline": [
+      [
+       66.32,
+       202,
+       "PENDING"
+      ],
+      [
+       67.42,
+       202,
+       "PENDING"
+      ],
+      [
+       67.96,
+       202,
+       "PENDING"
+      ],
+      [
+       69.02,
+       202,
+       "PENDING"
+      ],
+      [
+       70.13,
+       202,
+       "PENDING"
+      ]
+     ]
+    }
+   },
+   "fm-drain15-auth-r1": {
+    "mode": "rolling",
+    "events": [
+     [
+      "new-instance-healthy",
+      31.73
+     ],
+     [
+      "old-stop-begin",
+      61.74
+     ],
+     [
+      "old-stopped",
+      80.39
+     ]
+    ],
+    "summary": {
+     "requests": 2105,
+     "statusCounts": {
+      "200": 2105
+     },
+     "failures": 0,
+     "firstFailureAt": null,
+     "lastFailureAt": null
+    },
+    "probePath": "/foodmaterials?page=0&size=20",
+    "disposals": {
+     "disposals": 259,
+     "finalStatusCounts": {
+      "COMPLETED": 259
+     },
+     "ledgerRows": 259,
+     "initialQuantity": 100000,
+     "onHandQuantity": 99741,
+     "checks": {
+      "ledgerMatchesCompleted": true,
+      "noDuplicateDeduction": true,
+      "ledgerQuantityMatches": true,
+      "onHandMatches": true
+     },
+     "result": "PASS",
+     "requests": 259,
+     "firstResponseCounts": {
+      "200": 259
+     },
+     "firstResponsePending": 0,
+     "unansweredOrNoRecord": 0,
+     "retryCalls": 0,
+     "pendingTimeline": []
+    }
+   },
+   "fm-drain15-auth-r2": {
+    "mode": "rolling",
+    "events": [
+     [
+      "new-instance-healthy",
+      31.95
+     ],
+     [
+      "old-stop-begin",
+      61.95
+     ],
+     [
+      "old-stopped",
+      80.6
+     ]
+    ],
+    "summary": {
+     "requests": 2178,
+     "statusCounts": {
+      "200": 2178
+     },
+     "failures": 0,
+     "firstFailureAt": null,
+     "lastFailureAt": null
+    },
+    "probePath": "/foodmaterials?page=0&size=20",
+    "disposals": {
+     "disposals": 261,
+     "finalStatusCounts": {
+      "COMPLETED": 261
+     },
+     "ledgerRows": 261,
+     "initialQuantity": 100000,
+     "onHandQuantity": 99739,
+     "checks": {
+      "ledgerMatchesCompleted": true,
+      "noDuplicateDeduction": true,
+      "ledgerQuantityMatches": true,
+      "onHandMatches": true
+     },
+     "result": "PASS",
+     "requests": 261,
+     "firstResponseCounts": {
+      "200": 261
+     },
+     "firstResponsePending": 0,
+     "unansweredOrNoRecord": 0,
+     "retryCalls": 0,
+     "pendingTimeline": []
+    }
+   }
+  }
  }
 }

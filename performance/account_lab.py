@@ -370,6 +370,16 @@ def check(args):
     raise SystemExit(0 if result['result'] == 'PASS' else 1)
 
 
+# 재배포 측정 대상: (Compose 서비스, Gateway 경유 측정 요청, 토큰 필요). 정상 응답은 하류 인스턴스가 직접 낸 것이어야 한다.
+# account: BCrypt가 없는 GET /account/auth/login(정상 405).
+# foodmaterials: 실험실 계정 토큰으로 GET /foodmaterials(정상 200). 토큰이 없으면 Gateway JWT 필터가 401을 내
+#   하류까지 가지 않으므로 측정이 되지 않는다(2026-11-04 첫 측정에서 확인).
+REDEPLOY_TARGETS = {
+    'account': ('account-service', '/account/auth/login', False),
+    'foodmaterials': ('foodmaterials-service', '/foodmaterials?page=0&size=20', True),
+}
+
+
 def summarize_probe(samples, healthy_at=None):
     """재배포 중 표본 [(t, status)]을 상태별 건수와 실패 구간으로 요약한다. status 0은 연결 실패·시간 초과."""
     ok = {200, 401, 405}
@@ -390,41 +400,85 @@ def summarize_probe(samples, healthy_at=None):
     return result
 
 
-def account_containers():
-    ids = lab.compose('ps', '-q', 'account-service', capture=True).stdout.split()
+def reconcile_disposals(records, ledger, initial, on_hand):
+    """재배포 중 낸 폐기의 최종 상태와 FoodMaterials 원장을 맞춘다.
+    records: 최종 폐기 기록 [{disposalId, status, quantity}], ledger: DISPOSAL 원장 [{requestId, quantityDelta}].
+    완료 폐기마다 원장 한 줄(requestId=DISPOSAL-<disposalId>)이 있고, 중복 차감이 없고, 현재고가 맞아야 한다."""
+    completed = {r['disposalId']: r['quantity'] for r in records if r['status'] == 'COMPLETED'}
+    request_ids = [m['requestId'] for m in ledger]
+    ledger_ids = {rid[len('DISPOSAL-'):] for rid in request_ids if rid.startswith('DISPOSAL-')}
+    statuses = {}
+    for r in records:
+        statuses[r['status']] = statuses.get(r['status'], 0) + 1
+    checks = {
+        'ledgerMatchesCompleted': ledger_ids == set(completed),
+        'noDuplicateDeduction': len(request_ids) == len(set(request_ids)),
+        'ledgerQuantityMatches': -sum(m['quantityDelta'] for m in ledger) == sum(completed.values()),
+        'onHandMatches': on_hand == initial - sum(completed.values()),
+    }
+    return {'disposals': len(records), 'finalStatusCounts': statuses, 'ledgerRows': len(ledger),
+            'initialQuantity': initial, 'onHandQuantity': on_hand, 'checks': checks,
+            'result': 'PASS' if all(checks.values()) else 'FAIL'}
+
+
+def service_containers(service='account-service'):
+    ids = lab.compose('ps', '-q', service, capture=True).stdout.split()
     inspected = json.loads(subprocess.check_output(['docker', 'inspect', *ids], text=True)) if ids else []
     return {c['Id']: c for c in inspected}
 
 
 def redeploy(args):
     """재배포 중 Gateway 경유 요청의 실패를 잰다. rolling: 새 인스턴스를 띄운 뒤 옛 인스턴스를 SIGTERM으로 내린다.
-    recreate: 인스턴스 하나를 새 컨테이너로 바꾼다(중단 불가피). 측정 요청은 BCrypt가 없는 GET /account/auth/login(정상 405)."""
+    recreate: 인스턴스 하나를 새 컨테이너로 바꾼다(중단 불가피). 측정 요청은 REDEPLOY_TARGETS(--service)."""
+    service, path, needs_token = REDEPLOY_TARGETS[args.service]
     lab.verify_lab()
     lab.wait_gateway()
     samples, stop = [], threading.Event()
+    token = fixture_token(args.label) if needs_token else None
+    disposal = disposal_fixture(args.label, token) if args.disposal_rate else None
+    disposal_samples = []
     started = time.monotonic()
 
     def probe():
         while not stop.is_set():
             t = time.monotonic() - started
             try:
-                status, _ = lab.request('/account/auth/login')
+                status, _ = lab.request(path, token=token)
             except Exception:
                 status = 0
             samples.append((t, status))
             stop.wait(1 / args.probe_rate)
 
+    def disposal_probe():
+        # 폐기마다 새 requestId. Gateway → Disposals → (Eureka) FoodMaterials 재고 차감 경로를 지난다.
+        number = 0
+        while not stop.is_set():
+            number += 1
+            t = time.monotonic() - started
+            body = {'requestId': f'RD-{args.label}-{number}', 'foodMaterialId': disposal['foodMaterialId'],
+                    'quantity': 1, 'reason': '재배포 측정'}
+            try:
+                status, payload = lab.request('/disposals', 'POST', body, disposal['token'])
+                view = json.loads(payload) if payload else {}
+            except Exception:
+                status, view = 0, {}
+            disposal_samples.append((t, status, view.get('disposalId'), view.get('status')))
+            stop.wait(1 / args.disposal_rate)
+
     thread = threading.Thread(target=probe, daemon=True)
     thread.start()
+    disposal_thread = threading.Thread(target=disposal_probe, daemon=True) if disposal else None
+    if disposal_thread:
+        disposal_thread.start()
     events = []
     healthy_at = None
     try:
         stop.wait(5)
-        before = account_containers()
+        before = service_containers(service)
         if args.mode == 'rolling':
             target = len(before) + 1
             lab.compose('up', '-d', '--no-build', '--no-deps', '--no-recreate', '--wait', '--wait-timeout', '240',
-                        '--scale', f'account-service={target}', 'account-service')
+                        '--scale', f'{service}={target}', service)
             events.append(('new-instance-healthy', time.monotonic() - started))
             # 새 인스턴스가 Gateway에 반영될 시간을 둔 뒤 가장 오래된 인스턴스를 내린다.
             stop.wait(args.settle)
@@ -436,19 +490,99 @@ def redeploy(args):
         else:
             events.append(('recreate-begin', time.monotonic() - started))
             lab.compose('up', '-d', '--no-build', '--no-deps', '--force-recreate', '--wait', '--wait-timeout', '240',
-                        'account-service')
+                        service)
             healthy_at = time.monotonic() - started
             events.append(('new-instance-healthy', healthy_at))
         stop.wait(args.observe)
     finally:
         stop.set()
         thread.join(timeout=10)
-    report = {'mode': args.mode, 'at': now(), 'probeRatePerSecond': args.probe_rate, 'settleSeconds': args.settle,
+        if disposal_thread:
+            disposal_thread.join(timeout=10)
+    report = {'service': service, 'probePath': path, 'mode': args.mode, 'at': now(), 'probeRatePerSecond': args.probe_rate, 'settleSeconds': args.settle,
               'stopTimeoutSeconds': args.stop_timeout, 'events': [(name, round(t, 2)) for name, t in events],
               'summary': summarize_probe(samples, healthy_at),
               'timeline': [(round(t, 2), status) for t, status in samples if status not in (200, 401, 405)][:500]}
+    if disposal:
+        report['disposals'] = settle_disposals(disposal, disposal_samples)
     lab.save(args.label + '-redeploy', report)
-    print(json.dumps({k: report[k] for k in ('mode', 'events', 'summary')}, ensure_ascii=False, indent=1))
+    print(json.dumps({k: report[k] for k in ('service', 'mode', 'events', 'summary', 'disposals') if k in report},
+                     ensure_ascii=False, indent=1))
+
+
+DISPOSAL_INITIAL = 100_000
+
+
+def fixture_token(label):
+    """실험실 전용 계정을 Gateway로 만들고 Access Token을 받는다. businessId 5로 시작(다른 시드와 겹치지 않음)."""
+    email, password = f'redeploy-{label.lower()}@{DOMAIN}', secrets.token_urlsafe(24)
+    status, _ = lab.request('/account/auth/register', 'POST', {
+        'email': email, 'businessId': '5' + str(secrets.randbelow(10**9)).zfill(9), 'password': password,
+        'name': 'Redeploy', 'phone': '01012345678', 'storeName': 'Redeploy Lab', 'storeType': 'RETAIL',
+        'storeCategory': 'TEST', 'marketingAgreed': False})
+    if status != 201:
+        raise SystemExit(f'Fixture registration failed: HTTP {status}')
+    status, payload = lab.request('/account/auth/login', 'POST', {'email': email, 'password': password})
+    if status != 200:
+        raise SystemExit(f'Fixture login failed: HTTP {status}')
+    return json.loads(payload)['accessToken']
+
+
+def disposal_fixture(label, token):
+    """실험실 전용 식자재·재고를 만든다."""
+    status, payload = lab.request('/foodmaterials', 'POST', {'sku': f'RD-{label}', 'name': '재배포 측정', 'unitPrice': 1000}, token)
+    if status != 201:
+        raise SystemExit(f'Food material fixture failed: HTTP {status}')
+    material = json.loads(payload)['foodMaterialId']
+    status, _ = lab.request('/foodmaterials/inventories', 'POST', {'foodMaterialId': material, 'initialQuantity': DISPOSAL_INITIAL}, token)
+    if status != 201:
+        raise SystemExit(f'Inventory fixture failed: HTTP {status}')
+    return {'token': token, 'foodMaterialId': material}
+
+
+def settle_disposals(fixture, samples, attempts=5):
+    """PENDING 폐기를 같은 폐기 식별자로 재시도한 뒤 원장과 맞춘다. 성공으로 간주하지 않는다."""
+    token, material = fixture['token'], fixture['foodMaterialId']
+    created = {}
+    counts = {}
+    for _, status, disposal_id, _ in samples:
+        counts[str(status)] = counts.get(str(status), 0) + 1
+        if disposal_id:
+            created[disposal_id] = True
+    retried = 0
+    for _ in range(attempts):
+        pending = []
+        for disposal_id in created:
+            status, payload = lab.request(f'/disposals/{disposal_id}', token=token)
+            if status == 200 and json.loads(payload)['status'] == 'PENDING':
+                pending.append(disposal_id)
+        if not pending:
+            break
+        for disposal_id in pending:
+            lab.request(f'/disposals/{disposal_id}/retry', 'POST', token=token)
+            retried += 1
+        time.sleep(2)
+    records = []
+    for disposal_id in created:
+        status, payload = lab.request(f'/disposals/{disposal_id}', token=token)
+        view = json.loads(payload)
+        records.append({'disposalId': disposal_id, 'status': view['status'], 'quantity': view['quantity']})
+    ledger, page = [], 0
+    while True:
+        status, payload = lab.request(f'/foodmaterials/inventories/{material}/movements?page={page}&size=100', token=token)
+        body = json.loads(payload)
+        ledger += [m for m in body['movements'] if m['movementType'] == 'DISPOSAL']
+        page += 1
+        if page >= body['totalPages']:
+            break
+    _, payload = lab.request(f'/foodmaterials/inventories/{material}', token=token)
+    on_hand = json.loads(payload)['onHandQuantity']
+    result = reconcile_disposals(records, ledger, DISPOSAL_INITIAL, on_hand)
+    result.update({'requests': len(samples), 'firstResponseCounts': counts,
+                   'firstResponsePending': sum(1 for *_, st in samples if st == 'PENDING'),
+                   'unansweredOrNoRecord': sum(1 for _, _, d, _ in samples if not d), 'retryCalls': retried,
+                   'timeline': [(round(t, 2), st, ds) for t, st, _, ds in samples if st != 200][:200]})
+    return result
 
 
 def main():
@@ -483,6 +617,9 @@ def main():
     parser.add_argument('--topic', default=TOPIC)
     parser.add_argument('--drain-timeout', type=int, default=900)
     parser.add_argument('--mode', choices=['rolling', 'recreate'], default='rolling')
+    parser.add_argument('--service', choices=sorted(REDEPLOY_TARGETS), default='account', help='redeploy 대상(기본 account)')
+    parser.add_argument('--disposal-rate', type=int, default=0,
+                        help='redeploy --service foodmaterials: 초당 폐기 요청 수(0=끔). 끝나면 PENDING을 재시도하고 원장과 맞춘다')
     parser.add_argument('--probe-rate', type=int, default=20)
     parser.add_argument('--settle', type=int, default=30, help='rolling: 새 인스턴스 기동 후 옛 인스턴스를 내리기까지 대기(초)')
     parser.add_argument('--stop-timeout', type=int, default=30, help='docker stop 유예(초). 넘으면 SIGKILL')
@@ -510,6 +647,8 @@ def main():
         value = getattr(args, name)
         if value is not None and not low <= value <= high:
             parser.error(f'--{name.replace("_", "-")} must be {low}..{high}')
+    if args.disposal_rate and (args.service != 'foodmaterials' or not 1 <= args.disposal_rate <= 20):
+        parser.error('--disposal-rate is 1..20 and only for --service foodmaterials')
     if not lab.ENV.exists():
         parser.error('Run performance/lab.py prepare first')
 

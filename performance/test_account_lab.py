@@ -1,6 +1,8 @@
+import json
 import unittest
 
 import account_lab as al
+import lab
 
 
 class SeedRuleTest(unittest.TestCase):
@@ -74,6 +76,28 @@ class RedeployProbeTest(unittest.TestCase):
         self.assertEqual(summary['recoveryLagSeconds'], 2.5)
         self.assertEqual(summary['firstSuccessAfterHealthy'], 4.0)
         self.assertEqual(al.summarize_probe([(0.0, 405)])['failures'], 0)
+
+    def test_disposal_reconcile_passes_only_when_ledger_matches(self):
+        records = [{'disposalId': 'a', 'status': 'COMPLETED', 'quantity': 1},
+                   {'disposalId': 'b', 'status': 'PENDING', 'quantity': 1},
+                   {'disposalId': 'c', 'status': 'COMPLETED', 'quantity': 1}]
+        ledger = [{'requestId': 'DISPOSAL-a', 'quantityDelta': -1}, {'requestId': 'DISPOSAL-c', 'quantityDelta': -1}]
+        result = al.reconcile_disposals(records, ledger, 10, 8)
+        self.assertEqual(result['result'], 'PASS')
+        self.assertEqual(result['finalStatusCounts'], {'COMPLETED': 2, 'PENDING': 1})
+        # 같은 폐기를 두 번 차감
+        self.assertEqual(al.reconcile_disposals(records, ledger + [ledger[0]], 10, 7)['result'], 'FAIL')
+        # PENDING을 성공으로 처리해 차감한 경우
+        self.assertEqual(al.reconcile_disposals(records, ledger + [{'requestId': 'DISPOSAL-b', 'quantityDelta': -1}], 10, 7)['result'], 'FAIL')
+        # 현재고 불일치
+        self.assertEqual(al.reconcile_disposals(records, ledger, 10, 9)['result'], 'FAIL')
+
+    def test_targets_use_approved_service_paths(self):
+        services = json.loads((lab.ROOT / 'architecture/services.json').read_text())['services']
+        approved = {s['path'][1:] + '-service': s['path'] for s in services}
+        for service, path, _ in al.REDEPLOY_TARGETS.values():
+            self.assertIn(service, approved)
+            self.assertTrue(path.startswith(approved[service]), path)
 
 
 class ParsingTest(unittest.TestCase):
