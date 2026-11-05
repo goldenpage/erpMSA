@@ -70,9 +70,13 @@ def main():
         if module != 'AccountService':
             assert not runtime.get('secrets'), module
             assert not any('private' in v['target'] for v in runtime['volumes']), module
+        # 종료 시 Eureka DOWN 알림 후 drain(기본 15s) + graceful shutdown. Docker 기본 10s면 drain 중 강제 종료된다.
+        grace = re.fullmatch(r'(\d+)s', str(runtime.get('stop_grace_period', '')))
+        assert grace and int(grace.group(1)) >= 45, module + ' stop_grace_period'
+        assert 'discovery-drain: "${SHUTDOWN_DISCOVERY_DRAIN:15s}"' in application, module + ' discovery-drain'
         if s['implementationStatus'] == 'authenticated-shell':
             assert 'base-path: ' + path in application, module
-    print('PASS: exactly 7 business modules, Compose applications, ports, Gateway routes, key boundaries and 9 Spring monitoring targets'
+    print('PASS: exactly 7 business modules, Compose applications, ports, Gateway routes, key boundaries, shutdown drain and 9 Spring monitoring targets'
           + (' (CI)' if args.ci else ' (performance)' if args.performance else ''))
 
 if __name__ == '__main__': main()

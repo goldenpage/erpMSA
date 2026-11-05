@@ -126,4 +126,24 @@ class DisposalsServiceApplicationTests {
         assertThat(request("GET","/disposals?status=UNKNOWN",null,1).statusCode()).isEqualTo(400);
         assertThat(calls.get()).isZero();
     }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    org.springframework.context.ApplicationContext drainContext;
+
+    /** 종료 시 Eureka DOWN 알림 후 drain(shared/service-foundation)이 이 서비스에 연결됐는지 확인한다. */
+    @Test void 종료_시_웹_서버보다_먼저_Eureka_DOWN_후_drain하도록_연결된다() {
+        var drain = drainContext.getBean(com.oopsw.foundation.DiscoveryDrainLifecycle.class);
+        var graceful = drainContext.getBeansOfType(org.springframework.context.SmartLifecycle.class).values().stream()
+            .filter(bean -> bean.getClass().getSimpleName().equals("WebServerGracefulShutdownLifecycle"))
+            .findFirst().orElseThrow();
+        // 높은 phase가 먼저 멈춘다. drain이 끝난 뒤에 웹 서버 graceful shutdown이 시작된다.
+        assertThat(drain.getPhase()).isGreaterThan(graceful.getPhase());
+        assertThat(drain.drain()).isEqualTo(java.time.Duration.ofSeconds(15));
+        // 테스트는 Eureka 클라이언트를 끈다. 알릴 대상이 없으면 기다리지 않고 바로 끝난다.
+        assertThat(drainContext.getBeanProvider(com.netflix.appinfo.ApplicationInfoManager.class).getIfAvailable()).isNull();
+        long started = System.nanoTime();
+        drain.stop();
+        assertThat(java.time.Duration.ofNanos(System.nanoTime() - started)).isLessThan(java.time.Duration.ofSeconds(1));
+        drain.start();
+    }
 }

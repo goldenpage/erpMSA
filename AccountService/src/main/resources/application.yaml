@@ -82,12 +82,20 @@ management:
         http.server.requests: true
 
 app:
+  shutdown:
+    # 종료 시 Eureka에 DOWN을 알리고 이 시간 동안 요청을 계속 받는다(DiscoveryDrainLifecycle).
+    # Gateway 레지스트리 갱신(5s) + 로드밸런서 캐시(5s)보다 길어야 한다. 0이면 끈다.
+    discovery-drain: "${SHUTDOWN_DISCOVERY_DRAIN:15s}"
   kafka:
     topics:
       account-lifecycle: "${KAFKA_ACCOUNT_LIFECYCLE_TOPIC:account.lifecycle.v1}"
     outbox:
       publish-delay: "${OUTBOX_PUBLISH_DELAY:1s}"
       retry-delay: "${OUTBOX_RETRY_DELAY:5s}"
+      # 다중 인스턴스 중복 발행 방지: 발행 대상을 SKIP LOCKED로 선점하고 선점 기간 안에서만 발행한다.
+      claim-lease: "${OUTBOX_CLAIM_LEASE:120s}"
+      lease-safety-margin: "${OUTBOX_LEASE_SAFETY_MARGIN:30s}"
+      batch-size: "${OUTBOX_BATCH_SIZE:100}"
 
   auth:
     issuer: "${JWT_ISSUER:kosta-erp-account}"
@@ -98,3 +106,20 @@ app:
     access-ttl: "${JWT_ACCESS_TTL:15m}"
     refresh-ttl: "${JWT_REFRESH_TTL:14d}"
     secure-cookie: "${COOKIE_SECURE:true}"
+    password-hash:
+      # BCrypt 동시 계산 상한(0이면 CPU 수, 최소 2)과 허가 대기 한도. 한도 안에 허가를 못 얻으면 503 AUTH_BUSY.
+      max-concurrent: "${AUTH_PASSWORD_HASH_MAX_CONCURRENT:0}"
+      max-wait: "${AUTH_PASSWORD_HASH_MAX_WAIT:2s}"
+    # 로그인·가입 시도 제한(LoginAttemptLimiter). 모든 검사는 BCrypt 전에 한다. 초과 시 429 + Retry-After.
+    # 숫자는 운영 데이터 없이 정한 시작값이다. 실패율을 보고 조정한다.
+    rate-limit:
+      enabled: "${AUTH_RATE_LIMIT_ENABLED:true}"
+      login-per-ip: "${AUTH_LOGIN_PER_IP:30}"
+      register-per-ip: "${AUTH_REGISTER_PER_IP:10}"
+      ip-window: "${AUTH_RATE_LIMIT_IP_WINDOW:1m}"
+      failures-before-lock: "${AUTH_FAILURES_BEFORE_LOCK:5}"
+      failure-window: "${AUTH_FAILURE_WINDOW:15m}"
+      lock-initial: "${AUTH_LOCK_INITIAL:1m}"
+      lock-max: "${AUTH_LOCK_MAX:15m}"
+      # X-Client-Address(Gateway가 정한 클라이언트 주소)를 믿을 직접 연결 대역. 운영에서는 Gateway 주소 대역으로 좁힌다.
+      trusted-proxies: "${AUTH_TRUSTED_PROXIES:127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}"

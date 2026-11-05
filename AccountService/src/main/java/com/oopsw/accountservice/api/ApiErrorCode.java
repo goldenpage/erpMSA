@@ -31,6 +31,19 @@ public enum ApiErrorCode {
         HttpStatus.FORBIDDEN,
         "로그인할 수 없는 계정 상태입니다."
     ),
+    AUTH_BUSY(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "인증 요청이 많아 처리할 수 없습니다. 잠시 후 다시 시도하세요."
+    ),
+    // 계정 기준인지 IP 기준인지, 가입된 계정인지를 응답으로 구분할 수 없도록 같은 문구를 쓴다.
+    LOGIN_RATE_LIMITED(
+        HttpStatus.TOO_MANY_REQUESTS,
+        "요청이 많습니다. 잠시 후 다시 시도하세요."
+    ),
+    REGISTER_RATE_LIMITED(
+        HttpStatus.TOO_MANY_REQUESTS,
+        "요청이 많습니다. 잠시 후 다시 시도하세요."
+    ),
     INVALID_REFRESH_TOKEN(
         HttpStatus.UNAUTHORIZED,
         "유효하지 않은 Refresh Token입니다."

@@ -16,6 +16,8 @@ services:
     ports: !reset []
     volumes: !reset []
     tmpfs: [/data]
+    # Account A7(Refresh 키 누적)에서 메모리 한계 동작을 관찰하려면 값을 명시해 기록한다.
+    mem_limit: ${LAB_REDIS_MEMORY:-1g}
   kafka:
     ports: !reset []
     volumes: !reset []
@@ -34,22 +36,40 @@ services:
     environment:
       <<: *java-lab
       FLYWAY_BASELINE_ON_MIGRATE: "false"
-    mem_limit: 512m
+      SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE: ${LAB_ACCOUNT_DB_POOL_SIZE:-10}
+    mem_limit: ${LAB_ACCOUNT_MEMORY:-512m}
+    # BCrypt는 CPU에 비례하므로 Account 실험은 CPU 제한을 명시해 기록한다.
+    cpus: ${LAB_ACCOUNT_CPUS:-2}
   foodmaterials-service:
     image: erpmsa-sprint4/foodmaterials-service:lab
     ports: !reset []
-    environment: *java-lab
+    environment:
+      <<: *java-lab
+      # 재배포 drain 전후 대조용(docs/account-load-results.md 재배포 절). 0s면 drain 없이 바로 종료한다.
+      SHUTDOWN_DISCOVERY_DRAIN: ${LAB_SHUTDOWN_DISCOVERY_DRAIN:-15s}
     mem_limit: 512m
     cpus: 1
 
   gateway-server:
     image: erpmsa-sprint4/gateway-server:lab
-    ports: !override ["127.0.0.1:17070:7070"]
-    environment: *java-lab
-    mem_limit: 512m
+    # 원격 부하 발생기는 사설망 주소만 지정한다(LAB_GATEWAY_BIND). 공인 인터페이스에 노출하지 않는다.
+    ports: !override ["${LAB_GATEWAY_BIND:-127.0.0.1}:17070:7070"]
+    environment:
+      <<: *java-lab
+      # 실험실 전용: Docker 사설망(k6 포함)을 신뢰 프록시로 두어 k6가 보낸 모의 클라이언트 IP(X-Forwarded-For)를 쓴다.
+      # 운영 기본값은 비어 있다(직접 연결 주소 사용).
+      GATEWAY_TRUSTED_UPSTREAMS: ${LAB_GATEWAY_TRUSTED_UPSTREAMS:-172.16.0.0/12}
+    # 2026-11-04 Account 부하 중 512m에서 메모리 한계 종료가 반복됐다(docs/account-load-results.md). 대조 실험용으로 조절한다.
+    mem_limit: ${LAB_GATEWAY_MEMORY:-512m}
     cpus: 1
   prometheus:
     image: erpmsa-sprint4/prometheus:lab
+    command: !override
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=${PROMETHEUS_RETENTION_TIME:-15d}"
+      # k6 --prometheus-rw 출력 수신용. 실험 구성에만 켠다.
+      - "--web.enable-remote-write-receiver"
     ports: !override ["127.0.0.1:19090:9090"]
   grafana:
     image: erpmsa-sprint4/grafana:lab
@@ -62,8 +82,8 @@ services:
     volumes:
       - ./performance:/work
     working_dir: /work
-    mem_limit: 512m
-    cpus: 1
+    mem_limit: ${LAB_K6_MEMORY:-512m}
+    cpus: ${LAB_K6_CPUS:-1}
 
   menus-service:
     image: erpmsa-sprint4/menus-service:lab

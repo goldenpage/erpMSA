@@ -1,5 +1,7 @@
 # FoodMaterials 목록 부하·장애 실험
 
+> 대규모 부하 테스트의 설계·사전 분석은 [load-test-design.md](../docs/load-test-design.md)에 있다. 이 문서의 도구는 그 설계의 P0 작업 전 상태다.
+
 이 도구는 Account 인증·Outbox 발행과 FoodMaterials 카탈로그·재고를 대상으로 한다. 목표 업무 서비스의 명칭과 경로는
 [서비스 설계 기준](../docs/service-architecture.md)을 따르며, 전환 후 데이터·API·검증 항목을 갱신해야 한다.
 
@@ -44,6 +46,33 @@ python3 performance/lab.py down
 Git에 추가하지 않는다. 결과 폴더는 기본 ignore 대상이며, 공유 보고서에는 토큰 없는 통계만 옮긴다.
 토큰이 만료되면 실험 환경을 재생성한다. 운영 세션 TTL은 변경하지 않는다.
 `up`의 Docker 빌드 중에 부하를 측정하지 않는다. 부하 발생기도 같은 Docker VM의 자원을 사용한다.
+
+## Account(로그인·회원가입) 대규모 부하
+
+목적·설계·가설·판정 기준은 [load-test-design.md §13](../docs/load-test-design.md)에 있다(목적은 §13.0). 같은 일회용 실험 프로젝트를 쓴다.
+
+```bash
+python3 performance/lab.py prepare
+python3 performance/lab.py up
+python3 performance/account_lab.py seed --accounts 1000000
+python3 performance/account_lab.py run --scenario me --label a0-me --rate 200 --duration 5m
+python3 performance/account_lab.py run --scenario login --label a1-login-r1 --stages 20:3m,40:3m,80:3m,160:3m --max-vus 2000
+python3 performance/account_lab.py run --scenario register --label a2-reg --stages 10:3m,20:3m,40:3m
+python3 performance/account_lab.py check --label a2-reg
+python3 performance/account_report.py a2-reg --baseline-p95 130
+python3 performance/lab.py down
+```
+
+- `seed`는 fixture 계정 하나를 API로 가입시키고, 앱이 만든 BCrypt 해시를 SQL로 복사해 계정을 대량 생성한다. 비밀번호는 `results/account-fixture.json`(0600)에만 있다.
+- `run`은 k6 실행 동안 5초마다 Outbox·Redis 표본을 `results/<label>-samples.json`에 남긴다. 가입 시나리오는 실행번호를 새로 받으며 label을 재사용할 수 없다.
+- `check`는 부하 직후 실행한다. 계정·Outbox·Kafka를 대조하고 누락은 FAIL, 같은 eventId 중복 발행은 별도 보고한다.
+- `run`은 요청 단위 기록(`<label>.csv.gz`)과 실행 구간의 서버 지표(`<label>-prom.json`)도 남긴다. `account_report.py`가 단계별 성공 처리량·p95·CPU·풀 대기와 포화 판정을 만든다. 측정 전에는 워밍업 실행을 먼저 한다.
+- 결과 예시와 발견 사항: [account-load-results.md](../docs/account-load-results.md)
+- 자원은 `.env`의 `LAB_GATEWAY_MEMORY`(512m), `LAB_ACCOUNT_CPUS`(기본 2), `LAB_ACCOUNT_MEMORY`(512m), `LAB_ACCOUNT_DB_POOL_SIZE`(10), `LAB_REDIS_MEMORY`(1g), `LAB_K6_CPUS`(1), `LAB_K6_MEMORY`(512m)로 바꾸고 결과에 함께 기록한다.
+- 원격 부하 발생기는 `LAB_GATEWAY_BIND`에 사설망 주소만 지정해 접속한다.
+- 재배포 중 오류 측정: `python3 performance/account_lab.py redeploy --mode rolling --label <label>`(새 인스턴스를 띄운 뒤 옛 인스턴스 SIGTERM) 또는 `--mode recreate`(단일 인스턴스 재생성). Gateway 경유 `GET /account/auth/login`을 초당 20건 보내 상태별 건수·실패 구간·새 인스턴스 정상 후 복구 지연을 `results/<label>-redeploy.json`에 남긴다.
+  `--service foodmaterials`면 FoodMaterials를 교체하며 실험실 계정을 만들어 토큰으로 `GET /foodmaterials`(정상 200)를 보낸다(토큰이 없으면 Gateway가 401로 막아 하류를 재지 못한다). `--disposal-rate N`을 주면 초당 N건 폐기를 함께 보내고, 끝난 뒤 PENDING을 같은 폐기 식별자로 재시도해 원장·현재고와 맞춘다. drain 전후 대조는 `performance/.env`의 `LAB_SHUTDOWN_DISCOVERY_DRAIN`(기본 15s, `0s`면 drain 없음)을 바꾼 뒤 FoodMaterials를 다시 띄워 잰다.
+- Account에는 IP·계정 기준 로그인·가입 시도 제한이 있다(IP당 로그인 30/분, 가입 10/분, 이메일당 15분에 실패 5회). k6는 요청마다 모의 클라이언트 IP(`X-Forwarded-For`, 정상 198.18.0.0/16·공격자 198.19.0.0/16)를 보내고, 실험실 Gateway는 Docker 사설망을 신뢰 프록시로 두어(`LAB_GATEWAY_TRUSTED_UPSTREAMS`, 기본 172.16.0.0/12) 이 값을 클라이언트 주소로 쓴다. `--client-ips off`로 끄면 모든 요청이 한 IP로 집계되어 분당 30회에서 막힌다. 공격자 IP 수는 `--attack-ips`(기본 4)로 정한다.
 
 ## 데이터와 요청 가설
 

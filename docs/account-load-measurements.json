@@ -1,0 +1,6735 @@
+{
+ "status": "T1-small 도구 검증 겸 소규모 측정. 운영 용량이나 대규모 결과로 인용하지 않는다.",
+ "environment": {
+  "host": "claude.ai 클라우드 세션 컨테이너, 4 CPU, 15.7 GiB, Docker 29.9.2, cgroup v1",
+  "loadGenerator": "k6 1.7.1, 같은 호스트(1 CPU 제한)",
+  "images": "eclipse-temurin:21-jre-jammy + 호스트 빌드 JAR(Maven Central 429로 Google 미러 사용)",
+  "gitHead": "39d2ff6872f8d6a8973f57c3619d6acf7a98368d",
+  "note": "실험 중 performance 도구가 수정됐다. 실행별 workloadSha256 참조. Account CPU 제한: a1-login-c2-r1만 2, 나머지 1"
+ },
+ "dataset": {
+  "generator": "account-seed-v1",
+  "accounts": 1000000,
+  "statusCounts": {
+   "ACTIVE": 980000,
+   "PENDING": 10000,
+   "SUSPENDED": 10000
+  },
+  "bcryptCost": "10",
+  "dataBytes": 213663744,
+  "indexBytes": 71548928,
+  "seedSeconds": 23.5
+ },
+ "gatewayMemoryKills": {
+  "source": "dmesg memcg OOM (CONSTRAINT_MEMCG, gateway 컨테이너 memcg 일치)",
+  "limit": "512MiB",
+  "atUtc": [
+   "08:32:18",
+   "09:27:27",
+   "09:29:28",
+   "09:33:50"
+  ],
+  "anonRssKb": [
+   519968,
+   519852,
+   518832,
+   519904
+  ],
+  "during": [
+   "a1-login-c2-r1 60/s 단계",
+   "a3-session",
+   "a3-session",
+   "a3-session-v2"
+  ]
+ },
+ "gatewayMemoryControl": {
+  "method": "cgroup memory.max_usage_in_bytes, 컨테이너 재생성 후 me 20/s 40초 워밍업, 이후 Account 1개·1 CPU에 login 40/s 90초",
+  "limit512m": {
+   "peakAfterWarmupMiB": 212,
+   "peakAfterOverloadMiB": 512,
+   "killed": false
+  },
+  "limit1g": {
+   "peakAfterWarmupMiB": 225,
+   "peakAfterOverloadMiB": 652,
+   "killed": false
+  },
+  "a3SessionAt1g": {
+   "peakMiB": 257,
+   "killed": false
+  }
+ },
+ "otherObservations": {
+  "gatewayStaleRouteAfterAccountRecreate": "Account 재생성 직후 Gateway가 약 11초간 모든 요청에 HTTP 500 (w-c1-r1 워밍업)",
+  "cpuAfterClientTimeout": "a1-login-c1-r2 종료(08:51:35) 후 Account 2개가 08:52:15~28까지 CPU 95~100% 유지",
+  "coldStart": "v-a0-me(콜드) p95 1037ms·누락 5 → v-a0-me-2(웜) p95 11.2ms·누락 0"
+ },
+ "runs": [
+  {
+   "label": "a0-me",
+   "scenario": "me",
+   "startedAt": "2026-11-04T08:24:40.474423+00:00",
+   "finishedAt": "2026-11-04T08:26:41.990603+00:00",
+   "k6ExitCode": 0,
+   "k6Env": {
+    "BASE_URL": "http://gateway-server:7070",
+    "SCENARIO": "me",
+    "RUN_NO": "0",
+    "MAX_VUS": "500",
+    "RATE": "100",
+    "DURATION": "2m"
+   },
+   "workloadSha256": "4d09c705ffccdc0da7ea2286d199bc3c8f279018c2f7c0f019ffc541042d1ced",
+   "kneeWindow": "90-120s",
+   "kneeAchievedRps": 100.0,
+   "windows": [
+    {
+     "window": "0-30s",
+     "targetRps": 100,
+     "sentRps": 100.03,
+     "goodputRps": 100.03,
+     "p95Ms": 17.3,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 10.0,
+     "accountCpuMaxPct": 15.6,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "GET /account/auth/me|-": {
+       "count": 3001,
+       "p50Ms": 4.5,
+       "p95Ms": 17.3,
+       "status": {
+        "200": 3001
+       }
+      }
+     }
+    },
+    {
+     "window": "30-60s",
+     "targetRps": 100,
+     "sentRps": 100.0,
+     "goodputRps": 100.0,
+     "p95Ms": 8.2,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 9.9,
+     "accountCpuMaxPct": 10.4,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "GET /account/auth/me|-": {
+       "count": 3000,
+       "p50Ms": 4.0,
+       "p95Ms": 8.2,
+       "status": {
+        "200": 3000
+       }
+      }
+     }
+    },
+    {
+     "window": "60-90s",
+     "targetRps": 100,
+     "sentRps": 100.0,
+     "goodputRps": 100.0,
+     "p95Ms": 9.0,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 9.4,
+     "accountCpuMaxPct": 9.4,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "GET /account/auth/me|-": {
+       "count": 3000,
+       "p50Ms": 4.0,
+       "p95Ms": 9.0,
+       "status": {
+        "200": 3000
+       }
+      }
+     }
+    },
+    {
+     "window": "90-120s",
+     "targetRps": 100,
+     "sentRps": 100.0,
+     "goodputRps": 100.0,
+     "p95Ms": 7.9,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 10.2,
+     "accountCpuMaxPct": 11.1,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "GET /account/auth/me|-": {
+       "count": 3000,
+       "p50Ms": 3.8,
+       "p95Ms": 7.9,
+       "status": {
+        "200": 3000
+       }
+      }
+     }
+    }
+   ],
+   "k6Counters": {
+    "account_refresh_replay_accepted": 0,
+    "account_dup_group_bad": 0,
+    "account_refresh_race_bad": 0,
+    "account_unexpected_5xx": 0
+   }
+  },
+  {
+   "label": "a1-login-c2-r1",
+   "scenario": "login",
+   "startedAt": "2026-11-04T08:26:56.742508+00:00",
+   "finishedAt": "2026-11-04T08:33:08.560019+00:00",
+   "k6ExitCode": 99,
+   "k6Env": {
+    "BASE_URL": "http://gateway-server:7070",
+    "SCENARIO": "login",
+    "RUN_NO": "0",
+    "MAX_VUS": "600",
+    "STAGES": "5:1m,10:1m,20:1m,30:1m,40:1m,60:1m"
+   },
+   "workloadSha256": "4d09c705ffccdc0da7ea2286d199bc3c8f279018c2f7c0f019ffc541042d1ced",
+   "kneeWindow": "20/s",
+   "kneeAchievedRps": 16.4,
+   "windows": [
+    {
+     "window": "5/s",
+     "targetRps": 3.5,
+     "sentRps": 3.56,
+     "goodputRps": 3.56,
+     "p95Ms": 129.4,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 14.0,
+     "accountCpuMaxPct": 17.1,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 160,
+       "p50Ms": 101.3,
+       "p95Ms": 129.4,
+       "status": {
+        "200": 160
+       }
+      }
+     }
+    },
+    {
+     "window": "10/s",
+     "targetRps": 8.12,
+     "sentRps": 8.22,
+     "goodputRps": 8.22,
+     "p95Ms": 136.9,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 35.7,
+     "accountCpuMaxPct": 39.8,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 370,
+       "p50Ms": 101.9,
+       "p95Ms": 136.9,
+       "status": {
+        "200": 370
+       }
+      }
+     }
+    },
+    {
+     "window": "20/s",
+     "targetRps": 16.25,
+     "sentRps": 16.4,
+     "goodputRps": 16.4,
+     "p95Ms": 321.1,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 67.1,
+     "accountCpuMaxPct": 78.5,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 738,
+       "p50Ms": 117.8,
+       "p95Ms": 321.1,
+       "status": {
+        "200": 738
+       }
+      }
+     }
+    },
+    {
+     "window": "30/s",
+     "targetRps": 26.25,
+     "sentRps": 20.51,
+     "goodputRps": 20.51,
+     "p95Ms": 7543.9,
+     "unexpected": 0,
+     "dropped": 102,
+     "flags": [
+      "p95>3x",
+      "dropped",
+      "achieved<95%"
+     ],
+     "accountCpuMeanPct": 95.8,
+     "accountCpuMaxPct": 95.9,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 923,
+       "p50Ms": 5318.6,
+       "p95Ms": 7543.9,
+       "status": {
+        "200": 923
+       }
+      }
+     }
+    },
+    {
+     "window": "40/s",
+     "targetRps": 36.25,
+     "sentRps": 31.93,
+     "goodputRps": 0.0,
+     "p95Ms": 10003.4,
+     "unexpected": 1437,
+     "dropped": 102,
+     "flags": [
+      "error>=1%",
+      "p95>3x",
+      "dropped",
+      "achieved<95%"
+     ],
+     "accountCpuMeanPct": 95.0,
+     "accountCpuMaxPct": 96.0,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 1437,
+       "p50Ms": 10000.5,
+       "p95Ms": 10003.4,
+       "status": {
+        "0": 1437
+       }
+      }
+     }
+    },
+    {
+     "window": "60/s",
+     "targetRps": 52.5,
+     "sentRps": 48.51,
+     "goodputRps": 5.36,
+     "p95Ms": 10001.0,
+     "unexpected": 1942,
+     "dropped": 92,
+     "flags": [
+      "error>=1%",
+      "p95>3x",
+      "dropped",
+      "achieved<95%"
+     ],
+     "accountCpuMeanPct": 55.3,
+     "accountCpuMaxPct": 95.3,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 2183,
+       "p50Ms": 1231.5,
+       "p95Ms": 10001.0,
+       "status": {
+        "0": 1942,
+        "200": 241
+       }
+      }
+     }
+    }
+   ],
+   "k6Counters": {
+    "account_refresh_race_bad": 0,
+    "account_refresh_replay_accepted": 0,
+    "account_unexpected_5xx": 4554,
+    "account_dup_group_bad": 0
+   }
+  },
+  {
+   "label": "a1-login-c1-r1",
+   "scenario": "login",
+   "startedAt": "2026-11-04T08:35:49.752090+00:00",
+   "finishedAt": "2026-11-04T08:42:01.366529+00:00",
+   "k6ExitCode": 99,
+   "k6Env": {
+    "BASE_URL": "http://gateway-server:7070",
+    "SCENARIO": "login",
+    "RUN_NO": "0",
+    "MAX_VUS": "600",
+    "STAGES": "3:1m,6:1m,9:1m,12:1m,15:1m,20:1m"
+   },
+   "workloadSha256": "4d09c705ffccdc0da7ea2286d199bc3c8f279018c2f7c0f019ffc541042d1ced",
+   "kneeWindow": "9/s",
+   "kneeAchievedRps": 7.91,
+   "windows": [
+    {
+     "window": "3/s",
+     "targetRps": 2.25,
+     "sentRps": 2.27,
+     "goodputRps": 2.27,
+     "p95Ms": 139.9,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 25.9,
+     "accountCpuMaxPct": 30.5,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 102,
+       "p50Ms": 105.0,
+       "p95Ms": 139.9,
+       "status": {
+        "200": 102
+       }
+      }
+     }
+    },
+    {
+     "window": "6/s",
+     "targetRps": 4.88,
+     "sentRps": 4.91,
+     "goodputRps": 4.91,
+     "p95Ms": 142.1,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 44.4,
+     "accountCpuMaxPct": 53.9,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 221,
+       "p50Ms": 105.3,
+       "p95Ms": 142.1,
+       "status": {
+        "200": 221
+       }
+      }
+     }
+    },
+    {
+     "window": "9/s",
+     "targetRps": 7.88,
+     "sentRps": 7.91,
+     "goodputRps": 7.91,
+     "p95Ms": 191.2,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 72.7,
+     "accountCpuMaxPct": 82.6,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 356,
+       "p50Ms": 105.5,
+       "p95Ms": 191.2,
+       "status": {
+        "200": 356
+       }
+      }
+     }
+    },
+    {
+     "window": "12/s",
+     "targetRps": 10.88,
+     "sentRps": 10.13,
+     "goodputRps": 10.13,
+     "p95Ms": 2961.6,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [
+      "p95>3x",
+      "achieved<95%"
+     ],
+     "accountCpuMeanPct": 95.2,
+     "accountCpuMaxPct": 99.7,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 456,
+       "p50Ms": 1305.6,
+       "p95Ms": 2961.6,
+       "status": {
+        "200": 456
+       }
+      }
+     }
+    },
+    {
+     "window": "15/s",
+     "targetRps": 13.88,
+     "sentRps": 11.42,
+     "goodputRps": 4.09,
+     "p95Ms": 10002.4,
+     "unexpected": 330,
+     "dropped": 42,
+     "flags": [
+      "error>=1%",
+      "p95>3x",
+      "dropped",
+      "achieved<95%"
+     ],
+     "accountCpuMeanPct": 99.2,
+     "accountCpuMaxPct": 99.3,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 514,
+       "p50Ms": 10000.2,
+       "p95Ms": 10002.4,
+       "status": {
+        "200": 184,
+        "0": 330
+       }
+      }
+     }
+    },
+    {
+     "window": "20/s",
+     "targetRps": 18.12,
+     "sentRps": 16.6,
+     "goodputRps": 0.0,
+     "p95Ms": 10002.8,
+     "unexpected": 747,
+     "dropped": 35,
+     "flags": [
+      "error>=1%",
+      "p95>3x",
+      "dropped",
+      "achieved<95%"
+     ],
+     "accountCpuMeanPct": 99.2,
+     "accountCpuMaxPct": 99.5,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 747,
+       "p50Ms": 10000.5,
+       "p95Ms": 10002.8,
+       "status": {
+        "0": 747
+       }
+      }
+     }
+    }
+   ],
+   "k6Counters": {
+    "account_unexpected_5xx": 1458,
+    "account_refresh_race_bad": 0,
+    "account_dup_group_bad": 0,
+    "account_refresh_replay_accepted": 0
+   }
+  },
+  {
+   "label": "a1-login-c1-r2",
+   "scenario": "login",
+   "startedAt": "2026-11-04T08:45:24.237430+00:00",
+   "finishedAt": "2026-11-04T08:51:35.932459+00:00",
+   "k6ExitCode": 99,
+   "k6Env": {
+    "BASE_URL": "http://gateway-server:7070",
+    "SCENARIO": "login",
+    "RUN_NO": "0",
+    "MAX_VUS": "800",
+    "STAGES": "6:1m,12:1m,18:1m,24:1m,30:1m,40:1m"
+   },
+   "workloadSha256": "4d09c705ffccdc0da7ea2286d199bc3c8f279018c2f7c0f019ffc541042d1ced",
+   "kneeWindow": "18/s",
+   "kneeAchievedRps": 15.82,
+   "windows": [
+    {
+     "window": "6/s",
+     "targetRps": 4.12,
+     "sentRps": 4.2,
+     "goodputRps": 4.2,
+     "p95Ms": 147.9,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 21.7,
+     "accountCpuMaxPct": 30.9,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 189,
+       "p50Ms": 103.8,
+       "p95Ms": 147.9,
+       "status": {
+        "200": 189
+       }
+      }
+     }
+    },
+    {
+     "window": "12/s",
+     "targetRps": 9.75,
+     "sentRps": 9.8,
+     "goodputRps": 9.8,
+     "p95Ms": 148.3,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 42.2,
+     "accountCpuMaxPct": 55.1,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 441,
+       "p50Ms": 102.1,
+       "p95Ms": 148.3,
+       "status": {
+        "200": 441
+       }
+      }
+     }
+    },
+    {
+     "window": "18/s",
+     "targetRps": 15.75,
+     "sentRps": 15.82,
+     "goodputRps": 15.82,
+     "p95Ms": 259.2,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 73.4,
+     "accountCpuMaxPct": 81.4,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 712,
+       "p50Ms": 111.0,
+       "p95Ms": 259.2,
+       "status": {
+        "200": 712
+       }
+      }
+     }
+    },
+    {
+     "window": "24/s",
+     "targetRps": 21.75,
+     "sentRps": 19.82,
+     "goodputRps": 19.82,
+     "p95Ms": 3720.2,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [
+      "p95>3x",
+      "achieved<95%"
+     ],
+     "accountCpuMeanPct": 94.0,
+     "accountCpuMaxPct": 98.9,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 892,
+       "p50Ms": 1444.6,
+       "p95Ms": 3720.2,
+       "status": {
+        "200": 892
+       }
+      }
+     }
+    },
+    {
+     "window": "30/s",
+     "targetRps": 27.75,
+     "sentRps": 21.67,
+     "goodputRps": 15.22,
+     "p95Ms": 10001.5,
+     "unexpected": 290,
+     "dropped": 139,
+     "flags": [
+      "error>=1%",
+      "p95>3x",
+      "dropped",
+      "achieved<95%"
+     ],
+     "accountCpuMeanPct": 98.0,
+     "accountCpuMaxPct": 98.3,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 975,
+       "p50Ms": 8678.5,
+       "p95Ms": 10001.5,
+       "status": {
+        "200": 685,
+        "0": 290
+       }
+      }
+     }
+    },
+    {
+     "window": "40/s",
+     "targetRps": 36.25,
+     "sentRps": 32.93,
+     "goodputRps": 0.0,
+     "p95Ms": 10003.5,
+     "unexpected": 1482,
+     "dropped": 78,
+     "flags": [
+      "error>=1%",
+      "p95>3x",
+      "dropped",
+      "achieved<95%"
+     ],
+     "accountCpuMeanPct": 97.0,
+     "accountCpuMaxPct": 98.6,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 1482,
+       "p50Ms": 10000.4,
+       "p95Ms": 10003.5,
+       "status": {
+        "0": 1482
+       }
+      }
+     }
+    }
+   ],
+   "k6Counters": {
+    "account_unexpected_5xx": 2520,
+    "account_refresh_replay_accepted": 0,
+    "account_dup_group_bad": 0,
+    "account_refresh_race_bad": 0
+   }
+  },
+  {
+   "label": "a2-reg-c1",
+   "scenario": "register",
+   "startedAt": "2026-11-04T08:54:06.249636+00:00",
+   "finishedAt": "2026-11-04T09:00:14.097892+00:00",
+   "k6ExitCode": 0,
+   "k6Env": {
+    "BASE_URL": "http://gateway-server:7070",
+    "SCENARIO": "register",
+    "RUN_NO": "1",
+    "MAX_VUS": "600",
+    "STAGES": "2:1m,4:1m,6:1m,8:1m,10:1m,14:1m"
+   },
+   "workloadSha256": "4d09c705ffccdc0da7ea2286d199bc3c8f279018c2f7c0f019ffc541042d1ced",
+   "kneeWindow": "8/s",
+   "kneeAchievedRps": 7.31,
+   "windows": [
+    {
+     "window": "2/s",
+     "targetRps": 1.62,
+     "sentRps": 1.67,
+     "goodputRps": 1.67,
+     "p95Ms": 141.3,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 28.2,
+     "accountCpuMaxPct": 32.2,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/register|-": {
+       "count": 75,
+       "p50Ms": 95.7,
+       "p95Ms": 141.3,
+       "status": {
+        "201": 75
+       }
+      }
+     }
+    },
+    {
+     "window": "4/s",
+     "targetRps": 3.25,
+     "sentRps": 3.31,
+     "goodputRps": 3.31,
+     "p95Ms": 141.0,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 32.6,
+     "accountCpuMaxPct": 35.9,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/register|-": {
+       "count": 149,
+       "p50Ms": 91.7,
+       "p95Ms": 141.0,
+       "status": {
+        "201": 149
+       }
+      }
+     }
+    },
+    {
+     "window": "6/s",
+     "targetRps": 5.25,
+     "sentRps": 5.31,
+     "goodputRps": 5.31,
+     "p95Ms": 147.9,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 49.9,
+     "accountCpuMaxPct": 57.9,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/register|-": {
+       "count": 239,
+       "p50Ms": 91.5,
+       "p95Ms": 147.9,
+       "status": {
+        "201": 239
+       }
+      }
+     }
+    },
+    {
+     "window": "8/s",
+     "targetRps": 7.25,
+     "sentRps": 7.31,
+     "goodputRps": 7.31,
+     "p95Ms": 172.4,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 62.9,
+     "accountCpuMaxPct": 69.5,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/register|-": {
+       "count": 329,
+       "p50Ms": 90.6,
+       "p95Ms": 172.4,
+       "status": {
+        "201": 329
+       }
+      }
+     }
+    },
+    {
+     "window": "10/s",
+     "targetRps": 9.25,
+     "sentRps": 9.31,
+     "goodputRps": 9.31,
+     "p95Ms": 642.6,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [
+      "p95>3x"
+     ],
+     "accountCpuMeanPct": 82.5,
+     "accountCpuMaxPct": 92.2,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/register|-": {
+       "count": 419,
+       "p50Ms": 100.3,
+       "p95Ms": 642.6,
+       "status": {
+        "201": 419
+       }
+      }
+     }
+    },
+    {
+     "window": "14/s",
+     "targetRps": 12.5,
+     "sentRps": 11.09,
+     "goodputRps": 11.09,
+     "p95Ms": 4452.4,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [
+      "p95>3x",
+      "achieved<95%"
+     ],
+     "accountCpuMeanPct": 97.8,
+     "accountCpuMaxPct": 99.4,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/register|-": {
+       "count": 499,
+       "p50Ms": 1317.9,
+       "p95Ms": 4452.4,
+       "status": {
+        "201": 499
+       }
+      }
+     }
+    }
+   ],
+   "check": {
+    "drainWaitSeconds": 0.5,
+    "k6Created": 2249,
+    "summary": {
+     "accounts": 2249,
+     "outboxEvents": 2249,
+     "outboxStatus": {
+      "PUBLISHED": 2249
+     },
+     "accountsWithoutEvent": 0,
+     "accountsWithMultipleEvents": 0,
+     "kafkaRecords": 2249,
+     "kafkaUniqueEvents": 2249,
+     "kafkaDuplicateRecords": 0,
+     "publishedMissingInKafka": 0,
+     "kafkaUnknownEvents": 0
+    },
+    "verdict": {
+     "result": "PASS",
+     "failures": [],
+     "duplicatePublications": 0
+    }
+   },
+   "k6Counters": {
+    "account_refresh_replay_accepted": 0,
+    "account_register_created": 2249,
+    "account_dup_group_bad": 0,
+    "account_refresh_race_bad": 0,
+    "account_unexpected_5xx": 0
+   }
+  },
+  {
+   "label": "a6-reg-r2",
+   "scenario": "register",
+   "startedAt": "2026-11-04T09:02:58.883288+00:00",
+   "finishedAt": "2026-11-04T09:09:00.650703+00:00",
+   "k6ExitCode": 0,
+   "k6Env": {
+    "BASE_URL": "http://gateway-server:7070",
+    "SCENARIO": "register",
+    "RUN_NO": "2",
+    "MAX_VUS": "600",
+    "STAGES": "4:1m,8:1m,12:1m,16:1m,16:2m"
+   },
+   "workloadSha256": "4d09c705ffccdc0da7ea2286d199bc3c8f279018c2f7c0f019ffc541042d1ced",
+   "kneeWindow": "16/s",
+   "kneeAchievedRps": 15.81,
+   "windows": [
+    {
+     "window": "4/s",
+     "targetRps": 2.88,
+     "sentRps": 2.96,
+     "goodputRps": 2.96,
+     "p95Ms": 142.6,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 20.8,
+     "accountCpuMaxPct": 29.9,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/register|-": {
+       "count": 133,
+       "p50Ms": 98.6,
+       "p95Ms": 142.6,
+       "status": {
+        "201": 133
+       }
+      }
+     }
+    },
+    {
+     "window": "8/s",
+     "targetRps": 6.5,
+     "sentRps": 6.58,
+     "goodputRps": 6.58,
+     "p95Ms": 144.8,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 32.8,
+     "accountCpuMaxPct": 38.2,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/register|-": {
+       "count": 296,
+       "p50Ms": 96.5,
+       "p95Ms": 144.8,
+       "status": {
+        "201": 296
+       }
+      }
+     }
+    },
+    {
+     "window": "12/s",
+     "targetRps": 10.5,
+     "sentRps": 10.6,
+     "goodputRps": 10.6,
+     "p95Ms": 204.7,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 47.6,
+     "accountCpuMaxPct": 62.1,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/register|-": {
+       "count": 477,
+       "p50Ms": 96.6,
+       "p95Ms": 204.7,
+       "status": {
+        "201": 477
+       }
+      }
+     }
+    },
+    {
+     "window": "16/s",
+     "targetRps": 14.5,
+     "sentRps": 14.6,
+     "goodputRps": 14.6,
+     "p95Ms": 294.0,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 66.0,
+     "accountCpuMaxPct": 81.2,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/register|-": {
+       "count": 657,
+       "p50Ms": 102.6,
+       "p95Ms": 294.0,
+       "status": {
+        "201": 657
+       }
+      }
+     }
+    },
+    {
+     "window": "16/s",
+     "targetRps": 16.0,
+     "sentRps": 15.81,
+     "goodputRps": 15.81,
+     "p95Ms": 281.0,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 75.4,
+     "accountCpuMaxPct": 84.3,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/register|-": {
+       "count": 1660,
+       "p50Ms": 99.4,
+       "p95Ms": 281.0,
+       "status": {
+        "201": 1660
+       }
+      }
+     }
+    }
+   ],
+   "check": {
+    "drainWaitSeconds": 0.6,
+    "k6Created": 3869,
+    "summary": {
+     "accounts": 3869,
+     "outboxEvents": 3869,
+     "outboxStatus": {
+      "PUBLISHED": 3869
+     },
+     "accountsWithoutEvent": 0,
+     "accountsWithMultipleEvents": 0,
+     "kafkaRecords": 6369,
+     "kafkaUniqueEvents": 3869,
+     "kafkaDuplicateRecords": 2500,
+     "publishedMissingInKafka": 0,
+     "kafkaUnknownEvents": 0
+    },
+    "verdict": {
+     "result": "PASS",
+     "failures": [],
+     "duplicatePublications": 2500
+    }
+   },
+   "k6Counters": {
+    "account_dup_group_bad": 0,
+    "account_register_created": 3869,
+    "account_refresh_race_bad": 0,
+    "account_unexpected_5xx": 0,
+    "account_refresh_replay_accepted": 0
+   }
+  },
+  {
+   "label": "a5-dup-email",
+   "scenario": "register-dup",
+   "startedAt": "2026-11-04T09:10:19.890472+00:00",
+   "finishedAt": "2026-11-04T09:11:51.466852+00:00",
+   "k6ExitCode": 0,
+   "k6Env": {
+    "BASE_URL": "http://gateway-server:7070",
+    "SCENARIO": "register-dup",
+    "RUN_NO": "3",
+    "MAX_VUS": "300",
+    "RATE": "2",
+    "DURATION": "90s",
+    "DUP_SIZE": "5",
+    "DUP_MODE": "email"
+   },
+   "workloadSha256": "4d09c705ffccdc0da7ea2286d199bc3c8f279018c2f7c0f019ffc541042d1ced",
+   "kneeWindow": "60-90s",
+   "kneeAchievedRps": 9.97,
+   "windows": [
+    {
+     "window": "0-30s",
+     "targetRps": 2,
+     "sentRps": 10.03,
+     "goodputRps": 10.03,
+     "p95Ms": 309.2,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 33.1,
+     "accountCpuMaxPct": 54.2,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/register|dup-email": {
+       "count": 301,
+       "p50Ms": 202.6,
+       "p95Ms": 309.2,
+       "status": {
+        "201": 61,
+        "409": 240
+       }
+      }
+     }
+    },
+    {
+     "window": "30-60s",
+     "targetRps": 2,
+     "sentRps": 10.03,
+     "goodputRps": 10.03,
+     "p95Ms": 261.2,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 50.8,
+     "accountCpuMaxPct": 54.2,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/register|dup-email": {
+       "count": 301,
+       "p50Ms": 183.0,
+       "p95Ms": 261.2,
+       "status": {
+        "409": 241,
+        "201": 60
+       }
+      }
+     }
+    },
+    {
+     "window": "60-90s",
+     "targetRps": 2,
+     "sentRps": 9.97,
+     "goodputRps": 9.97,
+     "p95Ms": 260.8,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 49.8,
+     "accountCpuMaxPct": 51.3,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/register|dup-email": {
+       "count": 299,
+       "p50Ms": 181.3,
+       "p95Ms": 260.8,
+       "status": {
+        "409": 239,
+        "201": 60
+       }
+      }
+     }
+    },
+    {
+     "window": "90-91s",
+     "targetRps": 2,
+     "sentRps": 4.0,
+     "goodputRps": 4.0,
+     "p95Ms": 232.7,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [
+      "achieved<95%"
+     ],
+     "accountCpuMeanPct": null,
+     "accountCpuMaxPct": null,
+     "accountPoolPendingMax": null,
+     "byRequest": {
+      "POST /account/auth/register|dup-email": {
+       "count": 4,
+       "p50Ms": 216.2,
+       "p95Ms": 232.7,
+       "status": {
+        "409": 4
+       }
+      }
+     }
+    }
+   ],
+   "check": {
+    "drainWaitSeconds": 0.5,
+    "k6Created": 181,
+    "summary": {
+     "accounts": 181,
+     "outboxEvents": 181,
+     "outboxStatus": {
+      "PUBLISHED": 181
+     },
+     "accountsWithoutEvent": 0,
+     "accountsWithMultipleEvents": 0,
+     "kafkaRecords": 231,
+     "kafkaUniqueEvents": 181,
+     "kafkaDuplicateRecords": 50,
+     "publishedMissingInKafka": 0,
+     "kafkaUnknownEvents": 0,
+     "dupGroupBad": 0
+    },
+    "verdict": {
+     "result": "PASS",
+     "failures": [],
+     "duplicatePublications": 50
+    }
+   },
+   "k6Counters": {
+    "account_dup_group_ok": 181,
+    "account_refresh_race_bad": 0,
+    "account_dup_group_bad": 0,
+    "account_refresh_replay_accepted": 0,
+    "account_unexpected_5xx": 0
+   }
+  },
+  {
+   "label": "a5-dup-bid",
+   "scenario": "register-dup",
+   "startedAt": "2026-11-04T09:12:25.936783+00:00",
+   "finishedAt": "2026-11-04T09:13:57.842745+00:00",
+   "k6ExitCode": 0,
+   "k6Env": {
+    "BASE_URL": "http://gateway-server:7070",
+    "SCENARIO": "register-dup",
+    "RUN_NO": "4",
+    "MAX_VUS": "300",
+    "RATE": "2",
+    "DURATION": "90s",
+    "DUP_SIZE": "5",
+    "DUP_MODE": "bid"
+   },
+   "workloadSha256": "4d09c705ffccdc0da7ea2286d199bc3c8f279018c2f7c0f019ffc541042d1ced",
+   "kneeWindow": "60-90s",
+   "kneeAchievedRps": 9.97,
+   "windows": [
+    {
+     "window": "0-30s",
+     "targetRps": 2,
+     "sentRps": 10.1,
+     "goodputRps": 10.1,
+     "p95Ms": 248.1,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 29.9,
+     "accountCpuMaxPct": 59.7,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/register|dup-bid": {
+       "count": 303,
+       "p50Ms": 176.4,
+       "p95Ms": 248.1,
+       "status": {
+        "201": 61,
+        "409": 242
+       }
+      }
+     }
+    },
+    {
+     "window": "30-60s",
+     "targetRps": 2,
+     "sentRps": 10.0,
+     "goodputRps": 10.0,
+     "p95Ms": 234.4,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 51.9,
+     "accountCpuMaxPct": 59.7,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/register|dup-bid": {
+       "count": 300,
+       "p50Ms": 180.0,
+       "p95Ms": 234.4,
+       "status": {
+        "409": 240,
+        "201": 60
+       }
+      }
+     }
+    },
+    {
+     "window": "60-90s",
+     "targetRps": 2,
+     "sentRps": 9.97,
+     "goodputRps": 9.97,
+     "p95Ms": 273.7,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 51.7,
+     "accountCpuMaxPct": 53.0,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/register|dup-bid": {
+       "count": 299,
+       "p50Ms": 179.0,
+       "p95Ms": 273.7,
+       "status": {
+        "409": 239,
+        "201": 60
+       }
+      }
+     }
+    },
+    {
+     "window": "90-91s",
+     "targetRps": 2,
+     "sentRps": 3.0,
+     "goodputRps": 3.0,
+     "p95Ms": 212.1,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [
+      "achieved<95%"
+     ],
+     "accountCpuMeanPct": null,
+     "accountCpuMaxPct": null,
+     "accountPoolPendingMax": null,
+     "byRequest": {
+      "POST /account/auth/register|dup-bid": {
+       "count": 3,
+       "p50Ms": 197.9,
+       "p95Ms": 212.1,
+       "status": {
+        "409": 3
+       }
+      }
+     }
+    }
+   ],
+   "check": {
+    "drainWaitSeconds": 0.6,
+    "k6Created": 181,
+    "summary": {
+     "accounts": 181,
+     "outboxEvents": 181,
+     "outboxStatus": {
+      "PUBLISHED": 181
+     },
+     "accountsWithoutEvent": 0,
+     "accountsWithMultipleEvents": 0,
+     "kafkaRecords": 314,
+     "kafkaUniqueEvents": 181,
+     "kafkaDuplicateRecords": 133,
+     "publishedMissingInKafka": 0,
+     "kafkaUnknownEvents": 0,
+     "dupGroupBad": 0
+    },
+    "verdict": {
+     "result": "PASS",
+     "failures": [],
+     "duplicatePublications": 133
+    }
+   },
+   "k6Counters": {
+    "account_unexpected_5xx": 0,
+    "account_refresh_race_bad": 0,
+    "account_dup_group_ok": 181,
+    "account_refresh_replay_accepted": 0,
+    "account_dup_group_bad": 0
+   }
+  },
+  {
+   "label": "a4-wrongpw",
+   "scenario": "login-attack",
+   "startedAt": "2026-11-04T09:14:42.663991+00:00",
+   "finishedAt": "2026-11-04T09:18:44.494698+00:00",
+   "k6ExitCode": 99,
+   "k6Env": {
+    "BASE_URL": "http://gateway-server:7070",
+    "SCENARIO": "login-attack",
+    "RUN_NO": "0",
+    "MAX_VUS": "800",
+    "STAGES": "10:1m,20:1m,30:1m",
+    "DURATION": "4m",
+    "NORMAL_RATE": "4",
+    "ATTACK_KIND": "wrongpw",
+    "ATTACK_DELAY": "30s"
+   },
+   "workloadSha256": "4d09c705ffccdc0da7ea2286d199bc3c8f279018c2f7c0f019ffc541042d1ced",
+   "kneeWindow": "120-150s",
+   "kneeAchievedRps": 21.23,
+   "windows": [
+    {
+     "window": "0-30s",
+     "targetRps": null,
+     "sentRps": 4.03,
+     "goodputRps": 4.03,
+     "p95Ms": 142.2,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 16.7,
+     "accountCpuMaxPct": 30.2,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|normal": {
+       "count": 121,
+       "p50Ms": 101.5,
+       "p95Ms": 142.2,
+       "status": {
+        "200": 121
+       }
+      }
+     }
+    },
+    {
+     "window": "30-60s",
+     "targetRps": null,
+     "sentRps": 7.23,
+     "goodputRps": 7.23,
+     "p95Ms": 160.5,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 30.2,
+     "accountCpuMaxPct": 34.9,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|attack-wrongpw": {
+       "count": 97,
+       "p50Ms": 88.9,
+       "p95Ms": 152.6,
+       "status": {
+        "401": 97
+       }
+      },
+      "POST /account/auth/login|normal": {
+       "count": 120,
+       "p50Ms": 103.6,
+       "p95Ms": 166.8,
+       "status": {
+        "200": 120
+       }
+      }
+     }
+    },
+    {
+     "window": "60-90s",
+     "targetRps": null,
+     "sentRps": 11.73,
+     "goodputRps": 11.73,
+     "p95Ms": 135.2,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 47.4,
+     "accountCpuMaxPct": 53.7,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|attack-wrongpw": {
+       "count": 233,
+       "p50Ms": 87.3,
+       "p95Ms": 125.4,
+       "status": {
+        "401": 233
+       }
+      },
+      "POST /account/auth/login|normal": {
+       "count": 119,
+       "p50Ms": 103.9,
+       "p95Ms": 143.5,
+       "status": {
+        "200": 119
+       }
+      }
+     }
+    },
+    {
+     "window": "90-120s",
+     "targetRps": null,
+     "sentRps": 16.5,
+     "goodputRps": 16.5,
+     "p95Ms": 252.8,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 65.6,
+     "accountCpuMaxPct": 77.3,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|attack-wrongpw": {
+       "count": 374,
+       "p50Ms": 96.6,
+       "p95Ms": 238.5,
+       "status": {
+        "401": 374
+       }
+      },
+      "POST /account/auth/login|normal": {
+       "count": 121,
+       "p50Ms": 112.5,
+       "p95Ms": 335.7,
+       "status": {
+        "200": 121
+       }
+      }
+     }
+    },
+    {
+     "window": "120-150s",
+     "targetRps": null,
+     "sentRps": 21.23,
+     "goodputRps": 21.23,
+     "p95Ms": 371.1,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 83.5,
+     "accountCpuMaxPct": 92.8,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|attack-wrongpw": {
+       "count": 518,
+       "p50Ms": 124.4,
+       "p95Ms": 358.5,
+       "status": {
+        "401": 518
+       }
+      },
+      "POST /account/auth/login|normal": {
+       "count": 119,
+       "p50Ms": 147.4,
+       "p95Ms": 407.0,
+       "status": {
+        "200": 119
+       }
+      }
+     }
+    },
+    {
+     "window": "150-180s",
+     "targetRps": null,
+     "sentRps": 21.87,
+     "goodputRps": 21.87,
+     "p95Ms": 5774.8,
+     "unexpected": 0,
+     "dropped": 16,
+     "flags": [
+      "p95>3x",
+      "dropped"
+     ],
+     "accountCpuMeanPct": 97.1,
+     "accountCpuMaxPct": 99.4,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|attack-wrongpw": {
+       "count": 554,
+       "p50Ms": 2085.8,
+       "p95Ms": 5774.8,
+       "status": {
+        "401": 554
+       }
+      },
+      "POST /account/auth/login|normal": {
+       "count": 102,
+       "p50Ms": 2131.0,
+       "p95Ms": 5603.3,
+       "status": {
+        "200": 102
+       }
+      }
+     }
+    },
+    {
+     "window": "180-210s",
+     "targetRps": null,
+     "sentRps": 23.47,
+     "goodputRps": 20.43,
+     "p95Ms": 10001.0,
+     "unexpected": 91,
+     "dropped": 112,
+     "flags": [
+      "error>=1%",
+      "p95>3x",
+      "dropped"
+     ],
+     "accountCpuMeanPct": 98.0,
+     "accountCpuMaxPct": 98.5,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|attack-wrongpw": {
+       "count": 600,
+       "p50Ms": 7297.1,
+       "p95Ms": 10001.0,
+       "status": {
+        "401": 522,
+        "0": 78
+       }
+      },
+      "POST /account/auth/login|normal": {
+       "count": 104,
+       "p50Ms": 7068.1,
+       "p95Ms": 10000.9,
+       "status": {
+        "200": 91,
+        "0": 13
+       }
+      }
+     }
+    },
+    {
+     "window": "210-240s",
+     "targetRps": null,
+     "sentRps": 12.63,
+     "goodputRps": 7.17,
+     "p95Ms": 10002.1,
+     "unexpected": 164,
+     "dropped": 0,
+     "flags": [
+      "error>=1%",
+      "p95>3x"
+     ],
+     "accountCpuMeanPct": 89.9,
+     "accountCpuMaxPct": 97.9,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|attack-wrongpw": {
+       "count": 225,
+       "p50Ms": 10000.2,
+       "p95Ms": 10003.6,
+       "status": {
+        "401": 95,
+        "0": 130
+       }
+      },
+      "POST /account/auth/login|normal": {
+       "count": 154,
+       "p50Ms": 3521.3,
+       "p95Ms": 10001.2,
+       "status": {
+        "0": 34,
+        "200": 120
+       }
+      }
+     }
+    }
+   ],
+   "k6Counters": {
+    "account_refresh_replay_accepted": 0,
+    "account_dup_group_bad": 0,
+    "account_refresh_race_bad": 0,
+    "account_unexpected_5xx": 255
+   }
+  },
+  {
+   "label": "a4-unknown",
+   "scenario": "login-attack",
+   "startedAt": "2026-11-04T09:18:52.294587+00:00",
+   "finishedAt": "2026-11-04T09:22:54.360614+00:00",
+   "k6ExitCode": 0,
+   "k6Env": {
+    "BASE_URL": "http://gateway-server:7070",
+    "SCENARIO": "login-attack",
+    "RUN_NO": "0",
+    "MAX_VUS": "800",
+    "STAGES": "10:1m,20:1m,30:1m",
+    "DURATION": "4m",
+    "NORMAL_RATE": "4",
+    "ATTACK_KIND": "unknown",
+    "ATTACK_DELAY": "30s"
+   },
+   "workloadSha256": "4d09c705ffccdc0da7ea2286d199bc3c8f279018c2f7c0f019ffc541042d1ced",
+   "kneeWindow": "240-241s",
+   "kneeAchievedRps": 1.0,
+   "windows": [
+    {
+     "window": "0-30s",
+     "targetRps": null,
+     "sentRps": 4.0,
+     "goodputRps": 4.0,
+     "p95Ms": 133.9,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 19.2,
+     "accountCpuMaxPct": 28.7,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|normal": {
+       "count": 120,
+       "p50Ms": 98.8,
+       "p95Ms": 133.9,
+       "status": {
+        "200": 120
+       }
+      }
+     }
+    },
+    {
+     "window": "30-60s",
+     "targetRps": null,
+     "sentRps": 7.23,
+     "goodputRps": 7.23,
+     "p95Ms": 131.2,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 25.5,
+     "accountCpuMaxPct": 28.7,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|attack-unknown": {
+       "count": 97,
+       "p50Ms": 6.0,
+       "p95Ms": 11.9,
+       "status": {
+        "401": 97
+       }
+      },
+      "POST /account/auth/login|normal": {
+       "count": 120,
+       "p50Ms": 102.5,
+       "p95Ms": 148.1,
+       "status": {
+        "200": 120
+       }
+      }
+     }
+    },
+    {
+     "window": "60-90s",
+     "targetRps": null,
+     "sentRps": 11.77,
+     "goodputRps": 11.77,
+     "p95Ms": 112.7,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 21.9,
+     "accountCpuMaxPct": 28.2,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|attack-unknown": {
+       "count": 233,
+       "p50Ms": 5.5,
+       "p95Ms": 15.0,
+       "status": {
+        "401": 233
+       }
+      },
+      "POST /account/auth/login|normal": {
+       "count": 120,
+       "p50Ms": 99.0,
+       "p95Ms": 131.4,
+       "status": {
+        "200": 120
+       }
+      }
+     }
+    },
+    {
+     "window": "90-120s",
+     "targetRps": null,
+     "sentRps": 16.53,
+     "goodputRps": 16.53,
+     "p95Ms": 117.4,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 22.0,
+     "accountCpuMaxPct": 26.7,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|attack-unknown": {
+       "count": 376,
+       "p50Ms": 5.7,
+       "p95Ms": 13.9,
+       "status": {
+        "401": 376
+       }
+      },
+      "POST /account/auth/login|normal": {
+       "count": 120,
+       "p50Ms": 102.6,
+       "p95Ms": 135.3,
+       "status": {
+        "200": 120
+       }
+      }
+     }
+    },
+    {
+     "window": "120-150s",
+     "targetRps": null,
+     "sentRps": 21.5,
+     "goodputRps": 21.5,
+     "p95Ms": 110.4,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 23.2,
+     "accountCpuMaxPct": 29.3,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|attack-unknown": {
+       "count": 525,
+       "p50Ms": 5.5,
+       "p95Ms": 15.1,
+       "status": {
+        "401": 525
+       }
+      },
+      "POST /account/auth/login|normal": {
+       "count": 120,
+       "p50Ms": 99.5,
+       "p95Ms": 149.8,
+       "status": {
+        "200": 120
+       }
+      }
+     }
+    },
+    {
+     "window": "150-180s",
+     "targetRps": null,
+     "sentRps": 26.53,
+     "goodputRps": 26.53,
+     "p95Ms": 101.7,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 23.9,
+     "accountCpuMaxPct": 29.3,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|attack-unknown": {
+       "count": 675,
+       "p50Ms": 5.0,
+       "p95Ms": 10.8,
+       "status": {
+        "401": 675
+       }
+      },
+      "POST /account/auth/login|normal": {
+       "count": 121,
+       "p50Ms": 97.4,
+       "p95Ms": 131.6,
+       "status": {
+        "200": 121
+       }
+      }
+     }
+    },
+    {
+     "window": "180-210s",
+     "targetRps": null,
+     "sentRps": 31.4,
+     "goodputRps": 31.4,
+     "p95Ms": 97.7,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 21.1,
+     "accountCpuMaxPct": 23.9,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|attack-unknown": {
+       "count": 823,
+       "p50Ms": 4.9,
+       "p95Ms": 9.8,
+       "status": {
+        "401": 823
+       }
+      },
+      "POST /account/auth/login|normal": {
+       "count": 119,
+       "p50Ms": 94.5,
+       "p95Ms": 118.5,
+       "status": {
+        "200": 119
+       }
+      }
+     }
+    },
+    {
+     "window": "210-240s",
+     "targetRps": null,
+     "sentRps": 4.0,
+     "goodputRps": 4.0,
+     "p95Ms": 121.0,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 23.2,
+     "accountCpuMaxPct": 26.1,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|normal": {
+       "count": 120,
+       "p50Ms": 94.9,
+       "p95Ms": 121.0,
+       "status": {
+        "200": 120
+       }
+      }
+     }
+    },
+    {
+     "window": "240-241s",
+     "targetRps": null,
+     "sentRps": 1.0,
+     "goodputRps": 1.0,
+     "p95Ms": 111.0,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": null,
+     "accountCpuMaxPct": null,
+     "accountPoolPendingMax": null,
+     "byRequest": {
+      "POST /account/auth/login|normal": {
+       "count": 1,
+       "p50Ms": 111.0,
+       "p95Ms": 111.0,
+       "status": {
+        "200": 1
+       }
+      }
+     }
+    }
+   ],
+   "k6Counters": {
+    "account_dup_group_bad": 0,
+    "account_refresh_replay_accepted": 0,
+    "account_unexpected_5xx": 0,
+    "account_refresh_race_bad": 0
+   }
+  },
+  {
+   "label": "a8-reg-kafka-down",
+   "scenario": "register",
+   "startedAt": "2026-11-04T09:24:11.158670+00:00",
+   "finishedAt": "2026-11-04T09:25:42.855576+00:00",
+   "k6ExitCode": 0,
+   "k6Env": {
+    "BASE_URL": "http://gateway-server:7070",
+    "SCENARIO": "register",
+    "RUN_NO": "5",
+    "MAX_VUS": "300",
+    "RATE": "4",
+    "DURATION": "90s"
+   },
+   "workloadSha256": "4d09c705ffccdc0da7ea2286d199bc3c8f279018c2f7c0f019ffc541042d1ced",
+   "kneeWindow": "60-90s",
+   "kneeAchievedRps": 4.03,
+   "windows": [
+    {
+     "window": "0-30s",
+     "targetRps": 4,
+     "sentRps": 4.03,
+     "goodputRps": 4.03,
+     "p95Ms": 98.9,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 24.2,
+     "accountCpuMaxPct": 34.4,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/register|-": {
+       "count": 121,
+       "p50Ms": 82.2,
+       "p95Ms": 98.9,
+       "status": {
+        "201": 121
+       }
+      }
+     }
+    },
+    {
+     "window": "30-60s",
+     "targetRps": 4,
+     "sentRps": 3.97,
+     "goodputRps": 3.97,
+     "p95Ms": 99.8,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 32.1,
+     "accountCpuMaxPct": 32.2,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/register|-": {
+       "count": 119,
+       "p50Ms": 83.9,
+       "p95Ms": 99.8,
+       "status": {
+        "201": 119
+       }
+      }
+     }
+    },
+    {
+     "window": "60-90s",
+     "targetRps": 4,
+     "sentRps": 4.03,
+     "goodputRps": 4.03,
+     "p95Ms": 107.9,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 33.8,
+     "accountCpuMaxPct": 34.9,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/register|-": {
+       "count": 121,
+       "p50Ms": 83.9,
+       "p95Ms": 107.9,
+       "status": {
+        "201": 121
+       }
+      }
+     }
+    }
+   ],
+   "check": {
+    "drainWaitSeconds": 17.2,
+    "k6Created": 361,
+    "summary": {
+     "accounts": 361,
+     "outboxEvents": 361,
+     "outboxStatus": {
+      "PUBLISHED": 361
+     },
+     "accountsWithoutEvent": 0,
+     "accountsWithMultipleEvents": 0,
+     "kafkaRecords": 361,
+     "kafkaUniqueEvents": 361,
+     "kafkaDuplicateRecords": 0,
+     "publishedMissingInKafka": 0,
+     "kafkaUnknownEvents": 0
+    },
+    "verdict": {
+     "result": "PASS",
+     "failures": [],
+     "duplicatePublications": 0
+    }
+   },
+   "k6Counters": {
+    "account_register_created": 361,
+    "account_unexpected_5xx": 0,
+    "account_refresh_replay_accepted": 0,
+    "account_dup_group_bad": 0,
+    "account_refresh_race_bad": 0
+   }
+  },
+  {
+   "label": "a3-session",
+   "scenario": "session",
+   "startedAt": "2026-11-04T09:26:44.481940+00:00",
+   "finishedAt": "2026-11-04T09:31:46.717153+00:00",
+   "k6ExitCode": 99,
+   "k6Env": {
+    "BASE_URL": "http://gateway-server:7070",
+    "SCENARIO": "session",
+    "RUN_NO": "0",
+    "MAX_VUS": "400",
+    "STAGES": "300:90s,300:3m",
+    "REFRESH_EVERY": "20",
+    "THINK": "2.0",
+    "REPLAY_PCT": "5",
+    "RACE_PCT": "5"
+   },
+   "workloadSha256": "4d09c705ffccdc0da7ea2286d199bc3c8f279018c2f7c0f019ffc541042d1ced",
+   "kneeWindow": null,
+   "kneeAchievedRps": null,
+   "windows": [
+    {
+     "window": "0-60s",
+     "targetRps": null,
+     "sentRps": 76.6,
+     "goodputRps": 25.9,
+     "p95Ms": 20.9,
+     "unexpected": 3042,
+     "dropped": 0,
+     "flags": [
+      "error>=1%"
+     ],
+     "accountCpuMeanPct": 35.8,
+     "accountCpuMaxPct": 50.8,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "GET /account/auth/me|-": {
+       "count": 2081,
+       "p50Ms": 5.0,
+       "p95Ms": 16.2,
+       "status": {
+        "200": 1354,
+        "0": 727
+       }
+      },
+      "POST /account/auth/login|session-start": {
+       "count": 2312,
+       "p50Ms": 0.0,
+       "p95Ms": 89.7,
+       "status": {
+        "200": 131,
+        "0": 2181
+       }
+      },
+      "POST /account/auth/refresh|race": {
+       "count": 8,
+       "p50Ms": 0.0,
+       "p95Ms": 34.0,
+       "status": {
+        "401": 1,
+        "200": 1,
+        "0": 6
+       }
+      },
+      "POST /account/auth/refresh|replay": {
+       "count": 4,
+       "p50Ms": 5.5,
+       "p95Ms": 6.2,
+       "status": {
+        "401": 4
+       }
+      },
+      "POST /account/auth/refresh|rotate": {
+       "count": 191,
+       "p50Ms": 0.0,
+       "p95Ms": 49.2,
+       "status": {
+        "200": 63,
+        "0": 128
+       }
+      }
+     }
+    },
+    {
+     "window": "60-120s",
+     "targetRps": null,
+     "sentRps": 21.2,
+     "goodputRps": 4.5,
+     "p95Ms": 28811.6,
+     "unexpected": 1002,
+     "dropped": 0,
+     "flags": [
+      "error>=1%"
+     ],
+     "accountCpuMeanPct": 75.3,
+     "accountCpuMaxPct": 98.9,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "GET /account/auth/me|-": {
+       "count": 180,
+       "p50Ms": 19278.5,
+       "p95Ms": 28923.7,
+       "status": {
+        "200": 180
+       }
+      },
+      "POST /account/auth/login|session-start": {
+       "count": 1089,
+       "p50Ms": 10000.2,
+       "p95Ms": 10001.8,
+       "status": {
+        "0": 999,
+        "200": 90
+       }
+      },
+      "POST /account/auth/refresh|rotate": {
+       "count": 3,
+       "p50Ms": 10000.6,
+       "p95Ms": 10000.9,
+       "status": {
+        "0": 3
+       }
+      }
+     }
+    },
+    {
+     "window": "120-180s",
+     "targetRps": null,
+     "sentRps": 114.58,
+     "goodputRps": 0.03,
+     "p95Ms": 10000.7,
+     "unexpected": 6873,
+     "dropped": 0,
+     "flags": [
+      "error>=1%"
+     ],
+     "accountCpuMeanPct": 90.3,
+     "accountCpuMaxPct": 99.6,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "GET /account/auth/me|-": {
+       "count": 9,
+       "p50Ms": 0.0,
+       "p95Ms": 0.0,
+       "status": {
+        "0": 9
+       }
+      },
+      "POST /account/auth/login|session-start": {
+       "count": 6775,
+       "p50Ms": 0.0,
+       "p95Ms": 10000.6,
+       "status": {
+        "0": 6775
+       }
+      },
+      "POST /account/auth/refresh|race": {
+       "count": 8,
+       "p50Ms": 46703.2,
+       "p95Ms": 47010.7,
+       "status": {
+        "401": 1,
+        "200": 1,
+        "0": 6
+       }
+      },
+      "POST /account/auth/refresh|rotate": {
+       "count": 83,
+       "p50Ms": 10000.7,
+       "p95Ms": 10020.6,
+       "status": {
+        "0": 83
+       }
+      }
+     }
+    },
+    {
+     "window": "180-240s",
+     "targetRps": null,
+     "sentRps": 38.2,
+     "goodputRps": 2.43,
+     "p95Ms": 10011.3,
+     "unexpected": 2146,
+     "dropped": 0,
+     "flags": [
+      "error>=1%"
+     ],
+     "accountCpuMeanPct": 66.9,
+     "accountCpuMaxPct": 97.8,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "GET /account/auth/me|-": {
+       "count": 74,
+       "p50Ms": 25317.9,
+       "p95Ms": 28016.7,
+       "status": {
+        "0": 1,
+        "200": 73
+       }
+      },
+      "POST /account/auth/login|session-start": {
+       "count": 2147,
+       "p50Ms": 9995.9,
+       "p95Ms": 10003.1,
+       "status": {
+        "0": 2074,
+        "200": 73
+       }
+      },
+      "POST /account/auth/refresh|rotate": {
+       "count": 71,
+       "p50Ms": 10000.8,
+       "p95Ms": 10002.1,
+       "status": {
+        "0": 71
+       }
+      }
+     }
+    },
+    {
+     "window": "240-280s",
+     "targetRps": null,
+     "sentRps": 24.18,
+     "goodputRps": 0.15,
+     "p95Ms": 10001.8,
+     "unexpected": 961,
+     "dropped": 0,
+     "flags": [
+      "error>=1%"
+     ],
+     "accountCpuMeanPct": 95.6,
+     "accountCpuMaxPct": 97.8,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|session-start": {
+       "count": 961,
+       "p50Ms": 10000.0,
+       "p95Ms": 10001.6,
+       "status": {
+        "0": 961
+       }
+      },
+      "POST /account/auth/refresh|race": {
+       "count": 6,
+       "p50Ms": 45985.8,
+       "p95Ms": 46203.9,
+       "status": {
+        "200": 3,
+        "401": 3
+       }
+      }
+     }
+    }
+   ],
+   "k6Counters": {
+    "account_dup_group_bad": 0,
+    "account_unexpected_5xx": 14024,
+    "account_refresh_replay_rejected": 4,
+    "account_session_lost": 13281,
+    "account_refresh_race_bad": 6,
+    "account_refresh_replay_accepted": 0,
+    "account_refresh_ok": 68,
+    "account_refresh_race_ok": 5
+   }
+  },
+  {
+   "label": "a3-session-v2",
+   "scenario": "session",
+   "startedAt": "2026-11-04T09:33:20.650380+00:00",
+   "finishedAt": "2026-11-04T09:37:24.609879+00:00",
+   "k6ExitCode": 99,
+   "k6Env": {
+    "BASE_URL": "http://gateway-server:7070",
+    "SCENARIO": "session",
+    "RUN_NO": "0",
+    "MAX_VUS": "300",
+    "STAGES": "120:60s,120:3m",
+    "REFRESH_EVERY": "15",
+    "THINK": "2.0",
+    "REPLAY_PCT": "10",
+    "RACE_PCT": "10"
+   },
+   "workloadSha256": "cbe86be7acabb6c3836d990849c03c5241440a8e8d41254ee6036aaab2bf7ed6",
+   "kneeWindow": null,
+   "kneeAchievedRps": null,
+   "windows": [
+    {
+     "window": "0-60s",
+     "targetRps": null,
+     "sentRps": 25.88,
+     "goodputRps": 15.02,
+     "p95Ms": 1744.2,
+     "unexpected": 652,
+     "dropped": 0,
+     "flags": [
+      "error>=1%"
+     ],
+     "accountCpuMeanPct": 35.7,
+     "accountCpuMaxPct": 97.8,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "GET /account/auth/me|-": {
+       "count": 993,
+       "p50Ms": 9.8,
+       "p95Ms": 1564.4,
+       "status": {
+        "200": 717,
+        "0": 276
+       }
+      },
+      "POST /account/auth/login|session-start": {
+       "count": 478,
+       "p50Ms": 0.0,
+       "p95Ms": 2057.3,
+       "status": {
+        "200": 160,
+        "0": 318
+       }
+      },
+      "POST /account/auth/refresh|race": {
+       "count": 18,
+       "p50Ms": 0.0,
+       "p95Ms": 82.4,
+       "status": {
+        "401": 4,
+        "200": 4,
+        "0": 10
+       }
+      },
+      "POST /account/auth/refresh|rotate": {
+       "count": 64,
+       "p50Ms": 0.0,
+       "p95Ms": 78.0,
+       "status": {
+        "200": 16,
+        "0": 48
+       }
+      }
+     }
+    },
+    {
+     "window": "60-120s",
+     "targetRps": null,
+     "sentRps": 67.42,
+     "goodputRps": 67.42,
+     "p95Ms": 280.8,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 39.1,
+     "accountCpuMaxPct": 72.8,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "GET /account/auth/me|-": {
+       "count": 3498,
+       "p50Ms": 12.2,
+       "p95Ms": 280.8,
+       "status": {
+        "200": 3498
+       }
+      },
+      "POST /account/auth/login|session-start": {
+       "count": 13,
+       "p50Ms": 227.8,
+       "p95Ms": 586.8,
+       "status": {
+        "200": 13
+       }
+      },
+      "POST /account/auth/refresh|race": {
+       "count": 76,
+       "p50Ms": 29.2,
+       "p95Ms": 301.2,
+       "status": {
+        "401": 38,
+        "200": 38
+       }
+      },
+      "POST /account/auth/refresh|replay": {
+       "count": 45,
+       "p50Ms": 11.8,
+       "p95Ms": 72.6,
+       "status": {
+        "401": 45
+       }
+      },
+      "POST /account/auth/refresh|rotate": {
+       "count": 413,
+       "p50Ms": 36.4,
+       "p95Ms": 248.7,
+       "status": {
+        "200": 413
+       }
+      }
+     }
+    },
+    {
+     "window": "120-180s",
+     "targetRps": null,
+     "sentRps": 68.7,
+     "goodputRps": 68.7,
+     "p95Ms": 29.2,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 22.3,
+     "accountCpuMaxPct": 23.3,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "GET /account/auth/me|-": {
+       "count": 3583,
+       "p50Ms": 5.8,
+       "p95Ms": 17.5,
+       "status": {
+        "200": 3583
+       }
+      },
+      "POST /account/auth/refresh|race": {
+       "count": 94,
+       "p50Ms": 20.5,
+       "p95Ms": 61.1,
+       "status": {
+        "401": 47,
+        "200": 47
+       }
+      },
+      "POST /account/auth/refresh|replay": {
+       "count": 59,
+       "p50Ms": 6.8,
+       "p95Ms": 21.0,
+       "status": {
+        "401": 59
+       }
+      },
+      "POST /account/auth/refresh|rotate": {
+       "count": 386,
+       "p50Ms": 23.9,
+       "p95Ms": 49.8,
+       "status": {
+        "200": 386
+       }
+      }
+     }
+    },
+    {
+     "window": "180-236s",
+     "targetRps": null,
+     "sentRps": 68.39,
+     "goodputRps": 68.39,
+     "p95Ms": 24.3,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 22.4,
+     "accountCpuMaxPct": 25.2,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "GET /account/auth/me|-": {
+       "count": 3314,
+       "p50Ms": 4.8,
+       "p95Ms": 14.4,
+       "status": {
+        "200": 3314
+       }
+      },
+      "POST /account/auth/refresh|race": {
+       "count": 78,
+       "p50Ms": 16.8,
+       "p95Ms": 43.3,
+       "status": {
+        "401": 39,
+        "200": 39
+       }
+      },
+      "POST /account/auth/refresh|replay": {
+       "count": 55,
+       "p50Ms": 5.4,
+       "p95Ms": 21.5,
+       "status": {
+        "401": 55
+       }
+      },
+      "POST /account/auth/refresh|rotate": {
+       "count": 383,
+       "p50Ms": 21.8,
+       "p95Ms": 50.0,
+       "status": {
+        "200": 383
+       }
+      }
+     }
+    }
+   ],
+   "k6Counters": {
+    "account_dup_group_bad": 0,
+    "account_refresh_replay_rejected": 159,
+    "account_unexpected_5xx": 652,
+    "account_refresh_ok": 1326,
+    "account_refresh_race_ok": 128,
+    "account_refresh_race_inconclusive": 5,
+    "account_session_lost": 371,
+    "account_refresh_race_bad": 0,
+    "account_refresh_replay_accepted": 0
+   }
+  },
+  {
+   "label": "a3-session-gw1g",
+   "scenario": "session",
+   "startedAt": "2026-11-04T09:39:31.594460+00:00",
+   "finishedAt": "2026-11-04T09:43:35.778124+00:00",
+   "k6ExitCode": 0,
+   "k6Env": {
+    "BASE_URL": "http://gateway-server:7070",
+    "SCENARIO": "session",
+    "RUN_NO": "0",
+    "MAX_VUS": "300",
+    "STAGES": "120:60s,120:3m",
+    "REFRESH_EVERY": "15",
+    "THINK": "2.0",
+    "REPLAY_PCT": "10",
+    "RACE_PCT": "10"
+   },
+   "workloadSha256": "cbe86be7acabb6c3836d990849c03c5241440a8e8d41254ee6036aaab2bf7ed6",
+   "kneeWindow": "210-240s",
+   "kneeAchievedRps": 67.47,
+   "windows": [
+    {
+     "window": "0-30s",
+     "targetRps": null,
+     "sentRps": 19.17,
+     "goodputRps": 19.17,
+     "p95Ms": 106.6,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 14.0,
+     "accountCpuMaxPct": 26.8,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "GET /account/auth/me|-": {
+       "count": 482,
+       "p50Ms": 9.6,
+       "p95Ms": 29.7,
+       "status": {
+        "200": 482
+       }
+      },
+      "POST /account/auth/login|session-start": {
+       "count": 61,
+       "p50Ms": 106.5,
+       "p95Ms": 136.7,
+       "status": {
+        "200": 61
+       }
+      },
+      "POST /account/auth/refresh|race": {
+       "count": 8,
+       "p50Ms": 28.5,
+       "p95Ms": 36.2,
+       "status": {
+        "401": 4,
+        "200": 4
+       }
+      },
+      "POST /account/auth/refresh|rotate": {
+       "count": 24,
+       "p50Ms": 26.6,
+       "p95Ms": 43.4,
+       "status": {
+        "200": 24
+       }
+      }
+     }
+    },
+    {
+     "window": "30-60s",
+     "targetRps": null,
+     "sentRps": 53.8,
+     "goodputRps": 53.8,
+     "p95Ms": 35.4,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 30.0,
+     "accountCpuMaxPct": 33.6,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "GET /account/auth/me|-": {
+       "count": 1381,
+       "p50Ms": 7.2,
+       "p95Ms": 19.0,
+       "status": {
+        "200": 1381
+       }
+      },
+      "POST /account/auth/login|session-start": {
+       "count": 59,
+       "p50Ms": 101.5,
+       "p95Ms": 143.4,
+       "status": {
+        "200": 59
+       }
+      },
+      "POST /account/auth/refresh|race": {
+       "count": 28,
+       "p50Ms": 19.9,
+       "p95Ms": 47.1,
+       "status": {
+        "401": 14,
+        "200": 14
+       }
+      },
+      "POST /account/auth/refresh|replay": {
+       "count": 20,
+       "p50Ms": 6.5,
+       "p95Ms": 19.8,
+       "status": {
+        "401": 20
+       }
+      },
+      "POST /account/auth/refresh|rotate": {
+       "count": 126,
+       "p50Ms": 23.1,
+       "p95Ms": 40.1,
+       "status": {
+        "200": 126
+       }
+      }
+     }
+    },
+    {
+     "window": "60-90s",
+     "targetRps": null,
+     "sentRps": 68.27,
+     "goodputRps": 68.27,
+     "p95Ms": 28.4,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 28.6,
+     "accountCpuMaxPct": 33.6,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "GET /account/auth/me|-": {
+       "count": 1790,
+       "p50Ms": 6.3,
+       "p95Ms": 19.7,
+       "status": {
+        "200": 1790
+       }
+      },
+      "POST /account/auth/refresh|race": {
+       "count": 34,
+       "p50Ms": 16.7,
+       "p95Ms": 32.4,
+       "status": {
+        "401": 17,
+        "200": 17
+       }
+      },
+      "POST /account/auth/refresh|replay": {
+       "count": 18,
+       "p50Ms": 6.3,
+       "p95Ms": 24.0,
+       "status": {
+        "401": 18
+       }
+      },
+      "POST /account/auth/refresh|rotate": {
+       "count": 206,
+       "p50Ms": 24.3,
+       "p95Ms": 50.3,
+       "status": {
+        "200": 206
+       }
+      }
+     }
+    },
+    {
+     "window": "90-120s",
+     "targetRps": null,
+     "sentRps": 68.5,
+     "goodputRps": 68.5,
+     "p95Ms": 25.4,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 21.6,
+     "accountCpuMaxPct": 22.1,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "GET /account/auth/me|-": {
+       "count": 1789,
+       "p50Ms": 5.5,
+       "p95Ms": 16.9,
+       "status": {
+        "200": 1789
+       }
+      },
+      "POST /account/auth/refresh|race": {
+       "count": 28,
+       "p50Ms": 17.1,
+       "p95Ms": 34.0,
+       "status": {
+        "401": 14,
+        "200": 14
+       }
+      },
+      "POST /account/auth/refresh|replay": {
+       "count": 29,
+       "p50Ms": 6.6,
+       "p95Ms": 11.8,
+       "status": {
+        "401": 29
+       }
+      },
+      "POST /account/auth/refresh|rotate": {
+       "count": 209,
+       "p50Ms": 22.3,
+       "p95Ms": 41.2,
+       "status": {
+        "200": 209
+       }
+      }
+     }
+    },
+    {
+     "window": "120-150s",
+     "targetRps": null,
+     "sentRps": 68.7,
+     "goodputRps": 68.7,
+     "p95Ms": 23.7,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 21.6,
+     "accountCpuMaxPct": 21.7,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "GET /account/auth/me|-": {
+       "count": 1791,
+       "p50Ms": 5.0,
+       "p95Ms": 13.8,
+       "status": {
+        "200": 1791
+       }
+      },
+      "POST /account/auth/refresh|race": {
+       "count": 44,
+       "p50Ms": 17.6,
+       "p95Ms": 42.6,
+       "status": {
+        "401": 22,
+        "200": 22
+       }
+      },
+      "POST /account/auth/refresh|replay": {
+       "count": 26,
+       "p50Ms": 5.5,
+       "p95Ms": 12.4,
+       "status": {
+        "401": 26
+       }
+      },
+      "POST /account/auth/refresh|rotate": {
+       "count": 200,
+       "p50Ms": 22.2,
+       "p95Ms": 36.8,
+       "status": {
+        "200": 200
+       }
+      }
+     }
+    },
+    {
+     "window": "150-180s",
+     "targetRps": null,
+     "sentRps": 69.0,
+     "goodputRps": 69.0,
+     "p95Ms": 24.8,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 22.0,
+     "accountCpuMaxPct": 22.5,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "GET /account/auth/me|-": {
+       "count": 1789,
+       "p50Ms": 5.0,
+       "p95Ms": 13.9,
+       "status": {
+        "200": 1789
+       }
+      },
+      "POST /account/auth/refresh|race": {
+       "count": 56,
+       "p50Ms": 15.0,
+       "p95Ms": 41.4,
+       "status": {
+        "401": 28,
+        "200": 28
+       }
+      },
+      "POST /account/auth/refresh|replay": {
+       "count": 30,
+       "p50Ms": 5.3,
+       "p95Ms": 23.9,
+       "status": {
+        "401": 30
+       }
+      },
+      "POST /account/auth/refresh|rotate": {
+       "count": 195,
+       "p50Ms": 23.1,
+       "p95Ms": 44.4,
+       "status": {
+        "200": 195
+       }
+      }
+     }
+    },
+    {
+     "window": "180-210s",
+     "targetRps": null,
+     "sentRps": 68.7,
+     "goodputRps": 68.7,
+     "p95Ms": 23.2,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 21.8,
+     "accountCpuMaxPct": 22.5,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "GET /account/auth/me|-": {
+       "count": 1789,
+       "p50Ms": 4.9,
+       "p95Ms": 12.8,
+       "status": {
+        "200": 1789
+       }
+      },
+      "POST /account/auth/refresh|race": {
+       "count": 44,
+       "p50Ms": 17.3,
+       "p95Ms": 37.7,
+       "status": {
+        "401": 22,
+        "200": 22
+       }
+      },
+      "POST /account/auth/refresh|replay": {
+       "count": 28,
+       "p50Ms": 5.4,
+       "p95Ms": 9.2,
+       "status": {
+        "401": 28
+       }
+      },
+      "POST /account/auth/refresh|rotate": {
+       "count": 200,
+       "p50Ms": 22.1,
+       "p95Ms": 43.2,
+       "status": {
+        "200": 200
+       }
+      }
+     }
+    },
+    {
+     "window": "210-240s",
+     "targetRps": null,
+     "sentRps": 67.47,
+     "goodputRps": 67.47,
+     "p95Ms": 25.4,
+     "unexpected": 0,
+     "dropped": 0,
+     "flags": [],
+     "accountCpuMeanPct": 22.2,
+     "accountCpuMaxPct": 23.0,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "GET /account/auth/me|-": {
+       "count": 1754,
+       "p50Ms": 4.9,
+       "p95Ms": 14.1,
+       "status": {
+        "200": 1754
+       }
+      },
+      "POST /account/auth/refresh|race": {
+       "count": 40,
+       "p50Ms": 13.7,
+       "p95Ms": 31.3,
+       "status": {
+        "401": 20,
+        "200": 20
+       }
+      },
+      "POST /account/auth/refresh|replay": {
+       "count": 28,
+       "p50Ms": 7.1,
+       "p95Ms": 20.0,
+       "status": {
+        "401": 28
+       }
+      },
+      "POST /account/auth/refresh|rotate": {
+       "count": 202,
+       "p50Ms": 22.8,
+       "p95Ms": 44.6,
+       "status": {
+        "200": 202
+       }
+      }
+     }
+    }
+   ],
+   "k6Counters": {
+    "account_refresh_race_ok": 141,
+    "account_refresh_replay_rejected": 179,
+    "account_unexpected_5xx": 0,
+    "account_dup_group_bad": 0,
+    "account_refresh_ok": 1503,
+    "account_refresh_race_bad": 0,
+    "account_refresh_replay_accepted": 0
+   }
+  },
+  {
+   "label": "ovl-gw-512m",
+   "scenario": "login",
+   "startedAt": "2026-11-04T09:45:33.065019+00:00",
+   "finishedAt": "2026-11-04T09:47:14.825112+00:00",
+   "k6ExitCode": 99,
+   "k6Env": {
+    "BASE_URL": "http://gateway-server:7070",
+    "SCENARIO": "login",
+    "RUN_NO": "0",
+    "MAX_VUS": "800",
+    "RATE": "40",
+    "DURATION": "90s"
+   },
+   "workloadSha256": "cbe86be7acabb6c3836d990849c03c5241440a8e8d41254ee6036aaab2bf7ed6",
+   "kneeWindow": null,
+   "kneeAchievedRps": null,
+   "windows": [
+    {
+     "window": "0-30s",
+     "targetRps": 40,
+     "sentRps": 20.3,
+     "goodputRps": 4.5,
+     "p95Ms": 10002.7,
+     "unexpected": 474,
+     "dropped": 253,
+     "flags": [
+      "error>=1%",
+      "p95>3x",
+      "dropped",
+      "achieved<95%"
+     ],
+     "accountCpuMeanPct": 65.5,
+     "accountCpuMaxPct": 98.5,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 609,
+       "p50Ms": 10000.0,
+       "p95Ms": 10002.7,
+       "status": {
+        "200": 135,
+        "0": 474
+       }
+      }
+     }
+    },
+    {
+     "window": "30-60s",
+     "targetRps": 40,
+     "sentRps": 37.1,
+     "goodputRps": 0.0,
+     "p95Ms": 10002.8,
+     "unexpected": 1113,
+     "dropped": 43,
+     "flags": [
+      "error>=1%",
+      "p95>3x",
+      "dropped",
+      "achieved<95%"
+     ],
+     "accountCpuMeanPct": 98.0,
+     "accountCpuMaxPct": 98.5,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 1113,
+       "p50Ms": 10000.0,
+       "p95Ms": 10002.8,
+       "status": {
+        "0": 1113
+       }
+      }
+     }
+    },
+    {
+     "window": "60-90s",
+     "targetRps": 40,
+     "sentRps": 39.6,
+     "goodputRps": 0.0,
+     "p95Ms": 10002.3,
+     "unexpected": 1188,
+     "dropped": 7,
+     "flags": [
+      "error>=1%",
+      "p95>3x",
+      "dropped"
+     ],
+     "accountCpuMeanPct": 93.1,
+     "accountCpuMaxPct": 97.7,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 1188,
+       "p50Ms": 9999.9,
+       "p95Ms": 10002.3,
+       "status": {
+        "0": 1188
+       }
+      }
+     }
+    },
+    {
+     "window": "90-100s",
+     "targetRps": 40,
+     "sentRps": 38.8,
+     "goodputRps": 0.0,
+     "p95Ms": 10001.1,
+     "unexpected": 388,
+     "dropped": 0,
+     "flags": [
+      "error>=1%",
+      "p95>3x"
+     ],
+     "accountCpuMeanPct": 48.1,
+     "accountCpuMaxPct": 90.4,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 388,
+       "p50Ms": 10000.2,
+       "p95Ms": 10001.1,
+       "status": {
+        "0": 388
+       }
+      }
+     }
+    }
+   ],
+   "k6Counters": {
+    "account_refresh_replay_accepted": 0,
+    "account_refresh_race_bad": 0,
+    "account_unexpected_5xx": 3163,
+    "account_dup_group_bad": 0
+   }
+  },
+  {
+   "label": "ovl-gw-1g",
+   "scenario": "login",
+   "startedAt": "2026-11-04T09:48:50.304337+00:00",
+   "finishedAt": "2026-11-04T09:50:32.109079+00:00",
+   "k6ExitCode": 99,
+   "k6Env": {
+    "BASE_URL": "http://gateway-server:7070",
+    "SCENARIO": "login",
+    "RUN_NO": "0",
+    "MAX_VUS": "800",
+    "RATE": "40",
+    "DURATION": "90s"
+   },
+   "workloadSha256": "cbe86be7acabb6c3836d990849c03c5241440a8e8d41254ee6036aaab2bf7ed6",
+   "kneeWindow": null,
+   "kneeAchievedRps": null,
+   "windows": [
+    {
+     "window": "0-30s",
+     "targetRps": 40,
+     "sentRps": 20.37,
+     "goodputRps": 4.73,
+     "p95Ms": 10001.8,
+     "unexpected": 469,
+     "dropped": 252,
+     "flags": [
+      "error>=1%",
+      "p95>3x",
+      "dropped",
+      "achieved<95%"
+     ],
+     "accountCpuMeanPct": 60.8,
+     "accountCpuMaxPct": 98.5,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 611,
+       "p50Ms": 10000.0,
+       "p95Ms": 10001.8,
+       "status": {
+        "200": 142,
+        "0": 469
+       }
+      }
+     }
+    },
+    {
+     "window": "30-60s",
+     "targetRps": 40,
+     "sentRps": 37.13,
+     "goodputRps": 0.0,
+     "p95Ms": 10002.3,
+     "unexpected": 1114,
+     "dropped": 43,
+     "flags": [
+      "error>=1%",
+      "p95>3x",
+      "dropped",
+      "achieved<95%"
+     ],
+     "accountCpuMeanPct": 97.0,
+     "accountCpuMaxPct": 98.5,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 1114,
+       "p50Ms": 9999.9,
+       "p95Ms": 10002.3,
+       "status": {
+        "0": 1114
+       }
+      }
+     }
+    },
+    {
+     "window": "60-90s",
+     "targetRps": 40,
+     "sentRps": 39.63,
+     "goodputRps": 0.0,
+     "p95Ms": 10002.0,
+     "unexpected": 1189,
+     "dropped": 6,
+     "flags": [
+      "error>=1%",
+      "p95>3x",
+      "dropped"
+     ],
+     "accountCpuMeanPct": 98.9,
+     "accountCpuMaxPct": 99.5,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 1189,
+       "p50Ms": 9999.9,
+       "p95Ms": 10002.0,
+       "status": {
+        "0": 1189
+       }
+      }
+     }
+    },
+    {
+     "window": "90-100s",
+     "targetRps": 40,
+     "sentRps": 38.6,
+     "goodputRps": 0.0,
+     "p95Ms": 10001.3,
+     "unexpected": 386,
+     "dropped": 0,
+     "flags": [
+      "error>=1%",
+      "p95>3x"
+     ],
+     "accountCpuMeanPct": 98.2,
+     "accountCpuMaxPct": 99.5,
+     "accountPoolPendingMax": 0.0,
+     "byRequest": {
+      "POST /account/auth/login|active": {
+       "count": 386,
+       "p50Ms": 10000.4,
+       "p95Ms": 10001.3,
+       "status": {
+        "0": 386
+       }
+      }
+     }
+    }
+   ],
+   "k6Counters": {
+    "account_refresh_replay_accepted": 0,
+    "account_dup_group_bad": 0,
+    "account_unexpected_5xx": 3158,
+    "account_refresh_race_bad": 0
+   }
+  }
+ ],
+ "afterImprovements": {
+  "status": "개선 후 같은 T1-small 환경 재측정. 1회 측정이며 운영 용량으로 인용하지 않는다.",
+  "changes": [
+   "Gateway RouteInFlightLimitFilter(경로당 50, 초과 시 503 ROUTE_BUSY)",
+   "Gateway 하류 클라이언트 JDK 명시(Apache HttpClient5 기본 풀 호스트당 5 회피), 연결 2s·읽기 10s 제한",
+   "Account PasswordHashGate(동시 BCrypt = CPU 수, 최소 2, 대기 2s 초과 시 503 AUTH_BUSY)",
+   "Account 가입 BCrypt를 트랜잭션 밖으로 이동",
+   "Account Outbox SKIP LOCKED 선점(lease 120s, 안전 여유 30s)"
+  ],
+  "gatewayMemoryOverload": {
+   "method": "Account 1개·1 CPU, login 40/s 90초, Gateway 512 MiB, 워밍업 후",
+   "before": {
+    "label": "ovl-gw-512m",
+    "peakMiB": 512,
+    "goodputRps": [
+     4.5,
+     0.0,
+     0.0
+    ]
+   },
+   "afterGateAndLimitApachePool": {
+    "label": "after-ovl-gw-512m",
+    "peakMiB": 261,
+    "goodputRps": [
+     9.3,
+     9.7,
+     9.9
+    ],
+    "successP95Ms": [
+     5428,
+     5366,
+     5200
+    ],
+    "gatewayToAccountConnections": 5
+   },
+   "afterJdkClient": {
+    "label": "after2-ovl-gw-512m",
+    "peakMiB": 288,
+    "goodputRps": [
+     8.8,
+     8.9,
+     9.9
+    ],
+    "successP95Ms": [
+     2324,
+     2305,
+     2279
+    ],
+    "gatewayToAccountConnections": "47~50",
+    "kills": 0,
+    "rejections": {
+     "gatewayRouteBusy": 1490,
+     "accountAuthBusy": 1347
+    }
+   }
+  },
+  "outboxPublishPerInstance": {
+   "label": "after-a6-reg-r2",
+   "instanceA": 2078,
+   "instanceB": 1792,
+   "note": "Prometheus increase 추정치"
+  },
+  "gatewayRedeployStaleRoute": "Account 증설·재생성 직후 워밍업에서 여전히 500 발생(미해결)",
+  "runs": [
+   {
+    "label": "after-ovl-gw-512m",
+    "scenario": "login",
+    "startedAt": "2026-11-04T11:31:10.781021+00:00",
+    "finishedAt": "2026-11-04T11:32:47.217305+00:00",
+    "k6ExitCode": 99,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "login",
+     "RUN_NO": "0",
+     "MAX_VUS": "800",
+     "RATE": "40",
+     "DURATION": "90s"
+    },
+    "workloadSha256": "cbe86be7acabb6c3836d990849c03c5241440a8e8d41254ee6036aaab2bf7ed6",
+    "windows": [
+     {
+      "window": "0-30s",
+      "targetRps": 40,
+      "sentRps": 38.57,
+      "goodputRps": 9.27,
+      "p95Ms": 5428.3,
+      "unexpected": 879,
+      "dropped": 0,
+      "accountCpuMeanPct": 62.2,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 1157,
+        "p50Ms": 2.0,
+        "p95Ms": 5428.3,
+        "status": {
+         "200": 278,
+         "503": 879
+        }
+       }
+      }
+     },
+     {
+      "window": "30-60s",
+      "targetRps": 40,
+      "sentRps": 40.03,
+      "goodputRps": 9.67,
+      "p95Ms": 5365.9,
+      "unexpected": 911,
+      "dropped": 0,
+      "accountCpuMeanPct": 98.9,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 1201,
+        "p50Ms": 1.6,
+        "p95Ms": 5365.9,
+        "status": {
+         "503": 911,
+         "200": 290
+        }
+       }
+      }
+     },
+     {
+      "window": "60-90s",
+      "targetRps": 40,
+      "sentRps": 39.8,
+      "goodputRps": 9.87,
+      "p95Ms": 5200.1,
+      "unexpected": 898,
+      "dropped": 0,
+      "accountCpuMeanPct": 98.9,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 1194,
+        "p50Ms": 1.5,
+        "p95Ms": 5200.1,
+        "status": {
+         "503": 898,
+         "200": 296
+        }
+       }
+      }
+     },
+     {
+      "window": "90-95s",
+      "targetRps": 40,
+      "sentRps": 9.8,
+      "goodputRps": 9.8,
+      "p95Ms": 5289.8,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 99.0,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 49,
+        "p50Ms": 5098.0,
+        "p95Ms": 5289.8,
+        "status": {
+         "200": 49
+        }
+       }
+      }
+     }
+    ],
+    "k6Counters": {
+     "account_dup_group_bad": 0,
+     "account_refresh_replay_accepted": 0,
+     "account_unexpected_5xx": 2688,
+     "account_refresh_race_bad": 0
+    }
+   },
+   {
+    "label": "after-ovl-direct",
+    "scenario": "login",
+    "startedAt": "2026-11-04T11:33:37.568064+00:00",
+    "finishedAt": "2026-11-04T11:34:41.225312+00:00",
+    "k6ExitCode": 99,
+    "k6Env": {
+     "BASE_URL": "http://account-service:7071",
+     "SCENARIO": "login",
+     "RUN_NO": "0",
+     "MAX_VUS": "800",
+     "RATE": "40",
+     "DURATION": "60s"
+    },
+    "workloadSha256": "cbe86be7acabb6c3836d990849c03c5241440a8e8d41254ee6036aaab2bf7ed6",
+    "windows": [
+     {
+      "window": "0-30s",
+      "targetRps": 40,
+      "sentRps": 37.4,
+      "goodputRps": 7.77,
+      "p95Ms": 2355.6,
+      "unexpected": 889,
+      "dropped": 0,
+      "accountCpuMeanPct": 48.4,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 1122,
+        "p50Ms": 2047.9,
+        "p95Ms": 2355.6,
+        "status": {
+         "200": 233,
+         "503": 889
+        }
+       }
+      }
+     },
+     {
+      "window": "30-60s",
+      "targetRps": 40,
+      "sentRps": 40.07,
+      "goodputRps": 7.57,
+      "p95Ms": 2373.8,
+      "unexpected": 975,
+      "dropped": 0,
+      "accountCpuMeanPct": 99.1,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 1202,
+        "p50Ms": 2047.9,
+        "p95Ms": 2373.8,
+        "status": {
+         "503": 975,
+         "200": 227
+        }
+       }
+      }
+     },
+     {
+      "window": "60-63s",
+      "targetRps": 40,
+      "sentRps": 25.67,
+      "goodputRps": 6.67,
+      "p95Ms": 2302.2,
+      "unexpected": 57,
+      "dropped": 0,
+      "accountCpuMeanPct": null,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 77,
+        "p50Ms": 2046.6,
+        "p95Ms": 2302.2,
+        "status": {
+         "503": 57,
+         "200": 20
+        }
+       }
+      }
+     }
+    ],
+    "k6Counters": {
+     "account_refresh_race_bad": 0,
+     "account_dup_group_bad": 0,
+     "account_unexpected_5xx": 1921,
+     "account_refresh_replay_accepted": 0
+    }
+   },
+   {
+    "label": "after2-ovl-gw-512m",
+    "scenario": "login",
+    "startedAt": "2026-11-04T11:42:15.713430+00:00",
+    "finishedAt": "2026-11-04T11:43:49.264688+00:00",
+    "k6ExitCode": 99,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "login",
+     "RUN_NO": "0",
+     "MAX_VUS": "800",
+     "RATE": "40",
+     "DURATION": "90s"
+    },
+    "workloadSha256": "cbe86be7acabb6c3836d990849c03c5241440a8e8d41254ee6036aaab2bf7ed6",
+    "windows": [
+     {
+      "window": "0-30s",
+      "targetRps": 40,
+      "sentRps": 38.47,
+      "goodputRps": 8.83,
+      "p95Ms": 2324.1,
+      "unexpected": 889,
+      "dropped": 0,
+      "accountCpuMeanPct": 62.3,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 1154,
+        "p50Ms": 2022.0,
+        "p95Ms": 2324.1,
+        "status": {
+         "200": 265,
+         "503": 889
+        }
+       }
+      }
+     },
+     {
+      "window": "30-60s",
+      "targetRps": 40,
+      "sentRps": 40.03,
+      "goodputRps": 8.87,
+      "p95Ms": 2304.7,
+      "unexpected": 935,
+      "dropped": 0,
+      "accountCpuMeanPct": 98.5,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 1201,
+        "p50Ms": 2019.5,
+        "p95Ms": 2304.7,
+        "status": {
+         "503": 935,
+         "200": 266
+        }
+       }
+      }
+     },
+     {
+      "window": "60-90s",
+      "targetRps": 40,
+      "sentRps": 39.97,
+      "goodputRps": 9.9,
+      "p95Ms": 2278.5,
+      "unexpected": 902,
+      "dropped": 0,
+      "accountCpuMeanPct": 98.9,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 1199,
+        "p50Ms": 2017.5,
+        "p95Ms": 2278.5,
+        "status": {
+         "503": 902,
+         "200": 297
+        }
+       }
+      }
+     },
+     {
+      "window": "90-92s",
+      "targetRps": 40,
+      "sentRps": 23.0,
+      "goodputRps": 11.0,
+      "p95Ms": 2255.7,
+      "unexpected": 24,
+      "dropped": 0,
+      "accountCpuMeanPct": null,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 46,
+        "p50Ms": 2071.8,
+        "p95Ms": 2255.7,
+        "status": {
+         "503": 24,
+         "200": 22
+        }
+       }
+      }
+     }
+    ],
+    "k6Counters": {
+     "account_refresh_race_bad": 0,
+     "account_refresh_replay_accepted": 0,
+     "account_dup_group_bad": 0,
+     "account_unexpected_5xx": 2750
+    }
+   },
+   {
+    "label": "after-a1-c1-r1",
+    "scenario": "login",
+    "startedAt": "2026-11-04T11:44:16.667752+00:00",
+    "finishedAt": "2026-11-04T11:50:20.105029+00:00",
+    "k6ExitCode": 99,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "login",
+     "RUN_NO": "0",
+     "MAX_VUS": "600",
+     "STAGES": "3:1m,6:1m,9:1m,12:1m,15:1m,20:1m"
+    },
+    "workloadSha256": "cbe86be7acabb6c3836d990849c03c5241440a8e8d41254ee6036aaab2bf7ed6",
+    "windows": [
+     {
+      "window": "3/s",
+      "targetRps": 2.25,
+      "sentRps": 2.29,
+      "goodputRps": 2.29,
+      "p95Ms": 126.2,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 20.2,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 103,
+        "p50Ms": 99.9,
+        "p95Ms": 126.2,
+        "status": {
+         "200": 103
+        }
+       }
+      }
+     },
+     {
+      "window": "6/s",
+      "targetRps": 4.88,
+      "sentRps": 4.91,
+      "goodputRps": 4.91,
+      "p95Ms": 130.9,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 38.0,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 221,
+        "p50Ms": 98.8,
+        "p95Ms": 130.9,
+        "status": {
+         "200": 221
+        }
+       }
+      }
+     },
+     {
+      "window": "9/s",
+      "targetRps": 7.88,
+      "sentRps": 7.91,
+      "goodputRps": 7.91,
+      "p95Ms": 133.2,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 65.3,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 356,
+        "p50Ms": 100.2,
+        "p95Ms": 133.2,
+        "status": {
+         "200": 356
+        }
+       }
+      }
+     },
+     {
+      "window": "12/s",
+      "targetRps": 10.88,
+      "sentRps": 10.53,
+      "goodputRps": 10.53,
+      "p95Ms": 1459.6,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 90.8,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 474,
+        "p50Ms": 502.4,
+        "p95Ms": 1459.6,
+        "status": {
+         "200": 474
+        }
+       }
+      }
+     },
+     {
+      "window": "15/s",
+      "targetRps": 13.88,
+      "sentRps": 13.82,
+      "goodputRps": 10.56,
+      "p95Ms": 2272.8,
+      "unexpected": 147,
+      "dropped": 0,
+      "accountCpuMeanPct": 99.2,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 622,
+        "p50Ms": 2169.7,
+        "p95Ms": 2272.8,
+        "status": {
+         "200": 475,
+         "503": 147
+        }
+       }
+      }
+     },
+     {
+      "window": "20/s",
+      "targetRps": 18.12,
+      "sentRps": 18.04,
+      "goodputRps": 10.31,
+      "p95Ms": 2275.1,
+      "unexpected": 348,
+      "dropped": 0,
+      "accountCpuMeanPct": 99.4,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 812,
+        "p50Ms": 2168.8,
+        "p95Ms": 2275.1,
+        "status": {
+         "200": 464,
+         "503": 348
+        }
+       }
+      }
+     }
+    ],
+    "k6Counters": {
+     "account_unexpected_5xx": 603,
+     "account_dup_group_bad": 0,
+     "account_refresh_replay_accepted": 0,
+     "account_refresh_race_bad": 0
+    }
+   },
+   {
+    "label": "after-a6-reg-r2",
+    "scenario": "register",
+    "startedAt": "2026-11-04T11:52:13.859536+00:00",
+    "finishedAt": "2026-11-04T11:58:15.391874+00:00",
+    "k6ExitCode": 0,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "register",
+     "RUN_NO": "6",
+     "MAX_VUS": "600",
+     "STAGES": "4:1m,8:1m,12:1m,16:1m,16:2m"
+    },
+    "workloadSha256": "cbe86be7acabb6c3836d990849c03c5241440a8e8d41254ee6036aaab2bf7ed6",
+    "windows": [
+     {
+      "window": "4/s",
+      "targetRps": 2.88,
+      "sentRps": 2.96,
+      "goodputRps": 2.96,
+      "p95Ms": 153.5,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 23.3,
+      "byRequest": {
+       "POST /account/auth/register|-": {
+        "count": 133,
+        "p50Ms": 103.6,
+        "p95Ms": 153.5,
+        "status": {
+         "201": 133
+        }
+       }
+      }
+     },
+     {
+      "window": "8/s",
+      "targetRps": 6.5,
+      "sentRps": 6.58,
+      "goodputRps": 6.58,
+      "p95Ms": 135.8,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 33.2,
+      "byRequest": {
+       "POST /account/auth/register|-": {
+        "count": 296,
+        "p50Ms": 97.2,
+        "p95Ms": 135.8,
+        "status": {
+         "201": 296
+        }
+       }
+      }
+     },
+     {
+      "window": "12/s",
+      "targetRps": 10.5,
+      "sentRps": 10.58,
+      "goodputRps": 10.58,
+      "p95Ms": 163.0,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 47.5,
+      "byRequest": {
+       "POST /account/auth/register|-": {
+        "count": 476,
+        "p50Ms": 97.5,
+        "p95Ms": 163.0,
+        "status": {
+         "201": 476
+        }
+       }
+      }
+     },
+     {
+      "window": "16/s",
+      "targetRps": 14.5,
+      "sentRps": 14.56,
+      "goodputRps": 14.56,
+      "p95Ms": 246.3,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 68.4,
+      "byRequest": {
+       "POST /account/auth/register|-": {
+        "count": 655,
+        "p50Ms": 106.8,
+        "p95Ms": 246.3,
+        "status": {
+         "201": 655
+        }
+       }
+      }
+     },
+     {
+      "window": "16/s",
+      "targetRps": 16.0,
+      "sentRps": 15.81,
+      "goodputRps": 15.81,
+      "p95Ms": 375.3,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 76.7,
+      "byRequest": {
+       "POST /account/auth/register|-": {
+        "count": 1660,
+        "p50Ms": 105.7,
+        "p95Ms": 375.3,
+        "status": {
+         "201": 1660
+        }
+       }
+      }
+     }
+    ],
+    "check": {
+     "drainWaitSeconds": 0.5,
+     "k6Created": 3869,
+     "summary": {
+      "accounts": 3869,
+      "outboxEvents": 3869,
+      "outboxStatus": {
+       "PUBLISHED": 3869
+      },
+      "accountsWithoutEvent": 0,
+      "accountsWithMultipleEvents": 0,
+      "kafkaRecords": 3869,
+      "kafkaUniqueEvents": 3869,
+      "kafkaDuplicateRecords": 0,
+      "publishedMissingInKafka": 0,
+      "kafkaUnknownEvents": 0
+     },
+     "verdict": {
+      "result": "PASS",
+      "failures": [],
+      "duplicatePublications": 0
+     }
+    },
+    "k6Counters": {
+     "account_unexpected_5xx": 0,
+     "account_dup_group_bad": 0,
+     "account_register_created": 3869,
+     "account_refresh_replay_accepted": 0,
+     "account_refresh_race_bad": 0
+    }
+   },
+   {
+    "label": "after-a5-dup-email",
+    "scenario": "register-dup",
+    "startedAt": "2026-11-04T11:59:05.807731+00:00",
+    "finishedAt": "2026-11-04T12:00:37.407690+00:00",
+    "k6ExitCode": 0,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "register-dup",
+     "RUN_NO": "7",
+     "MAX_VUS": "300",
+     "RATE": "2",
+     "DURATION": "90s",
+     "DUP_SIZE": "5",
+     "DUP_MODE": "email"
+    },
+    "workloadSha256": "cbe86be7acabb6c3836d990849c03c5241440a8e8d41254ee6036aaab2bf7ed6",
+    "windows": [
+     {
+      "window": "0-30s",
+      "targetRps": 2,
+      "sentRps": 10.0,
+      "goodputRps": 10.0,
+      "p95Ms": 269.5,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 31.7,
+      "byRequest": {
+       "POST /account/auth/register|dup-email": {
+        "count": 300,
+        "p50Ms": 157.9,
+        "p95Ms": 269.5,
+        "status": {
+         "201": 60,
+         "409": 240
+        }
+       }
+      }
+     },
+     {
+      "window": "30-60s",
+      "targetRps": 2,
+      "sentRps": 10.07,
+      "goodputRps": 10.07,
+      "p95Ms": 262.5,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 49.3,
+      "byRequest": {
+       "POST /account/auth/register|dup-email": {
+        "count": 302,
+        "p50Ms": 154.6,
+        "p95Ms": 262.5,
+        "status": {
+         "201": 61,
+         "409": 241
+        }
+       }
+      }
+     },
+     {
+      "window": "60-90s",
+      "targetRps": 2,
+      "sentRps": 9.93,
+      "goodputRps": 9.93,
+      "p95Ms": 265.2,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 47.6,
+      "byRequest": {
+       "POST /account/auth/register|dup-email": {
+        "count": 298,
+        "p50Ms": 147.8,
+        "p95Ms": 265.2,
+        "status": {
+         "409": 239,
+         "201": 59
+        }
+       }
+      }
+     }
+    ],
+    "check": {
+     "drainWaitSeconds": 0.5,
+     "k6Created": 180,
+     "summary": {
+      "accounts": 180,
+      "outboxEvents": 180,
+      "outboxStatus": {
+       "PUBLISHED": 180
+      },
+      "accountsWithoutEvent": 0,
+      "accountsWithMultipleEvents": 0,
+      "kafkaRecords": 180,
+      "kafkaUniqueEvents": 180,
+      "kafkaDuplicateRecords": 0,
+      "publishedMissingInKafka": 0,
+      "kafkaUnknownEvents": 0,
+      "dupGroupBad": 0
+     },
+     "verdict": {
+      "result": "PASS",
+      "failures": [],
+      "duplicatePublications": 0
+     }
+    },
+    "k6Counters": {
+     "account_unexpected_5xx": 0,
+     "account_refresh_replay_accepted": 0,
+     "account_refresh_race_bad": 0,
+     "account_dup_group_bad": 0,
+     "account_dup_group_ok": 180
+    }
+   },
+   {
+    "label": "after-a5-dup-bid",
+    "scenario": "register-dup",
+    "startedAt": "2026-11-04T12:01:11.912899+00:00",
+    "finishedAt": "2026-11-04T12:02:43.676975+00:00",
+    "k6ExitCode": 0,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "register-dup",
+     "RUN_NO": "8",
+     "MAX_VUS": "300",
+     "RATE": "2",
+     "DURATION": "90s",
+     "DUP_SIZE": "5",
+     "DUP_MODE": "bid"
+    },
+    "workloadSha256": "cbe86be7acabb6c3836d990849c03c5241440a8e8d41254ee6036aaab2bf7ed6",
+    "windows": [
+     {
+      "window": "0-30s",
+      "targetRps": 2,
+      "sentRps": 10.03,
+      "goodputRps": 10.03,
+      "p95Ms": 264.6,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 28.9,
+      "byRequest": {
+       "POST /account/auth/register|dup-bid": {
+        "count": 301,
+        "p50Ms": 146.2,
+        "p95Ms": 264.6,
+        "status": {
+         "201": 61,
+         "409": 240
+        }
+       }
+      }
+     },
+     {
+      "window": "30-60s",
+      "targetRps": 2,
+      "sentRps": 9.97,
+      "goodputRps": 9.97,
+      "p95Ms": 265.1,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 48.4,
+      "byRequest": {
+       "POST /account/auth/register|dup-bid": {
+        "count": 299,
+        "p50Ms": 149.2,
+        "p95Ms": 265.1,
+        "status": {
+         "409": 240,
+         "201": 59
+        }
+       }
+      }
+     },
+     {
+      "window": "60-90s",
+      "targetRps": 2,
+      "sentRps": 10.0,
+      "goodputRps": 10.0,
+      "p95Ms": 263.9,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 48.8,
+      "byRequest": {
+       "POST /account/auth/register|dup-bid": {
+        "count": 300,
+        "p50Ms": 150.0,
+        "p95Ms": 263.9,
+        "status": {
+         "201": 60,
+         "409": 240
+        }
+       }
+      }
+     },
+     {
+      "window": "90-91s",
+      "targetRps": 2,
+      "sentRps": 5.0,
+      "goodputRps": 5.0,
+      "p95Ms": 242.4,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": null,
+      "byRequest": {
+       "POST /account/auth/register|dup-bid": {
+        "count": 5,
+        "p50Ms": 142.0,
+        "p95Ms": 242.4,
+        "status": {
+         "201": 1,
+         "409": 4
+        }
+       }
+      }
+     }
+    ],
+    "check": {
+     "drainWaitSeconds": 0.5,
+     "k6Created": 181,
+     "summary": {
+      "accounts": 181,
+      "outboxEvents": 181,
+      "outboxStatus": {
+       "PUBLISHED": 181
+      },
+      "accountsWithoutEvent": 0,
+      "accountsWithMultipleEvents": 0,
+      "kafkaRecords": 181,
+      "kafkaUniqueEvents": 181,
+      "kafkaDuplicateRecords": 0,
+      "publishedMissingInKafka": 0,
+      "kafkaUnknownEvents": 0,
+      "dupGroupBad": 0
+     },
+     "verdict": {
+      "result": "PASS",
+      "failures": [],
+      "duplicatePublications": 0
+     }
+    },
+    "k6Counters": {
+     "account_dup_group_ok": 181,
+     "account_refresh_race_bad": 0,
+     "account_unexpected_5xx": 0,
+     "account_dup_group_bad": 0,
+     "account_refresh_replay_accepted": 0
+    }
+   },
+   {
+    "label": "after-a4-wrongpw",
+    "scenario": "login-attack",
+    "startedAt": "2026-11-04T12:03:25.275699+00:00",
+    "finishedAt": "2026-11-04T12:07:26.937004+00:00",
+    "k6ExitCode": 99,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "login-attack",
+     "RUN_NO": "0",
+     "MAX_VUS": "800",
+     "STAGES": "10:1m,20:1m,30:1m",
+     "DURATION": "4m",
+     "NORMAL_RATE": "4",
+     "ATTACK_KIND": "wrongpw",
+     "ATTACK_DELAY": "30s"
+    },
+    "workloadSha256": "cbe86be7acabb6c3836d990849c03c5241440a8e8d41254ee6036aaab2bf7ed6",
+    "windows": [
+     {
+      "window": "0-30s",
+      "targetRps": null,
+      "sentRps": 4.03,
+      "goodputRps": 4.03,
+      "p95Ms": 122.9,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 15.3,
+      "byRequest": {
+       "POST /account/auth/login|normal": {
+        "count": 121,
+        "p50Ms": 98.7,
+        "p95Ms": 122.9,
+        "status": {
+         "200": 121
+        }
+       }
+      }
+     },
+     {
+      "window": "30-60s",
+      "targetRps": null,
+      "sentRps": 7.23,
+      "goodputRps": 7.23,
+      "p95Ms": 132.0,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 29.0,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 97,
+        "p50Ms": 88.8,
+        "p95Ms": 125.3,
+        "status": {
+         "401": 97
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 99.4,
+        "p95Ms": 132.0,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "60-90s",
+      "targetRps": null,
+      "sentRps": 11.77,
+      "goodputRps": 11.77,
+      "p95Ms": 162.3,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 45.0,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 233,
+        "p50Ms": 91.6,
+        "p95Ms": 147.4,
+        "status": {
+         "401": 233
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 106.1,
+        "p95Ms": 178.3,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "90-120s",
+      "targetRps": null,
+      "sentRps": 16.37,
+      "goodputRps": 16.37,
+      "p95Ms": 270.5,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 64.5,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 372,
+        "p50Ms": 105.3,
+        "p95Ms": 261.8,
+        "status": {
+         "401": 372
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 119,
+        "p50Ms": 116.4,
+        "p95Ms": 323.5,
+        "status": {
+         "200": 119
+        }
+       }
+      }
+     },
+     {
+      "window": "120-150s",
+      "targetRps": null,
+      "sentRps": 21.4,
+      "goodputRps": 21.4,
+      "p95Ms": 516.5,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 85.9,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 523,
+        "p50Ms": 198.1,
+        "p95Ms": 512.4,
+        "status": {
+         "401": 523
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 119,
+        "p50Ms": 215.1,
+        "p95Ms": 535.5,
+        "status": {
+         "200": 119
+        }
+       }
+      }
+     },
+     {
+      "window": "150-180s",
+      "targetRps": null,
+      "sentRps": 25.2,
+      "goodputRps": 22.2,
+      "p95Ms": 2210.7,
+      "unexpected": 90,
+      "dropped": 0,
+      "accountCpuMeanPct": 96.9,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 641,
+        "p50Ms": 1527.4,
+        "p95Ms": 2205.1,
+        "status": {
+         "401": 567,
+         "503": 74
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 115,
+        "p50Ms": 1392.7,
+        "p95Ms": 2270.6,
+        "status": {
+         "200": 99,
+         "503": 16
+        }
+       }
+      }
+     },
+     {
+      "window": "180-210s",
+      "targetRps": null,
+      "sentRps": 31.5,
+      "goodputRps": 22.23,
+      "p95Ms": 2222.0,
+      "unexpected": 278,
+      "dropped": 0,
+      "accountCpuMeanPct": 96.8,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 825,
+        "p50Ms": 2034.3,
+        "p95Ms": 2212.8,
+        "status": {
+         "401": 585,
+         "503": 240
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 2093.8,
+        "p95Ms": 2248.1,
+        "status": {
+         "200": 82,
+         "503": 38
+        }
+       }
+      }
+     },
+     {
+      "window": "210-240s",
+      "targetRps": null,
+      "sentRps": 5.5,
+      "goodputRps": 5.47,
+      "p95Ms": 2049.4,
+      "unexpected": 1,
+      "dropped": 0,
+      "accountCpuMeanPct": 64.2,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 38,
+        "p50Ms": 2008.6,
+        "p95Ms": 2135.8,
+        "status": {
+         "401": 38
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 127,
+        "p50Ms": 101.8,
+        "p95Ms": 1980.1,
+        "status": {
+         "503": 1,
+         "200": 126
+        }
+       }
+      }
+     }
+    ],
+    "k6Counters": {
+     "account_dup_group_bad": 0,
+     "account_unexpected_5xx": 369,
+     "account_refresh_race_bad": 0,
+     "account_refresh_replay_accepted": 0
+    }
+   },
+   {
+    "label": "after-a3-session-gw512m",
+    "scenario": "session",
+    "startedAt": "2026-11-04T12:08:39.403380+00:00",
+    "finishedAt": "2026-11-04T12:12:43.056579+00:00",
+    "k6ExitCode": 0,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "session",
+     "RUN_NO": "0",
+     "MAX_VUS": "300",
+     "STAGES": "120:60s,120:3m",
+     "REFRESH_EVERY": "15",
+     "THINK": "2.0",
+     "REPLAY_PCT": "10",
+     "RACE_PCT": "10"
+    },
+    "workloadSha256": "cbe86be7acabb6c3836d990849c03c5241440a8e8d41254ee6036aaab2bf7ed6",
+    "windows": [
+     {
+      "window": "0-30s",
+      "targetRps": null,
+      "sentRps": 19.17,
+      "goodputRps": 19.17,
+      "p95Ms": 100.1,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 23.1,
+      "byRequest": {
+       "GET /account/auth/me|-": {
+        "count": 482,
+        "p50Ms": 7.2,
+        "p95Ms": 16.7,
+        "status": {
+         "200": 482
+        }
+       },
+       "POST /account/auth/login|session-start": {
+        "count": 61,
+        "p50Ms": 99.9,
+        "p95Ms": 135.7,
+        "status": {
+         "200": 61
+        }
+       },
+       "POST /account/auth/refresh|race": {
+        "count": 8,
+        "p50Ms": 24.4,
+        "p95Ms": 34.1,
+        "status": {
+         "401": 4,
+         "200": 4
+        }
+       },
+       "POST /account/auth/refresh|rotate": {
+        "count": 24,
+        "p50Ms": 23.1,
+        "p95Ms": 47.8,
+        "status": {
+         "200": 24
+        }
+       }
+      }
+     },
+     {
+      "window": "30-60s",
+      "targetRps": null,
+      "sentRps": 53.73,
+      "goodputRps": 53.73,
+      "p95Ms": 54.2,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 31.4,
+      "byRequest": {
+       "GET /account/auth/me|-": {
+        "count": 1379,
+        "p50Ms": 7.7,
+        "p95Ms": 32.8,
+        "status": {
+         "200": 1379
+        }
+       },
+       "POST /account/auth/login|session-start": {
+        "count": 59,
+        "p50Ms": 100.5,
+        "p95Ms": 148.8,
+        "status": {
+         "200": 59
+        }
+       },
+       "POST /account/auth/refresh|race": {
+        "count": 28,
+        "p50Ms": 16.6,
+        "p95Ms": 52.4,
+        "status": {
+         "401": 14,
+         "200": 14
+        }
+       },
+       "POST /account/auth/refresh|replay": {
+        "count": 20,
+        "p50Ms": 6.7,
+        "p95Ms": 20.5,
+        "status": {
+         "401": 20
+        }
+       },
+       "POST /account/auth/refresh|rotate": {
+        "count": 126,
+        "p50Ms": 23.4,
+        "p95Ms": 55.1,
+        "status": {
+         "200": 126
+        }
+       }
+      }
+     },
+     {
+      "window": "60-90s",
+      "targetRps": null,
+      "sentRps": 68.23,
+      "goodputRps": 68.23,
+      "p95Ms": 30.8,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 29.5,
+      "byRequest": {
+       "GET /account/auth/me|-": {
+        "count": 1790,
+        "p50Ms": 6.7,
+        "p95Ms": 22.1,
+        "status": {
+         "200": 1790
+        }
+       },
+       "POST /account/auth/refresh|race": {
+        "count": 34,
+        "p50Ms": 19.4,
+        "p95Ms": 51.8,
+        "status": {
+         "401": 17,
+         "200": 17
+        }
+       },
+       "POST /account/auth/refresh|replay": {
+        "count": 18,
+        "p50Ms": 7.5,
+        "p95Ms": 15.3,
+        "status": {
+         "401": 18
+        }
+       },
+       "POST /account/auth/refresh|rotate": {
+        "count": 205,
+        "p50Ms": 24.1,
+        "p95Ms": 44.2,
+        "status": {
+         "200": 205
+        }
+       }
+      }
+     },
+     {
+      "window": "90-120s",
+      "targetRps": null,
+      "sentRps": 68.23,
+      "goodputRps": 68.23,
+      "p95Ms": 31.9,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 24.0,
+      "byRequest": {
+       "GET /account/auth/me|-": {
+        "count": 1782,
+        "p50Ms": 6.4,
+        "p95Ms": 25.9,
+        "status": {
+         "200": 1782
+        }
+       },
+       "POST /account/auth/refresh|race": {
+        "count": 28,
+        "p50Ms": 21.2,
+        "p95Ms": 79.6,
+        "status": {
+         "401": 14,
+         "200": 14
+        }
+       },
+       "POST /account/auth/refresh|replay": {
+        "count": 29,
+        "p50Ms": 6.7,
+        "p95Ms": 14.7,
+        "status": {
+         "401": 29
+        }
+       },
+       "POST /account/auth/refresh|rotate": {
+        "count": 208,
+        "p50Ms": 22.3,
+        "p95Ms": 50.3,
+        "status": {
+         "200": 208
+        }
+       }
+      }
+     },
+     {
+      "window": "120-150s",
+      "targetRps": null,
+      "sentRps": 69.0,
+      "goodputRps": 69.0,
+      "p95Ms": 35.7,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 21.7,
+      "byRequest": {
+       "GET /account/auth/me|-": {
+        "count": 1798,
+        "p50Ms": 5.9,
+        "p95Ms": 32.5,
+        "status": {
+         "200": 1798
+        }
+       },
+       "POST /account/auth/refresh|race": {
+        "count": 44,
+        "p50Ms": 19.2,
+        "p95Ms": 72.5,
+        "status": {
+         "401": 22,
+         "200": 22
+        }
+       },
+       "POST /account/auth/refresh|replay": {
+        "count": 25,
+        "p50Ms": 6.5,
+        "p95Ms": 15.1,
+        "status": {
+         "401": 25
+        }
+       },
+       "POST /account/auth/refresh|rotate": {
+        "count": 203,
+        "p50Ms": 22.6,
+        "p95Ms": 49.2,
+        "status": {
+         "200": 203
+        }
+       }
+      }
+     },
+     {
+      "window": "150-180s",
+      "targetRps": null,
+      "sentRps": 69.0,
+      "goodputRps": 69.0,
+      "p95Ms": 25.5,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 21.2,
+      "byRequest": {
+       "GET /account/auth/me|-": {
+        "count": 1791,
+        "p50Ms": 5.8,
+        "p95Ms": 19.3,
+        "status": {
+         "200": 1791
+        }
+       },
+       "POST /account/auth/refresh|race": {
+        "count": 54,
+        "p50Ms": 18.0,
+        "p95Ms": 41.4,
+        "status": {
+         "401": 27,
+         "200": 27
+        }
+       },
+       "POST /account/auth/refresh|replay": {
+        "count": 31,
+        "p50Ms": 5.9,
+        "p95Ms": 12.3,
+        "status": {
+         "401": 31
+        }
+       },
+       "POST /account/auth/refresh|rotate": {
+        "count": 194,
+        "p50Ms": 22.4,
+        "p95Ms": 53.7,
+        "status": {
+         "200": 194
+        }
+       }
+      }
+     },
+     {
+      "window": "180-210s",
+      "targetRps": null,
+      "sentRps": 68.67,
+      "goodputRps": 68.67,
+      "p95Ms": 23.4,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 20.1,
+      "byRequest": {
+       "GET /account/auth/me|-": {
+        "count": 1786,
+        "p50Ms": 5.6,
+        "p95Ms": 14.9,
+        "status": {
+         "200": 1786
+        }
+       },
+       "POST /account/auth/refresh|race": {
+        "count": 46,
+        "p50Ms": 17.0,
+        "p95Ms": 32.5,
+        "status": {
+         "401": 23,
+         "200": 23
+        }
+       },
+       "POST /account/auth/refresh|replay": {
+        "count": 28,
+        "p50Ms": 6.0,
+        "p95Ms": 18.6,
+        "status": {
+         "401": 28
+        }
+       },
+       "POST /account/auth/refresh|rotate": {
+        "count": 200,
+        "p50Ms": 21.9,
+        "p95Ms": 43.4,
+        "status": {
+         "200": 200
+        }
+       }
+      }
+     },
+     {
+      "window": "210-240s",
+      "targetRps": null,
+      "sentRps": 67.1,
+      "goodputRps": 67.1,
+      "p95Ms": 24.9,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 21.4,
+      "byRequest": {
+       "GET /account/auth/me|-": {
+        "count": 1744,
+        "p50Ms": 5.7,
+        "p95Ms": 16.6,
+        "status": {
+         "200": 1744
+        }
+       },
+       "POST /account/auth/refresh|race": {
+        "count": 42,
+        "p50Ms": 18.0,
+        "p95Ms": 33.5,
+        "status": {
+         "401": 21,
+         "200": 21
+        }
+       },
+       "POST /account/auth/refresh|replay": {
+        "count": 27,
+        "p50Ms": 6.5,
+        "p95Ms": 16.4,
+        "status": {
+         "401": 27
+        }
+       },
+       "POST /account/auth/refresh|rotate": {
+        "count": 200,
+        "p50Ms": 22.5,
+        "p95Ms": 43.7,
+        "status": {
+         "200": 200
+        }
+       }
+      }
+     }
+    ],
+    "k6Counters": {
+     "account_refresh_replay_accepted": 0,
+     "account_refresh_ok": 1502,
+     "account_refresh_race_bad": 0,
+     "account_unexpected_5xx": 0,
+     "account_refresh_replay_rejected": 178,
+     "account_dup_group_bad": 0,
+     "account_refresh_race_ok": 142
+    }
+   },
+   {
+    "label": "after-a8-reg-kafka-down",
+    "scenario": "register",
+    "startedAt": "2026-11-04T12:13:04.920142+00:00",
+    "finishedAt": "2026-11-04T12:14:36.601237+00:00",
+    "k6ExitCode": 0,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "register",
+     "RUN_NO": "9",
+     "MAX_VUS": "300",
+     "RATE": "4",
+     "DURATION": "90s"
+    },
+    "workloadSha256": "cbe86be7acabb6c3836d990849c03c5241440a8e8d41254ee6036aaab2bf7ed6",
+    "windows": [
+     {
+      "window": "0-30s",
+      "targetRps": 4,
+      "sentRps": 4.03,
+      "goodputRps": 4.03,
+      "p95Ms": 108.3,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 22.7,
+      "byRequest": {
+       "POST /account/auth/register|-": {
+        "count": 121,
+        "p50Ms": 89.1,
+        "p95Ms": 108.3,
+        "status": {
+         "201": 121
+        }
+       }
+      }
+     },
+     {
+      "window": "30-60s",
+      "targetRps": 4,
+      "sentRps": 4.0,
+      "goodputRps": 4.0,
+      "p95Ms": 108.2,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 34.0,
+      "byRequest": {
+       "POST /account/auth/register|-": {
+        "count": 120,
+        "p50Ms": 88.3,
+        "p95Ms": 108.2,
+        "status": {
+         "201": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "60-90s",
+      "targetRps": 4,
+      "sentRps": 4.0,
+      "goodputRps": 4.0,
+      "p95Ms": 110.4,
+      "unexpected": 0,
+      "dropped": 0,
+      "accountCpuMeanPct": 34.8,
+      "byRequest": {
+       "POST /account/auth/register|-": {
+        "count": 120,
+        "p50Ms": 89.1,
+        "p95Ms": 110.4,
+        "status": {
+         "201": 120
+        }
+       }
+      }
+     }
+    ],
+    "check": {
+     "drainWaitSeconds": 17.5,
+     "k6Created": 361,
+     "summary": {
+      "accounts": 361,
+      "outboxEvents": 361,
+      "outboxStatus": {
+       "PUBLISHED": 361
+      },
+      "accountsWithoutEvent": 0,
+      "accountsWithMultipleEvents": 0,
+      "kafkaRecords": 361,
+      "kafkaUniqueEvents": 361,
+      "kafkaDuplicateRecords": 0,
+      "publishedMissingInKafka": 0,
+      "kafkaUnknownEvents": 0
+     },
+     "verdict": {
+      "result": "PASS",
+      "failures": [],
+      "duplicatePublications": 0
+     }
+    },
+    "k6Counters": {
+     "account_unexpected_5xx": 0,
+     "account_refresh_replay_accepted": 0,
+     "account_register_created": 361,
+     "account_refresh_race_bad": 0,
+     "account_dup_group_bad": 0
+    }
+   }
+  ]
+ },
+ "loginRateLimit": {
+  "status": "개선 후보 3 구현 후 같은 T1-small 환경 측정",
+  "settings": {
+   "loginPerIpPerMinute": 30,
+   "registerPerIpPerMinute": 10,
+   "failuresBeforeLock": 5,
+   "failureWindow": "15m",
+   "lock": "1m→2배→15m",
+   "ipWindow": "1m 슬라이딩 근사"
+  },
+  "e2e": {
+   "sameIp30Logins": "401",
+   "31st": "429 Retry-After 14",
+   "otherIp": "401",
+   "forgedXClientAddress": "무시(429)"
+  },
+  "failureLatencyMs": {
+   "before": {
+    "unknownP50": 5.2,
+    "wrongpwP50": "약 87~97"
+   },
+   "after": {
+    "unknownP50": 90.9,
+    "wrongpwP50": 92.2
+   }
+  },
+  "runs": [
+   {
+    "label": "rl-a4-wrongpw",
+    "scenario": "login-attack",
+    "startedAt": "2026-11-04T12:41:41.263120+00:00",
+    "k6ExitCode": 99,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "login-attack",
+     "RUN_NO": "0",
+     "MAX_VUS": "800",
+     "STAGES": "10:1m,20:1m,30:1m",
+     "DURATION": "4m",
+     "NORMAL_RATE": "4",
+     "ATTACK_KIND": "wrongpw",
+     "ATTACK_DELAY": "30s"
+    },
+    "windows": [
+     {
+      "window": "0-30s",
+      "goodputRps": 4.0,
+      "p95Ms": 198.5,
+      "byRequest": {
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 128.7,
+        "p95Ms": 198.5,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "30-60s",
+      "goodputRps": 7.27,
+      "p95Ms": 173.6,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 97,
+        "p50Ms": 107.8,
+        "p95Ms": 184.6,
+        "status": {
+         "401": 97
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 121,
+        "p50Ms": 119.1,
+        "p95Ms": 170.3,
+        "status": {
+         "200": 121
+        }
+       }
+      }
+     },
+     {
+      "window": "60-90s",
+      "goodputRps": 11.73,
+      "p95Ms": 288.9,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 233,
+        "p50Ms": 96.3,
+        "p95Ms": 288.4,
+        "status": {
+         "401": 138,
+         "429": 95
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 119,
+        "p50Ms": 127.9,
+        "p95Ms": 308.9,
+        "status": {
+         "200": 119
+        }
+       }
+      }
+     },
+     {
+      "window": "90-120s",
+      "goodputRps": 16.57,
+      "p95Ms": 138.3,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 376,
+        "p50Ms": 13.5,
+        "p95Ms": 33.9,
+        "status": {
+         "401": 5,
+         "429": 371
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 121,
+        "p50Ms": 117.8,
+        "p95Ms": 171.2,
+        "status": {
+         "200": 121
+        }
+       }
+      }
+     },
+     {
+      "window": "120-150s",
+      "goodputRps": 21.47,
+      "p95Ms": 1150.5,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 525,
+        "p50Ms": 15.2,
+        "p95Ms": 1132.4,
+        "status": {
+         "429": 405,
+         "401": 120
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 119,
+        "p50Ms": 130.0,
+        "p95Ms": 1246.7,
+        "status": {
+         "200": 119
+        }
+       }
+      }
+     },
+     {
+      "window": "150-180s",
+      "goodputRps": 26.53,
+      "p95Ms": 126.3,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 676,
+        "p50Ms": 10.2,
+        "p95Ms": 27.1,
+        "status": {
+         "429": 676
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 119.2,
+        "p95Ms": 210.5,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "180-210s",
+      "goodputRps": 30.57,
+      "p95Ms": 2031.0,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 822,
+        "p50Ms": 11.2,
+        "p95Ms": 2024.2,
+        "status": {
+         "429": 688,
+         "401": 110,
+         "503": 24
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 121,
+        "p50Ms": 128.9,
+        "p95Ms": 2039.5,
+        "status": {
+         "200": 119,
+         "503": 2
+        }
+       }
+      }
+     },
+     {
+      "window": "210-240s",
+      "goodputRps": 3.97,
+      "p95Ms": 153.0,
+      "byRequest": {
+       "POST /account/auth/login|normal": {
+        "count": 119,
+        "p50Ms": 111.8,
+        "p95Ms": 153.0,
+        "status": {
+         "200": 119
+        }
+       }
+      }
+     },
+     {
+      "window": "240-241s",
+      "goodputRps": 1.0,
+      "p95Ms": 157.0,
+      "byRequest": {
+       "POST /account/auth/login|normal": {
+        "count": 1,
+        "p50Ms": 157.0,
+        "p95Ms": 157.0,
+        "status": {
+         "200": 1
+        }
+       }
+      }
+     }
+    ],
+    "k6Counters": {
+     "account_attack_limited": 2235,
+     "account_unexpected_5xx": 26,
+     "account_refresh_race_bad": 0,
+     "account_normal_rejected": 2,
+     "account_refresh_replay_accepted": 0,
+     "account_dup_group_bad": 0
+    }
+   },
+   {
+    "label": "rl-a4-unknown",
+    "scenario": "login-attack",
+    "startedAt": "2026-11-04T12:45:51.421124+00:00",
+    "k6ExitCode": 0,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "login-attack",
+     "RUN_NO": "0",
+     "MAX_VUS": "800",
+     "STAGES": "10:1m,20:1m,30:1m",
+     "DURATION": "4m",
+     "NORMAL_RATE": "4",
+     "ATTACK_KIND": "unknown",
+     "ATTACK_DELAY": "30s"
+    },
+    "windows": [
+     {
+      "window": "0-30s",
+      "goodputRps": 4.03,
+      "p95Ms": 150.6,
+      "byRequest": {
+       "POST /account/auth/login|normal": {
+        "count": 121,
+        "p50Ms": 105.9,
+        "p95Ms": 150.6,
+        "status": {
+         "200": 121
+        }
+       }
+      }
+     },
+     {
+      "window": "30-60s",
+      "goodputRps": 7.27,
+      "p95Ms": 166.8,
+      "byRequest": {
+       "POST /account/auth/login|attack-unknown": {
+        "count": 98,
+        "p50Ms": 95.3,
+        "p95Ms": 143.3,
+        "status": {
+         "401": 98
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 107.9,
+        "p95Ms": 191.0,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "60-90s",
+      "goodputRps": 11.77,
+      "p95Ms": 138.2,
+      "byRequest": {
+       "POST /account/auth/login|attack-unknown": {
+        "count": 233,
+        "p50Ms": 86.3,
+        "p95Ms": 125.1,
+        "status": {
+         "401": 142,
+         "429": 91
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 109.3,
+        "p95Ms": 147.0,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "90-120s",
+      "goodputRps": 16.53,
+      "p95Ms": 129.9,
+      "byRequest": {
+       "POST /account/auth/login|attack-unknown": {
+        "count": 376,
+        "p50Ms": 8.9,
+        "p95Ms": 23.5,
+        "status": {
+         "429": 376
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 109.8,
+        "p95Ms": 153.6,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "120-150s",
+      "goodputRps": 21.53,
+      "p95Ms": 203.0,
+      "byRequest": {
+       "POST /account/auth/login|attack-unknown": {
+        "count": 526,
+        "p50Ms": 9.2,
+        "p95Ms": 192.3,
+        "status": {
+         "429": 406,
+         "401": 120
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 108.7,
+        "p95Ms": 217.4,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "150-180s",
+      "goodputRps": 26.53,
+      "p95Ms": 133.1,
+      "byRequest": {
+       "POST /account/auth/login|attack-unknown": {
+        "count": 676,
+        "p50Ms": 8.8,
+        "p95Ms": 26.2,
+        "status": {
+         "429": 676
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 114.9,
+        "p95Ms": 210.0,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "180-210s",
+      "goodputRps": 31.33,
+      "p95Ms": 1514.0,
+      "byRequest": {
+       "POST /account/auth/login|attack-unknown": {
+        "count": 820,
+        "p50Ms": 9.1,
+        "p95Ms": 1464.0,
+        "status": {
+         "429": 700,
+         "401": 120
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 120.8,
+        "p95Ms": 1741.4,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "210-240s",
+      "goodputRps": 4.0,
+      "p95Ms": 154.5,
+      "byRequest": {
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 106.3,
+        "p95Ms": 154.5,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     }
+    ],
+    "k6Counters": {
+     "account_dup_group_bad": 0,
+     "account_refresh_replay_accepted": 0,
+     "account_refresh_race_bad": 0,
+     "account_attack_limited": 2249,
+     "account_unexpected_5xx": 0
+    }
+   },
+   {
+    "label": "rl2-a4-wrongpw",
+    "scenario": "login-attack",
+    "startedAt": "2026-11-04T12:55:26.170969+00:00",
+    "k6ExitCode": 0,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "login-attack",
+     "RUN_NO": "0",
+     "MAX_VUS": "800",
+     "STAGES": "10:1m,20:1m,30:1m",
+     "DURATION": "4m",
+     "NORMAL_RATE": "4",
+     "ATTACK_KIND": "wrongpw",
+     "ATTACK_DELAY": "30s"
+    },
+    "windows": [
+     {
+      "window": "0-30s",
+      "goodputRps": 4.0,
+      "p95Ms": 192.7,
+      "byRequest": {
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 120.9,
+        "p95Ms": 192.7,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "30-60s",
+      "goodputRps": 7.27,
+      "p95Ms": 174.9,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 97,
+        "p50Ms": 109.2,
+        "p95Ms": 170.4,
+        "status": {
+         "401": 97
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 121,
+        "p50Ms": 117.0,
+        "p95Ms": 188.4,
+        "status": {
+         "200": 121
+        }
+       }
+      }
+     },
+     {
+      "window": "60-90s",
+      "goodputRps": 11.73,
+      "p95Ms": 160.7,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 233,
+        "p50Ms": 14.1,
+        "p95Ms": 124.6,
+        "status": {
+         "401": 23,
+         "429": 210
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 119,
+        "p50Ms": 120.1,
+        "p95Ms": 189.6,
+        "status": {
+         "200": 119
+        }
+       }
+      }
+     },
+     {
+      "window": "90-120s",
+      "goodputRps": 16.57,
+      "p95Ms": 142.2,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 376,
+        "p50Ms": 12.1,
+        "p95Ms": 29.8,
+        "status": {
+         "429": 376
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 121,
+        "p50Ms": 120.3,
+        "p95Ms": 177.5,
+        "status": {
+         "200": 121
+        }
+       }
+      }
+     },
+     {
+      "window": "120-150s",
+      "goodputRps": 21.53,
+      "p95Ms": 132.8,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 526,
+        "p50Ms": 10.5,
+        "p95Ms": 23.8,
+        "status": {
+         "429": 526
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 116.7,
+        "p95Ms": 175.9,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "150-180s",
+      "goodputRps": 26.5,
+      "p95Ms": 126.8,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 675,
+        "p50Ms": 9.5,
+        "p95Ms": 20.2,
+        "status": {
+         "429": 675
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 116.6,
+        "p95Ms": 157.2,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "180-210s",
+      "goodputRps": 31.4,
+      "p95Ms": 117.3,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 822,
+        "p50Ms": 8.6,
+        "p95Ms": 20.6,
+        "status": {
+         "429": 822
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 112.0,
+        "p95Ms": 169.0,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     },
+     {
+      "window": "210-240s",
+      "goodputRps": 4.0,
+      "p95Ms": 138.0,
+      "byRequest": {
+       "POST /account/auth/login|normal": {
+        "count": 120,
+        "p50Ms": 105.8,
+        "p95Ms": 138.0,
+        "status": {
+         "200": 120
+        }
+       }
+      }
+     }
+    ],
+    "k6Counters": {
+     "account_attack_limited": 2609,
+     "account_unexpected_5xx": 0,
+     "account_refresh_race_bad": 0,
+     "account_refresh_replay_accepted": 0,
+     "account_dup_group_bad": 0
+    }
+   },
+   {
+    "label": "rl-timing-unknown",
+    "scenario": "login-attack",
+    "startedAt": "2026-11-04T13:00:00.534354+00:00",
+    "k6ExitCode": 0,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "login-attack",
+     "RUN_NO": "0",
+     "MAX_VUS": "200",
+     "STAGES": "3:20s,3:70s",
+     "DURATION": "100s",
+     "NORMAL_RATE": "1",
+     "ATTACK_KIND": "unknown",
+     "ATTACK_DELAY": "10s",
+     "ATTACK_IPS": "50000"
+    },
+    "windows": [
+     {
+      "window": "0-30s",
+      "goodputRps": 2.3,
+      "p95Ms": 147.2,
+      "byRequest": {
+       "POST /account/auth/login|attack-unknown": {
+        "count": 39,
+        "p50Ms": 90.9,
+        "p95Ms": 118.6,
+        "status": {
+         "401": 39
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 30,
+        "p50Ms": 103.6,
+        "p95Ms": 161.5,
+        "status": {
+         "200": 30
+        }
+       }
+      }
+     },
+     {
+      "window": "30-60s",
+      "goodputRps": 4.03,
+      "p95Ms": 136.2,
+      "byRequest": {
+       "POST /account/auth/login|attack-unknown": {
+        "count": 90,
+        "p50Ms": 90.9,
+        "p95Ms": 133.7,
+        "status": {
+         "401": 90
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 31,
+        "p50Ms": 109.4,
+        "p95Ms": 185.6,
+        "status": {
+         "200": 31
+        }
+       }
+      }
+     },
+     {
+      "window": "60-90s",
+      "goodputRps": 3.97,
+      "p95Ms": 136.9,
+      "byRequest": {
+       "POST /account/auth/login|attack-unknown": {
+        "count": 90,
+        "p50Ms": 91.6,
+        "p95Ms": 136.9,
+        "status": {
+         "401": 90
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 29,
+        "p50Ms": 104.9,
+        "p95Ms": 132.7,
+        "status": {
+         "200": 29
+        }
+       }
+      }
+     },
+     {
+      "window": "90-100s",
+      "goodputRps": 4.0,
+      "p95Ms": 136.8,
+      "byRequest": {
+       "POST /account/auth/login|attack-unknown": {
+        "count": 30,
+        "p50Ms": 89.5,
+        "p95Ms": 121.0,
+        "status": {
+         "401": 30
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 10,
+        "p50Ms": 108.7,
+        "p95Ms": 148.6,
+        "status": {
+         "200": 10
+        }
+       }
+      }
+     }
+    ],
+    "k6Counters": {
+     "account_refresh_replay_accepted": 0,
+     "account_refresh_race_bad": 0,
+     "account_dup_group_bad": 0,
+     "account_unexpected_5xx": 0
+    }
+   },
+   {
+    "label": "rl-timing-wrongpw",
+    "scenario": "login-attack",
+    "startedAt": "2026-11-04T13:01:49.732118+00:00",
+    "k6ExitCode": 0,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "login-attack",
+     "RUN_NO": "0",
+     "MAX_VUS": "200",
+     "STAGES": "3:20s,3:70s",
+     "DURATION": "100s",
+     "NORMAL_RATE": "1",
+     "ATTACK_KIND": "wrongpw",
+     "ATTACK_DELAY": "10s",
+     "ATTACK_IPS": "50000"
+    },
+    "windows": [
+     {
+      "window": "0-30s",
+      "goodputRps": 2.33,
+      "p95Ms": 133.2,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 40,
+        "p50Ms": 91.5,
+        "p95Ms": 126.2,
+        "status": {
+         "401": 40
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 30,
+        "p50Ms": 102.2,
+        "p95Ms": 143.4,
+        "status": {
+         "200": 30
+        }
+       }
+      }
+     },
+     {
+      "window": "30-60s",
+      "goodputRps": 4.03,
+      "p95Ms": 145.9,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 90,
+        "p50Ms": 91.9,
+        "p95Ms": 137.3,
+        "status": {
+         "401": 90
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 31,
+        "p50Ms": 106.1,
+        "p95Ms": 201.8,
+        "status": {
+         "200": 31
+        }
+       }
+      }
+     },
+     {
+      "window": "60-90s",
+      "goodputRps": 3.93,
+      "p95Ms": 129.1,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 89,
+        "p50Ms": 92.0,
+        "p95Ms": 122.0,
+        "status": {
+         "401": 89
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 29,
+        "p50Ms": 105.1,
+        "p95Ms": 135.1,
+        "status": {
+         "200": 29
+        }
+       }
+      }
+     },
+     {
+      "window": "90-100s",
+      "goodputRps": 4.1,
+      "p95Ms": 131.6,
+      "byRequest": {
+       "POST /account/auth/login|attack-wrongpw": {
+        "count": 30,
+        "p50Ms": 93.6,
+        "p95Ms": 120.3,
+        "status": {
+         "401": 30
+        }
+       },
+       "POST /account/auth/login|normal": {
+        "count": 11,
+        "p50Ms": 105.4,
+        "p95Ms": 134.4,
+        "status": {
+         "200": 11
+        }
+       }
+      }
+     }
+    ],
+    "k6Counters": {
+     "account_unexpected_5xx": 0,
+     "account_refresh_race_bad": 0,
+     "account_refresh_replay_accepted": 0,
+     "account_dup_group_bad": 0
+    }
+   },
+   {
+    "label": "rl-a1-c1-r1",
+    "scenario": "login",
+    "startedAt": "2026-11-04T13:04:44.234740+00:00",
+    "k6ExitCode": 99,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "login",
+     "RUN_NO": "0",
+     "MAX_VUS": "600",
+     "STAGES": "3:1m,6:1m,9:1m,12:1m,15:1m,20:1m"
+    },
+    "windows": [
+     {
+      "window": "3/s",
+      "goodputRps": 2.27,
+      "p95Ms": 135.4,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 102,
+        "p50Ms": 103.1,
+        "p95Ms": 135.4,
+        "status": {
+         "200": 102
+        }
+       }
+      }
+     },
+     {
+      "window": "6/s",
+      "goodputRps": 4.91,
+      "p95Ms": 152.9,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 221,
+        "p50Ms": 101.8,
+        "p95Ms": 152.9,
+        "status": {
+         "200": 221
+        }
+       }
+      }
+     },
+     {
+      "window": "9/s",
+      "goodputRps": 7.87,
+      "p95Ms": 596.2,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 354,
+        "p50Ms": 105.3,
+        "p95Ms": 596.2,
+        "status": {
+         "200": 354
+        }
+       }
+      }
+     },
+     {
+      "window": "12/s",
+      "goodputRps": 10.24,
+      "p95Ms": 2181.8,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 467,
+        "p50Ms": 460.0,
+        "p95Ms": 2181.8,
+        "status": {
+         "200": 461,
+         "503": 6
+        }
+       }
+      }
+     },
+     {
+      "window": "15/s",
+      "goodputRps": 9.98,
+      "p95Ms": 2312.0,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 623,
+        "p50Ms": 2191.1,
+        "p95Ms": 2312.0,
+        "status": {
+         "200": 449,
+         "503": 174
+        }
+       }
+      }
+     },
+     {
+      "window": "20/s",
+      "goodputRps": 8.98,
+      "p95Ms": 2364.5,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 812,
+        "p50Ms": 2127.8,
+        "p95Ms": 2364.5,
+        "status": {
+         "200": 404,
+         "503": 408
+        }
+       }
+      }
+     }
+    ],
+    "k6Counters": {
+     "account_refresh_race_bad": 0,
+     "account_refresh_replay_accepted": 0,
+     "account_unexpected_5xx": 716,
+     "account_dup_group_bad": 0
+    }
+   },
+   {
+    "label": "rl-a1-c1-r1-b",
+    "scenario": "login",
+    "startedAt": "2026-11-04T13:18:34.394991+00:00",
+    "k6ExitCode": 99,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "login",
+     "RUN_NO": "0",
+     "MAX_VUS": "600",
+     "STAGES": "3:1m,6:1m,9:1m,12:1m,15:1m,20:1m"
+    },
+    "windows": [
+     {
+      "window": "3/s",
+      "goodputRps": 2.27,
+      "p95Ms": 150.4,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 102,
+        "p50Ms": 105.2,
+        "p95Ms": 150.4,
+        "status": {
+         "200": 102
+        }
+       }
+      }
+     },
+     {
+      "window": "6/s",
+      "goodputRps": 4.91,
+      "p95Ms": 135.2,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 221,
+        "p50Ms": 104.6,
+        "p95Ms": 135.2,
+        "status": {
+         "200": 221
+        }
+       }
+      }
+     },
+     {
+      "window": "9/s",
+      "goodputRps": 7.91,
+      "p95Ms": 137.7,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 356,
+        "p50Ms": 100.7,
+        "p95Ms": 137.7,
+        "status": {
+         "200": 356
+        }
+       }
+      }
+     },
+     {
+      "window": "12/s",
+      "goodputRps": 10.49,
+      "p95Ms": 1551.4,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 472,
+        "p50Ms": 143.6,
+        "p95Ms": 1551.4,
+        "status": {
+         "200": 472
+        }
+       }
+      }
+     },
+     {
+      "window": "15/s",
+      "goodputRps": 10.69,
+      "p95Ms": 2277.6,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 623,
+        "p50Ms": 2180.4,
+        "p95Ms": 2277.6,
+        "status": {
+         "200": 481,
+         "503": 142
+        }
+       }
+      }
+     },
+     {
+      "window": "20/s",
+      "goodputRps": 10.33,
+      "p95Ms": 2293.5,
+      "byRequest": {
+       "POST /account/auth/login|active": {
+        "count": 813,
+        "p50Ms": 2168.9,
+        "p95Ms": 2293.5,
+        "status": {
+         "200": 465,
+         "503": 348
+        }
+       }
+      }
+     }
+    ],
+    "k6Counters": {
+     "account_refresh_race_bad": 0,
+     "account_refresh_replay_accepted": 0,
+     "account_dup_group_bad": 0,
+     "account_unexpected_5xx": 594
+    }
+   },
+   {
+    "label": "rl-a5-dup-email",
+    "scenario": "register-dup",
+    "startedAt": "2026-11-04T13:10:55.714879+00:00",
+    "k6ExitCode": 99,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "register-dup",
+     "RUN_NO": "10",
+     "MAX_VUS": "300",
+     "RATE": "2",
+     "DURATION": "90s",
+     "DUP_SIZE": "5",
+     "DUP_MODE": "email"
+    },
+    "windows": [
+     {
+      "window": "0-30s",
+      "goodputRps": 9.7,
+      "p95Ms": 2128.8,
+      "byRequest": {
+       "POST /account/auth/register|dup-email": {
+        "count": 295,
+        "p50Ms": 1630.8,
+        "p95Ms": 2128.8,
+        "status": {
+         "201": 59,
+         "409": 232,
+         "503": 4
+        }
+       }
+      }
+     },
+     {
+      "window": "30-60s",
+      "goodputRps": 10.5,
+      "p95Ms": 1637.9,
+      "byRequest": {
+       "POST /account/auth/register|dup-email": {
+        "count": 315,
+        "p50Ms": 751.4,
+        "p95Ms": 1637.9,
+        "status": {
+         "201": 63,
+         "409": 252
+        }
+       }
+      }
+     },
+     {
+      "window": "60-90s",
+      "goodputRps": 9.83,
+      "p95Ms": 849.7,
+      "byRequest": {
+       "POST /account/auth/register|dup-email": {
+        "count": 295,
+        "p50Ms": 354.1,
+        "p95Ms": 849.7,
+        "status": {
+         "201": 59,
+         "409": 236
+        }
+       }
+      }
+     }
+    ],
+    "check": {
+     "summary": {
+      "accounts": 181,
+      "outboxEvents": 181,
+      "outboxStatus": {
+       "PUBLISHED": 181
+      },
+      "accountsWithoutEvent": 0,
+      "accountsWithMultipleEvents": 0,
+      "kafkaRecords": 181,
+      "kafkaUniqueEvents": 181,
+      "kafkaDuplicateRecords": 0,
+      "publishedMissingInKafka": 0,
+      "kafkaUnknownEvents": 0,
+      "dupGroupBad": 3
+     },
+     "verdict": {
+      "result": "FAIL",
+      "failures": [
+       "duplicate groups without exactly one 201: 3"
+      ],
+      "duplicatePublications": 0
+     }
+    },
+    "k6Counters": {
+     "account_refresh_race_bad": 0,
+     "account_dup_group_ok": 178,
+     "account_unexpected_5xx": 4,
+     "account_refresh_replay_accepted": 0,
+     "account_dup_group_bad": 3
+    }
+   },
+   {
+    "label": "rl-a5-dup-email-r2",
+    "scenario": "register-dup",
+    "startedAt": "2026-11-04T13:15:25.554539+00:00",
+    "k6ExitCode": 0,
+    "k6Env": {
+     "BASE_URL": "http://gateway-server:7070",
+     "SCENARIO": "register-dup",
+     "RUN_NO": "11",
+     "MAX_VUS": "300",
+     "RATE": "2",
+     "DURATION": "90s",
+     "DUP_SIZE": "5",
+     "DUP_MODE": "email"
+    },
+    "windows": [
+     {
+      "window": "0-30s",
+      "goodputRps": 10.1,
+      "p95Ms": 360.2,
+      "byRequest": {
+       "POST /account/auth/register|dup-email": {
+        "count": 303,
+        "p50Ms": 207.5,
+        "p95Ms": 360.2,
+        "status": {
+         "201": 61,
+         "409": 242
+        }
+       }
+      }
+     },
+     {
+      "window": "30-60s",
+      "goodputRps": 10.03,
+      "p95Ms": 286.0,
+      "byRequest": {
+       "POST /account/auth/register|dup-email": {
+        "count": 301,
+        "p50Ms": 171.9,
+        "p95Ms": 286.0,
+        "status": {
+         "409": 241,
+         "201": 60
+        }
+       }
+      }
+     },
+     {
+      "window": "60-90s",
+      "goodputRps": 9.87,
+      "p95Ms": 284.6,
+      "byRequest": {
+       "POST /account/auth/register|dup-email": {
+        "count": 296,
+        "p50Ms": 165.2,
+        "p95Ms": 284.6,
+        "status": {
+         "409": 237,
+         "201": 59
+        }
+       }
+      }
+     },
+     {
+      "window": "90-91s",
+      "goodputRps": 5.0,
+      "p95Ms": 322.8,
+      "byRequest": {
+       "POST /account/auth/register|dup-email": {
+        "count": 5,
+        "p50Ms": 253.4,
+        "p95Ms": 322.8,
+        "status": {
+         "201": 1,
+         "409": 4
+        }
+       }
+      }
+     }
+    ],
+    "check": {
+     "summary": {
+      "accounts": 181,
+      "outboxEvents": 181,
+      "outboxStatus": {
+       "PUBLISHED": 181
+      },
+      "accountsWithoutEvent": 0,
+      "accountsWithMultipleEvents": 0,
+      "kafkaRecords": 181,
+      "kafkaUniqueEvents": 181,
+      "kafkaDuplicateRecords": 0,
+      "publishedMissingInKafka": 0,
+      "kafkaUnknownEvents": 0,
+      "dupGroupBad": 0
+     },
+     "verdict": {
+      "result": "PASS",
+      "failures": [],
+      "duplicatePublications": 0
+     }
+    },
+    "k6Counters": {
+     "account_unexpected_5xx": 0,
+     "account_dup_group_bad": 0,
+     "account_dup_group_ok": 181,
+     "account_refresh_race_bad": 0,
+     "account_refresh_replay_accepted": 0
+    }
+   }
+  ]
+ },
+ "redeploy": {
+  "status": "개선 후보 5 구현 전후 같은 T1-small 환경 측정. Gateway 경유 GET /account/auth/login(정상 405) 20/s 탐침",
+  "changes": [
+   "Account DiscoveryDrainLifecycle: 종료 시 Eureka DOWN 후 15s drain",
+   "compose account-service stop_grace_period 45s",
+   "Gateway 레지스트리 갱신 30s→5s, 로드밸런서 캐시 35s→5s",
+   "Eureka 서버 읽기 전용 응답 캐시 끔",
+   "Gateway UpstreamFailureFilter: 연결 실패·인스턴스 없음 → 503 UPSTREAM_UNAVAILABLE + Retry-After, 읽기 시간 초과 → 504"
+  ],
+  "runs": {
+   "base-rolling": {
+    "mode": "rolling",
+    "events": [
+     [
+      "new-instance-healthy",
+      51.99
+     ],
+     [
+      "old-stop-begin",
+      82.0
+     ],
+     [
+      "old-stopped",
+      85.44
+     ]
+    ],
+    "summary": {
+     "requests": 1829,
+     "statusCounts": {
+      "405": 1610,
+      "500": 219
+     },
+     "failures": 219,
+     "firstFailureAt": 82.11,
+     "lastFailureAt": 130.67
+    }
+   },
+   "base-recreate": {
+    "mode": "recreate",
+    "events": [
+     [
+      "recreate-begin",
+      5.26
+     ],
+     [
+      "new-instance-healthy",
+      55.04
+     ]
+    ],
+    "summary": {
+     "requests": 2176,
+     "statusCounts": {
+      "405": 1073,
+      "500": 1103
+     },
+     "failures": 1103,
+     "firstFailureAt": 5.77,
+     "lastFailureAt": 83.88,
+     "newInstanceHealthyAt": 55.04,
+     "firstSuccessAfterHealthy": 83.94,
+     "failuresAfterHealthy": 495,
+     "recoveryLagSeconds": 28.84
+    }
+   },
+   "after-rolling": {
+    "mode": "rolling",
+    "events": [
+     [
+      "new-instance-healthy",
+      46.67
+     ],
+     [
+      "old-stop-begin",
+      76.67
+     ],
+     [
+      "old-stopped",
+      95.15
+     ]
+    ],
+    "summary": {
+     "requests": 2413,
+     "statusCounts": {
+      "405": 2413
+     },
+     "failures": 0,
+     "firstFailureAt": null,
+     "lastFailureAt": null
+    }
+   },
+   "after-recreate": {
+    "mode": "recreate",
+    "events": [
+     [
+      "recreate-begin",
+      5.3
+     ],
+     [
+      "new-instance-healthy",
+      65.36
+     ]
+    ],
+    "summary": {
+     "requests": 2557,
+     "statusCounts": {
+      "405": 1627,
+      "500": 930
+     },
+     "failures": 930,
+     "firstFailureAt": 10.99,
+     "lastFailureAt": 66.78,
+     "newInstanceHealthyAt": 65.36,
+     "firstSuccessAfterHealthy": 66.84,
+     "failuresAfterHealthy": 25,
+     "recoveryLagSeconds": 1.43
+    }
+   },
+   "after2-recreate": {
+    "mode": "recreate",
+    "events": [
+     [
+      "recreate-begin",
+      5.3
+     ],
+     [
+      "new-instance-healthy",
+      70.22
+     ]
+    ],
+    "summary": {
+     "requests": 2600,
+     "statusCounts": {
+      "405": 1580,
+      "503": 1020
+     },
+     "failures": 1020,
+     "firstFailureAt": 11.02,
+     "lastFailureAt": 70.71,
+     "newInstanceHealthyAt": 70.22,
+     "firstSuccessAfterHealthy": 70.77,
+     "failuresAfterHealthy": 9,
+     "recoveryLagSeconds": 0.5
+    }
+   },
+   "after2-rolling": {
+    "mode": "rolling",
+    "events": [
+     [
+      "new-instance-healthy",
+      46.57
+     ],
+     [
+      "old-stop-begin",
+      76.57
+     ],
+     [
+      "old-stopped",
+      95.01
+     ]
+    ],
+    "summary": {
+     "requests": 2541,
+     "statusCounts": {
+      "405": 2541
+     },
+     "failures": 0,
+     "firstFailureAt": null,
+     "lastFailureAt": null
+    }
+   }
+  }
+ },
+ "redeployAllServices": {
+  "status": "2026-11-04 같은 T1-small 실험실(erpmsa-sprint4-lab, tmpfs DB). FoodMaterials 무중단 교체(1개 → 2개 → 옛 인스턴스 SIGTERM, 30초 정착). 같은 이미지에서 SHUTDOWN_DISCOVERY_DRAIN만 0s/15s로 바꿔 대조. Gateway 경유 GET /foodmaterials(토큰, 정상 200) 20/s + 폐기 POST /disposals 2/s(수량 1, 매번 새 requestId)",
+  "changes": [
+   "shared/service-foundation DiscoveryDrainLifecycle·자동 구성: Menus·FoodMaterials·Disposals·Notices·Bills·Purchase",
+   "compose 6개 서비스 stop_grace_period 45s",
+   "Disposals 레지스트리 갱신 30s→5s, 로드밸런서 캐시 35s→5s(FoodMaterials 호출 경로)"
+  ],
+  "unchanged": "Gateway·Eureka 설정은 두 조건 모두 개선 후 값(갱신 5s, LB 캐시 5s, 응답 캐시 끔, 503 UPSTREAM_UNAVAILABLE)",
+  "stopTimesSeconds": {
+   "menus": 18.36,
+   "notices": 18.32,
+   "disposals": 18.59
+  },
+  "runs": {
+   "fm-drain0-r1": {
+    "mode": "rolling",
+    "events": [
+     [
+      "new-instance-healthy",
+      31.59
+     ],
+     [
+      "old-stop-begin",
+      61.59
+     ],
+     [
+      "old-stopped",
+      64.86
+     ]
+    ],
+    "summary": {
+     "requests": 2311,
+     "statusCounts": {
+      "401": 2311
+     },
+     "failures": 0,
+     "firstFailureAt": null,
+     "lastFailureAt": null
+    },
+    "probePath": "/foodmaterials?page=0&size=20",
+    "valid": false,
+    "invalidReason": "토큰 없는 요청이라 Gateway JWT 필터가 401로 응답해 FoodMaterials까지 가지 않았다. 측정에서 제외"
+   },
+   "fm-drain0-r2": {
+    "mode": "rolling",
+    "events": [
+     [
+      "new-instance-healthy",
+      31.4
+     ],
+     [
+      "old-stop-begin",
+      61.4
+     ],
+     [
+      "old-stopped",
+      64.69
+     ]
+    ],
+    "summary": {
+     "requests": 2354,
+     "statusCounts": {
+      "401": 2354
+     },
+     "failures": 0,
+     "firstFailureAt": null,
+     "lastFailureAt": null
+    },
+    "probePath": "/foodmaterials?page=0&size=20",
+    "valid": false,
+    "invalidReason": "토큰 없는 요청이라 Gateway JWT 필터가 401로 응답해 FoodMaterials까지 가지 않았다. 측정에서 제외"
+   },
+   "fm-drain0-auth-r1": {
+    "mode": "rolling",
+    "events": [
+     [
+      "new-instance-healthy",
+      32.04
+     ],
+     [
+      "old-stop-begin",
+      62.04
+     ],
+     [
+      "old-stopped",
+      65.71
+     ]
+    ],
+    "summary": {
+     "requests": 1693,
+     "statusCounts": {
+      "200": 1663,
+      "503": 30
+     },
+     "failures": 30,
+     "firstFailureAt": 62.17,
+     "lastFailureAt": 69.91
+    },
+    "probePath": "/foodmaterials?page=0&size=20",
+    "disposals": {
+     "disposals": 218,
+     "finalStatusCounts": {
+      "COMPLETED": 218
+     },
+     "ledgerRows": 218,
+     "initialQuantity": 100000,
+     "onHandQuantity": 99782,
+     "checks": {
+      "ledgerMatchesCompleted": true,
+      "noDuplicateDeduction": true,
+      "ledgerQuantityMatches": true,
+      "onHandMatches": true
+     },
+     "result": "PASS",
+     "requests": 218,
+     "firstResponseCounts": {
+      "200": 214,
+      "202": 4
+     },
+     "firstResponsePending": 4,
+     "unansweredOrNoRecord": 0,
+     "retryCalls": 4,
+     "pendingTimeline": [
+      [
+       62.67,
+       202,
+       "PENDING"
+      ],
+      [
+       63.79,
+       202,
+       "PENDING"
+      ],
+      [
+       64.87,
+       202,
+       "PENDING"
+      ],
+      [
+       65.95,
+       202,
+       "PENDING"
+      ]
+     ]
+    }
+   },
+   "fm-drain0-auth-r2": {
+    "mode": "rolling",
+    "events": [
+     [
+      "new-instance-healthy",
+      36.26
+     ],
+     [
+      "old-stop-begin",
+      66.26
+     ],
+     [
+      "old-stopped",
+      69.9
+     ]
+    ],
+    "summary": {
+     "requests": 1945,
+     "statusCounts": {
+      "200": 1916,
+      "503": 29
+     },
+     "failures": 29,
+     "firstFailureAt": 66.35,
+     "lastFailureAt": 69.89
+    },
+    "probePath": "/foodmaterials?page=0&size=20",
+    "disposals": {
+     "disposals": 233,
+     "finalStatusCounts": {
+      "COMPLETED": 233
+     },
+     "ledgerRows": 233,
+     "initialQuantity": 100000,
+     "onHandQuantity": 99767,
+     "checks": {
+      "ledgerMatchesCompleted": true,
+      "noDuplicateDeduction": true,
+      "ledgerQuantityMatches": true,
+      "onHandMatches": true
+     },
+     "result": "PASS",
+     "requests": 233,
+     "firstResponseCounts": {
+      "200": 228,
+      "202": 5
+     },
+     "firstResponsePending": 5,
+     "unansweredOrNoRecord": 0,
+     "retryCalls": 5,
+     "pendingTimeline": [
+      [
+       66.32,
+       202,
+       "PENDING"
+      ],
+      [
+       67.42,
+       202,
+       "PENDING"
+      ],
+      [
+       67.96,
+       202,
+       "PENDING"
+      ],
+      [
+       69.02,
+       202,
+       "PENDING"
+      ],
+      [
+       70.13,
+       202,
+       "PENDING"
+      ]
+     ]
+    }
+   },
+   "fm-drain15-auth-r1": {
+    "mode": "rolling",
+    "events": [
+     [
+      "new-instance-healthy",
+      31.73
+     ],
+     [
+      "old-stop-begin",
+      61.74
+     ],
+     [
+      "old-stopped",
+      80.39
+     ]
+    ],
+    "summary": {
+     "requests": 2105,
+     "statusCounts": {
+      "200": 2105
+     },
+     "failures": 0,
+     "firstFailureAt": null,
+     "lastFailureAt": null
+    },
+    "probePath": "/foodmaterials?page=0&size=20",
+    "disposals": {
+     "disposals": 259,
+     "finalStatusCounts": {
+      "COMPLETED": 259
+     },
+     "ledgerRows": 259,
+     "initialQuantity": 100000,
+     "onHandQuantity": 99741,
+     "checks": {
+      "ledgerMatchesCompleted": true,
+      "noDuplicateDeduction": true,
+      "ledgerQuantityMatches": true,
+      "onHandMatches": true
+     },
+     "result": "PASS",
+     "requests": 259,
+     "firstResponseCounts": {
+      "200": 259
+     },
+     "firstResponsePending": 0,
+     "unansweredOrNoRecord": 0,
+     "retryCalls": 0,
+     "pendingTimeline": []
+    }
+   },
+   "fm-drain15-auth-r2": {
+    "mode": "rolling",
+    "events": [
+     [
+      "new-instance-healthy",
+      31.95
+     ],
+     [
+      "old-stop-begin",
+      61.95
+     ],
+     [
+      "old-stopped",
+      80.6
+     ]
+    ],
+    "summary": {
+     "requests": 2178,
+     "statusCounts": {
+      "200": 2178
+     },
+     "failures": 0,
+     "firstFailureAt": null,
+     "lastFailureAt": null
+    },
+    "probePath": "/foodmaterials?page=0&size=20",
+    "disposals": {
+     "disposals": 261,
+     "finalStatusCounts": {
+      "COMPLETED": 261
+     },
+     "ledgerRows": 261,
+     "initialQuantity": 100000,
+     "onHandQuantity": 99739,
+     "checks": {
+      "ledgerMatchesCompleted": true,
+      "noDuplicateDeduction": true,
+      "ledgerQuantityMatches": true,
+      "onHandMatches": true
+     },
+     "result": "PASS",
+     "requests": 261,
+     "firstResponseCounts": {
+      "200": 261
+     },
+     "firstResponsePending": 0,
+     "unansweredOrNoRecord": 0,
+     "retryCalls": 0,
+     "pendingTimeline": []
+    }
+   }
+  }
+ }
+}

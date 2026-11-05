@@ -1,0 +1,429 @@
+# Account 부하 시험 결과 (T1-small)
+
+> **해석 범위**: 2026-11-04 claude.ai 클라우드 세션 컨테이너(4 CPU, 15.7 GiB) 한 대에서 서비스 14개 컨테이너와 k6를 함께 실행한 결과다.
+> 설계 문서의 T1 조건(같은 호스트)이며 **운영 용량이나 대규모 결과로 인용하지 않는다.** 각 조건은 1회씩만 측정했다(설계 기준은 3회 반복).
+> 설계·가설: [load-test-design.md §13](load-test-design.md) · 원시 추출본: [account-load-measurements.json](account-load-measurements.json)
+
+> **개선 후 재측정**: 같은 날 개선 후보 1·2·4와 새로 찾은 Gateway 연결 풀 문제를 고친 뒤 같은 조건으로 다시 측정했다([개선 후 재측정](#개선-후-재측정)). 이어서 개선 후보 3(로그인 시도 제한)을 구현하고 재측정했다([로그인 시도 제한](#로그인-시도-제한-개선-후보-3)). 재배포 drain(개선 후보 5)은 Account에 이어 나머지 업무 서비스 6개에 적용하고 FoodMaterials로 전후를 측정했다([나머지 업무 서비스 적용](#나머지-업무-서비스-적용)).
+
+## 요약
+
+| # | 발견 | 근거 | 심각도 |
+|---|---|---|---|
+| 1 | **Account 과부하가 Gateway 메모리 한계 종료로 번져 전체 경로가 끊긴다** | Gateway가 512 MiB 제한에서 4회 강제 종료(커널 memcg OOM 기록). Account 과부하 때 Gateway 메모리가 평시 약 220 MiB에서 650 MiB까지 증가 | 높음 |
+| 2 | **포화점을 넘으면 처리량이 정체하지 않고 0으로 붕괴한다** | 로그인 40/s(2 CPU) 구간 성공 0건, 1,437건 전부 10초 시간 초과 | 높음 |
+| 3 | **Account 2개 이상에서 Outbox 이벤트가 중복 발행된다**(H-A6 확인) | 3,869건 중 2,500건이 Kafka에 정확히 2번 기록. 단일 인스턴스는 0건 | 중간 |
+| 4 | **틀린 비밀번호 공격이 정상 로그인을 밀어낸다**(H-A4 확인) | 공격 약 18/s에서 정상 로그인 p95 142 ms → 5.6 s, 이후 실패 47건. 없는 이메일 공격은 27/s에서도 영향 없음 | 높음 |
+| 5 | **응답시간으로 가입 여부를 알 수 있다** | 실패 로그인 p50: 없는 이메일 약 5 ms, 틀린 비밀번호 약 90 ms(약 18배) | 중간(보안) |
+| 6 | 로그인 처리량은 CPU에 비례하고 증설 효율이 높다(H-A1 확인) | 1 CPU 1개 7.9/s → 1 CPU 2개 15.8/s, 효율 약 1.0 | 정보 |
+| 7 | 클라이언트가 포기한 요청도 서버가 끝까지 계산한다 | 부하 종료 뒤 40~53초간 Account CPU 95~100% 유지 | 중간 |
+| 8 | Account 재생성 직후 Gateway가 약 11초간 500을 반환한다 | 재생성 뒤 첫 요청부터 약 11초간 전부 500. 4차 스프린트 기록과 같은 현상 | 중간 |
+
+정합성은 모든 시험에서 유지됐다. 가입·중복 가입·Kafka 장애 시험에서 계정·Outbox·Kafka 누락 0, 중복 가입 묶음 오류 0, Refresh 토큰 이중 사용 0이다.
+
+## 환경과 조건
+
+| 항목 | 값 |
+|---|---|
+| 호스트 | 4 CPU, 15.7 GiB, Docker 29.9.2, cgroup v1. 부하 발생기(k6 1.7.1, 1 CPU 제한)도 같은 호스트 |
+| 이미지 | 각 서비스 Dockerfile과 같은 실행 단계(`eclipse-temurin:21-jre-jammy`)에 호스트에서 빌드한 JAR을 넣었다. Maven Central이 429를 반환해 Google의 Maven Central 미러로 의존성을 받았다 |
+| 기준 커밋 | `39d2ff6` + 이 문서와 함께 커밋한 도구 변경. 실행별 `workloadSha256`은 JSON에 있다 |
+| 데이터 | 회원 100만 명(ACTIVE 98만, PENDING 1만, SUSPENDED 1만), BCrypt cost 10, 계정 테이블 데이터 214 MB + 인덱스 72 MB, 생성 23.5초 |
+| Account 자원 | 메모리 512 MiB, 연결 풀 10. CPU는 `a1-login-c2-r1`만 2, 나머지 1(`LAB_ACCOUNT_CPUS=1`) |
+| Gateway 자원 | 1 CPU, 메모리 512 MiB. `a3-session-gw1g`와 대조 실험의 1g 조건만 1 GiB |
+| 판정 | k6 임계값(§13.4), `check`(계정·Outbox·Kafka 대조), `account_report.py`(단계별 집계, 각 단계 처음 15초 제외) |
+
+## 시나리오별 결과
+
+### A0 인증 오버헤드 기준선
+
+`/account/auth/me` 100/s, 2분. 30초 구간별 p95는 17.3 / 8.2 / 9.0 / 7.9 ms, Account CPU 약 10%, 누락 0이다.
+직전의 콜드 실행(50/s)은 p95 1,037 ms에 누락 5건이었다. **측정 전 워밍업 실행이 반드시 필요하다.**
+
+### A1 로그인 단계 포화
+
+| 조건 | 포화 전 마지막 단계 성공/s | 그다음 단계 | 붕괴 단계 |
+|---|---:|---|---|
+| Account 1개, 2 CPU | 16.4 (p95 321 ms, CPU 67%) | 26/s 목표: 성공 20.5/s, p95 7.5 s, CPU 96% | 36/s 목표: **성공 0/s**, 1,437건 시간 초과 |
+| Account 1개, 1 CPU | 7.9 (p95 191 ms, CPU 73%) | 11/s 목표: 성공 10.1/s, p95 3.0 s, CPU 95% | 18/s 목표: 성공 0/s |
+| Account 2개, 각 1 CPU | 15.8 (p95 259 ms, CPU 73%) | 22/s 목표: 성공 19.8/s, p95 3.7 s, CPU 94% | 36/s 목표: 성공 0/s |
+
+- 연결 풀 대기는 모든 구간에서 0이었다. 병목은 CPU(BCrypt)다. 로그인 한 건은 약 0.1 CPU초를 쓴다.
+- 증설 효율은 `15.8 / (2 × 7.9) ≈ 1.0`이다. 단, 두 인스턴스가 같은 4 CPU 호스트를 나눠 썼으므로 다중 호스트의 효율은 따로 측정해야 한다.
+- 2 CPU 실행의 마지막 단계(52/s 목표)는 08:32:18 Gateway 종료와 겹쳐 오염됐다. 해당 단계의 CPU 평균 55%와 성공 5.4/s는 해석에서 제외한다.
+- 포화를 넘으면 성공 처리량이 0까지 떨어진다. 요청이 Tomcat 대기열에 쌓이고 모든 요청이 클라이언트 제한 시간(10초)을 넘기기 때문이다. 서버는 그 요청을 끝까지 계산한다(발견 7).
+
+### A2 회원가입 단계 포화와 H-A2
+
+Account 1개, 1 CPU. 포화 전 마지막 단계는 7.3/s(p95 172 ms)다. 9.3/s에서 p95 643 ms, 11.1/s에서 4.5 s, CPU 98%였다.
+`check`: 계정 2,249 = Outbox 2,249 = Kafka 2,249, 누락·중복 0, 적체 해소 대기 0.5초. **PASS.**
+
+H-A2(BCrypt를 감싼 트랜잭션의 연결 점유가 먼저 병목)는 **이 조건에서 확인되지 않았다.** 포화 시 활성 연결 최대 6/10, 대기 0이었고 연결 획득 최대 시간은 0.11초였다.
+풀이 허용하는 처리량(약 10 ÷ 0.1초 = 100/s)이 1 CPU의 처리량(약 10/s)보다 훨씬 커서 CPU가 먼저 포화된다.
+**인스턴스당 CPU가 약 10개 이상인 환경에서만** 풀이 먼저 막힐 수 있으므로 T2 이상에서 다시 확인한다.
+Prometheus 수집 주기(15초) 때문에 짧은 대기는 놓쳤을 수 있다.
+
+### A6 Account 2개에서 Outbox 중복 발행
+
+가입 16/s까지 포화 없이 처리했다(15.8/s, p95 282 ms). `check`:
+
+| 항목 | 값 |
+|---|---:|
+| 계정 = Outbox 이벤트 | 3,869 |
+| Kafka 레코드 / 고유 eventId | 6,369 / 3,869 |
+| 2번 기록된 이벤트 | **2,500 (65%)** |
+| 누락 | 0 |
+| Outbox 재시도(`attempt_count`) | 전부 0 |
+
+재시도는 없었으므로 중복은 두 인스턴스가 같은 대기 이벤트를 동시에 조회해 각자 발행한 결과다(H-A6 확인).
+같은 시점의 단일 인스턴스 실행(A2, 2,249건)은 중복 0이었다. 이벤트 계약의 `eventId`로 소비자가 중복을 제거할 수 있어 누락과 달리 FAIL로 판정하지 않았지만, 증설 전에 해결해야 한다.
+
+### A5 동시 중복 가입
+
+Account 2개에서 묶음당 5개 요청을 동시에 보냈다.
+
+| 모드 | 묶음 | 정확히 1건 201 + 나머지 409 | 5xx | 계정 = Outbox |
+|---|---:|---:|---:|---:|
+| 같은 이메일 | 181 | 181 | 0 | 181 = 181 |
+| 같은 사업자번호 | 181 | 181 | 0 | 181 = 181 |
+
+인스턴스를 넘나드는 경합에서도 중복 가입 방어가 유지됐다. Kafka 중복(50, 133건)은 A6과 같은 원인이다.
+
+### A4 실패 로그인 폭주 속 정상 로그인
+
+Account 2개, 각 1 CPU. 정상 로그인 4/s를 유지하면서 공격 요청률을 올렸다. 30초 구간 기준이다.
+
+| 구간 | wrongpw 공격/s | 정상 로그인 p95 | unknown 공격/s | 정상 로그인 p95 |
+|---|---:|---:|---:|---:|
+| 0-30s | 0 | 142 ms | 0 | 134 ms |
+| 30-60s | 3.2 | 167 ms | 3.2 | 148 ms |
+| 60-90s | 7.8 | 144 ms | 7.8 | 131 ms |
+| 90-120s | 12.5 | 336 ms | 12.5 | 135 ms |
+| 120-150s | 17.3 | 407 ms | 17.5 | 150 ms |
+| 150-180s | 18.5 | **5,603 ms** | 22.5 | 132 ms |
+| 180-210s | 20.0 | **10,001 ms, 실패 13** | 27.4 | 119 ms |
+| 210-240s | 7.5(대부분 시간 초과) | 10,001 ms, 실패 34 | - | 121 ms |
+
+- 틀린 비밀번호 공격은 정상 로그인과 같은 BCrypt 비용을 쓴다. 공격과 정상의 합이 두 인스턴스의 처리 한계(약 16/s)를 넘자 정상 로그인이 함께 무너졌다. 마지막 구간까지 정상 로그인 47건이 실패했다.
+- 없는 이메일 공격은 BCrypt를 건너뛰므로 약 27/s에서도 정상 로그인에 영향이 없었다.
+- 실패 응답 p50은 없는 이메일 약 5 ms, 틀린 비밀번호 약 87~97 ms다. 응답시간만으로 가입된 이메일을 구분할 수 있다(발견 5).
+
+### A8 Kafka 장애 중 회원가입
+
+Account 1개. Kafka를 멈춘 상태에서 4/s로 90초 가입했다.
+
+- 가입 361건 모두 201. 대기 Outbox가 약 4건/초로 선형 증가(66 → 134 → 203 → 272 → 340)했다.
+- Kafka 시작 직후 `check`를 실행했고 **17.2초 안에 361건이 모두 발행**됐다. 브로커 기동 시간이 포함된 값이다. 누락·중복 0.
+- 이 요청률에서는 장애 중에도 가입 응답이 정상이었다. 더 높은 가입률이나 긴 장애에서의 발행 루프 지연은 확인하지 않았다.
+
+### A3 세션·토큰 갱신
+
+| 실행 | 결과 | 해석 |
+|---|---|---|
+| `a3-session` | 무효 | Gateway가 실행 중 2회 종료됐다. 스크립트가 실패한 세션 로그인을 매초 재시도해 BCrypt 부하를 증폭한 결함도 있었다. 지수 백오프로 수정했다 |
+| `a3-session-v2` | 무효 | 수정 후 재실행. 실행 30초 시점에 Gateway가 다시 종료됐다(512 MiB) |
+| `a3-session-gw1g` | **PASS** | Gateway 1 GiB. 120 세션, 15초마다 갱신, 4분 |
+
+`a3-session-gw1g` 결과는 다음과 같다.
+
+- 갱신 1,503건 성공, p95 37~50 ms. 로그인 p95 약 140 ms보다 훨씬 싸다(BCrypt 없음).
+- 동시 갱신 141쌍 모두 정확히 1건 200, 1건 401이었다. 이중 사용 0이다.
+- 회전 전 토큰 재사용 179건 모두 401로 거절됐다.
+- `/me` p95 13~30 ms, HTTP 오류 0. 이때 Gateway 최대 메모리는 257 MiB였다.
+
+### Gateway 메모리 대조 실험
+
+같은 절차로 Gateway 메모리 제한만 바꿨다. Gateway를 재생성하고 `/me` 20/s로 40초 워밍업한 뒤, Account 1개·1 CPU에 로그인 40/s를 90초 보냈다(Account 처리 한계의 약 5배).
+최대 메모리는 cgroup `memory.max_usage_in_bytes` 값이다.
+
+| Gateway 제한 | 워밍업 후 최대 | 과부하 후 최대 | 종료 |
+|---|---:|---:|---|
+| 512 MiB | 212 MiB | **512 MiB(제한 도달)** | 이번 실행에서는 없음 |
+| 1 GiB | 225 MiB | **652 MiB** | 없음 |
+
+앞선 실행의 512 MiB 강제 종료 4건은 커널 로그로 확인했다. 모두 `CONSTRAINT_MEMCG`이고 Gateway 컨테이너의 memcg와 일치하며, 종료 시 anon RSS는 약 520 MB였다.
+
+| 시각(UTC) | 겹친 실행 |
+|---|---|
+| 08:32:18 | `a1-login-c2-r1` 52/s 단계 |
+| 09:27:27, 09:29:28 | `a3-session` |
+| 09:33:50 | `a3-session-v2`(Gateway 재기동 4분 뒤) |
+
+결론은 다음과 같다. 정상 부하의 Gateway는 약 220~260 MiB를 쓰지만, **하류(Account)가 포화되면 처리 중인 요청이 쌓여 650 MiB 이상까지 늘어난다.**
+512 MiB 제한(힙 최대 약 339 MB = 65%)에서는 이 증가를 감당하지 못해 커널이 Gateway를 종료하고, 그동안 7개 서비스의 모든 경로가 끊긴다.
+JRE 이미지에 `jcmd`가 없어 네이티브 메모리 내역은 확인하지 못했다. 늘어난 메모리가 힙인지 네이티브인지는 후속 확인 대상이다.
+
+## 가설 판정
+
+| ID | 판정 | 근거 |
+|---|---|---|
+| H-A1 로그인은 CPU 비례·증설 효율 ≥ 0.8 | **확인**(같은 호스트 한정) | 효율 약 1.0, 포화 시 CPU 95% 이상, 풀 대기 0 |
+| H-A2 가입은 연결 풀이 먼저 막힘 | **이 환경에서 판정 불가** | CPU 1개에서는 CPU가 먼저 포화. 인스턴스당 CPU 약 10개 이상에서 재시험 |
+| H-A3 가입 폭주 중 Outbox 적체 | **도달하지 못함** | 16/s까지 적체 0. 가입 처리 한계가 발행 한계보다 낮았다. Kafka 장애 중 적체는 선형 증가 후 17초 안에 해소 |
+| H-A4 틀린 비밀번호 공격만 정상 로그인 악화 | **확인** | 위 A4 표 |
+| H-A6 다중 인스턴스 중복 발행 | **확인** | 65% 중복, 재시도 0 |
+| H-A7 Refresh 키 누적 | **미실행** | 장시간 시험 필요. 참고로 실험 전체에서 로그아웃이 없어 Redis 키가 로그인 수만큼 계속 늘었다(A3 시작 약 1.8만 → 종료 약 2.2만) |
+
+## 개선 후보와 진행 상태
+
+| 우선 | 대상 | 후보 | 근거 | 상태 |
+|---|---|---|---|---|
+| 1 | Gateway | 하류 호출 제한 시간과 경로별 동시 처리 상한 | 발견 1 | **구현·재측정 완료** |
+| 1+ | Gateway | 숨은 연결 풀 상한 제거(Apache HttpClient 5 기본 풀 → JDK 클라이언트 명시) | 재측정 중 발견 9 | **구현·재측정 완료** |
+| 2 | Account | BCrypt 동시 실행 상한(대기 한도 초과 시 503), 가입 해시를 트랜잭션 밖으로 이동 | 발견 2, 7, H-A2 | **구현·재측정 완료** |
+| 3 | Account | 계정·IP 기준 로그인 시도 제한. 없는 이메일에도 같은 비용의 검증을 수행해 응답시간 차이 제거 | 발견 4, 5 | **구현·재측정 완료**([로그인 시도 제한](#로그인-시도-제한-개선-후보-3)) |
+| 4 | Account Outbox | 발행 전 선점(`SELECT … FOR UPDATE SKIP LOCKED`) | 발견 3 | **구현·재측정 완료** |
+| 5 | Gateway·배포 | 재배포 시 등록 해제·캐시 갱신·기존 요청 drain 절차 | 발견 8 | **업무 서비스 7개 구현 완료, Account·FoodMaterials 재측정 완료**([재배포 중 오류](#재배포-중-오류-개선-후보-5), [나머지 업무 서비스 적용](#나머지-업무-서비스-적용)) |
+
+## 개선 후 재측정
+
+### 바꾼 것
+
+| 서비스 | 변경 | 설정(기본값) |
+|---|---|---|
+| Gateway | `RouteInFlightLimitFilter`: 첫 경로 구간(account, menus 등)별 동시 처리 상한. 넘는 요청은 기다리지 않고 503 `ROUTE_BUSY` + `Retry-After: 1`. 지표 `gateway_route_in_flight`, `gateway_route_rejected_total` | `GATEWAY_MAX_IN_FLIGHT_PER_ROUTE`(50) |
+| Gateway | 하류 호출 클라이언트를 JDK로 명시(`spring.http.clients.imperative.factory=jdk`), 연결·읽기 제한 시간 | `GATEWAY_DOWNSTREAM_CONNECT_TIMEOUT`(2s), `GATEWAY_DOWNSTREAM_READ_TIMEOUT`(10s) |
+| Account | `PasswordHashGate`: 로그인 검증·가입 해시의 동시 BCrypt 수 상한. 대기 한도 안에 허가를 못 얻으면 계산하지 않고 503 `AUTH_BUSY` + `Retry-After: 1`. 지표 `account_password_hash_*` | `AUTH_PASSWORD_HASH_MAX_CONCURRENT`(0 = CPU 수, 최소 2), `AUTH_PASSWORD_HASH_MAX_WAIT`(2s) |
+| Account | 가입: 중복 확인 → **트랜잭션 밖에서** BCrypt → 트랜잭션 안에서 중복 재확인·저장·Outbox 적재. 동시 통과는 DB 유일 제약이 거절(`ACCOUNT_CONFLICT`) | - |
+| Account | Outbox 발행: `FOR UPDATE SKIP LOCKED`로 대상을 잠그고 다음 시도 시각을 선점 만료 시각으로 미룬 뒤 커밋, 트랜잭션 밖에서 발행. 만료 30초 전에 남은 발행을 멈춘다. 정렬은 인덱스 순서(`next_attempt_at, created_at`) | `OUTBOX_CLAIM_LEASE`(120s), `OUTBOX_LEASE_SAFETY_MARGIN`(30s), `OUTBOX_BATCH_SIZE`(100) |
+
+DB 스키마·migration·이벤트 계약은 바꾸지 않았다. 새 오류 코드는 `ROUTE_BUSY`(Gateway), `AUTH_BUSY`(Account)이며 둘 다 503이다.
+자동 테스트는 Gateway 20개(신규 5), Account 46개(신규 11, 실제 MariaDB에서 SKIP LOCKED 선점 검사 포함)가 통과했다.
+
+### 발견 9: Gateway의 숨은 연결 풀 상한
+
+첫 재측정에서 과부하 시 성공 요청의 Gateway 응답시간은 평균 4.37초였지만 Account 서버 처리 시간은 평균 0.46초였다.
+Account BCrypt 게이트의 거절은 0건이었다. 과부하 중 연결 수를 세 보니 **Gateway로 들어온 연결 약 63개, Gateway에서 Account로 나간 연결은 정확히 5개**였다.
+
+Eureka 클라이언트가 Apache HttpClient 5를 함께 가져오고, Gateway는 이를 하류 호출 클라이언트로 자동 선택한다. 그 기본 연결 풀은 **호스트당 5개, 전체 25개**다.
+즉 개선 전에도 Gateway는 Account 인스턴스 하나에 동시에 5건만 보낼 수 있었고, 나머지 요청은 Gateway 안에서 연결을 기다렸다.
+발견 1의 Gateway 메모리 증가는 이렇게 Gateway 안에 쌓인 요청 때문으로 본다. 7개 서비스 전체가 합쳐서 25개 연결을 나눠 쓰는 구조이기도 했다.
+JDK 클라이언트를 명시한 뒤 같은 부하에서 Account로 나가는 연결은 47~50개(동시 처리 상한)로 바뀌었다.
+가상 스레드 고정(pinning) 가능성도 `-Djdk.tracePinnedThreads`로 확인했지만 보고된 고정은 없었다.
+
+### 전후 비교
+
+같은 T1-small 환경(4 CPU 한 대)이며 각 1회 측정이다. 개선 전 값은 위 시나리오별 결과와 같은 실행이다.
+
+**과부하 대조**: Account 1개·1 CPU, 로그인 40/s(처리 한계의 약 4배) 90초, Gateway 512 MiB, 워밍업 후.
+
+| 항목 | 개선 전 | 게이트·상한 적용(Apache 풀 유지) | 최종(JDK 클라이언트) |
+|---|---|---|---|
+| 성공 처리량(30초 구간) | 4.5 → 0 → 0 /s | 9.3 / 9.7 / 9.9 /s | **8.8 / 8.9 / 9.9 /s** |
+| 성공 요청 p95 | 10초(시간 초과) | 5.2~5.4초 | **2.3초** |
+| 초과 요청 처리 | 10초 대기 후 시간 초과 | Gateway가 즉시 503 | Gateway 즉시 503(1,490건) + Account 2초 대기 후 503(1,347건) |
+| Gateway 최대 메모리 | 512 MiB(한계) | 261 MiB | **288 MiB** |
+| Gateway 강제 종료 | 앞선 실행에서 4회 | 0 | **0** |
+
+**시나리오 재실행**
+
+| 시나리오 | 개선 전 | 개선 후 |
+|---|---|---|
+| A1 로그인 단계 포화(1개, 1 CPU) | 포화 뒤 성공 10.1 → 4.1 → 0 /s, p95 10초 | 포화 뒤 성공 **10.5 → 10.6 → 10.3 /s**, p95 약 2.3초 상한. 포화 전 단계의 결과는 같음(9/s까지 p95 133 ms) |
+| A6 Account 2개 가입 | Kafka 중복 2,500건(65%) | **중복 0**. 계정 = Outbox = Kafka 3,869. 두 인스턴스가 약 2,078 / 1,792건씩 나눠 발행 |
+| A5 동시 중복 가입(2개) | 묶음 오류 0, 5xx 0, Kafka 중복 50·133 | 묶음 오류 0, 5xx 0, **Kafka 중복 0** (180·181 묶음) |
+| A3 세션(Gateway 512 MiB) | Gateway 강제 종료로 무효 | **PASS**. 갱신 1,502, 경합 142쌍 모두 정상, 재사용 178건 모두 401, HTTP 오류 0, Gateway 최대 322 MiB |
+| A8 Kafka 장애 중 가입 | 361건, 복구 후 17.2초에 모두 발행 | 361건, 복구 후 **17.5초**에 모두 발행. 선점 도입에 따른 복구 지연 없음 |
+| A4 틀린 비밀번호 공격(2개) | 공격 18~20/s에서 정상 로그인 p95 5.6~10초, 실패 47건(시간 초과) | 정상 로그인 p95 **약 2.3초 상한**, 시간 초과 0. 단 공격 21~27/s에서 정상 로그인의 **14~32%가 503** |
+
+### 남은 문제
+
+- ~~A4: 공격이 여전히 정상 사용자를 밀어낸다.~~ → 개선 후보 3으로 해결(아래 로그인 시도 제한).
+- ~~응답시간으로 가입 여부를 알 수 있다(발견 5).~~ → 개선 후보 3으로 해결.
+- ~~재배포 직후 500(발견 8)~~ → 개선 후보 5로 Account에서 해결(아래 재배포 중 오류).
+- Account 게이트의 거절 응답은 대기 한도(2초) 뒤에 나간다. 더 빨리 거절하려면 `AUTH_PASSWORD_HASH_MAX_WAIT`를 줄인다. 이번 측정은 2초 한 조건만 썼다.
+- 경로당 동시 처리 상한 50과 BCrypt 대기 2초는 이 환경의 측정으로 정한 값이 아니다. 운영 환경의 인스턴스 수·CPU·메모리에 맞춰 다시 정해야 한다.
+
+## 로그인 시도 제한 (개선 후보 3)
+
+### 결정과 구현
+
+| 항목 | 결정 | 구현 위치·설정(기본값) |
+|---|---|---|
+| IP 기준 | 로그인 분당 30회, 가입 분당 10회. 직전 1분 기록을 남은 비율만큼 더하는 슬라이딩 구간 근사 | `LoginAttemptLimiter`, `AUTH_LOGIN_PER_IP`(30), `AUTH_REGISTER_PER_IP`(10), `AUTH_RATE_LIMIT_IP_WINDOW`(1m) |
+| 계정 기준 | 입력한 이메일로 15분 안에 5회 실패하면 1분 차단, 반복될 때마다 두 배, 최대 15분. 성공 시 초기화. 영구 잠금 없음 | `AUTH_FAILURES_BEFORE_LOCK`(5), `AUTH_FAILURE_WINDOW`(15m), `AUTH_LOCK_INITIAL`(1m), `AUTH_LOCK_MAX`(15m) |
+| 검사 순서 | 모든 제한 검사를 DB 조회·BCrypt 전에 한다. 막힌 시도는 CPU를 쓰지 않는다 | `AccountService.login/register` |
+| 가입 여부 노출 방지 | 없는 이메일도 고정 해시로 BCrypt를 수행하고 같은 방식으로 실패를 센다. 계정 기준·IP 기준 거절은 같은 문구 | `DummyPasswordHash` |
+| 응답 | 429 `LOGIN_RATE_LIMITED` / `REGISTER_RATE_LIMITED`, 문구 "요청이 많습니다. 잠시 후 다시 시도하세요.", `Retry-After`(초) | `ApiErrorCode`, `ApiExceptionHandler` |
+| 클라이언트 주소 | Gateway가 정해 `X-Client-Address`로 넘긴다. 클라이언트가 보낸 값은 버린다. 앞단 프록시가 있으면 `GATEWAY_TRUSTED_UPSTREAMS`(CIDR) 대역에서 온 `X-Forwarded-For`만 오른쪽부터 따른다(기본 비어 있음) | `ClientAddressFilter` |
+| 주소 신뢰 | Account는 `AUTH_TRUSTED_PROXIES` 대역(기본 사설망·루프백)에서 온 연결의 `X-Client-Address`만 믿는다. **운영에서는 Gateway 주소로 좁혀야 한다** | `ClientAddressResolver` |
+| 저장소 | Redis 카운터(만료 있음). 이메일·IP는 SHA-256 해시로만 키에 쓴다 | `account:rl:*` |
+
+CAPTCHA·2단계 인증은 화면 작업이 필요해 범위에서 제외했다. 숫자는 운영 데이터 없이 정한 시작값이다.
+
+### 검증
+
+- 자동 테스트: Gateway 23개(주소 결정·CIDR 신규 3), Account 59개(신규 13). 실제 Redis·MariaDB에서 다음을 확인했다. 같은 이메일 3회 실패 후 올바른 비밀번호도 429와 `Retry-After`, 없는 이메일도 같은 방식, 성공 시 초기화, IP 상한과 다른 IP 무영향, 신뢰하지 않는 연결의 주소 헤더 무시, 가입 IP 상한.
+- 실험실 종단 확인(Gateway 경유): 같은 모의 IP의 로그인 30회는 401, 31번째는 `429`·`Retry-After: 14`. 다른 IP는 401. 클라이언트가 `X-Client-Address`를 직접 보내도 무시되고 같은 IP로 집계됐다.
+- 실험실 조건: k6가 요청마다 모의 클라이언트 IP(`X-Forwarded-For`)를 보낸다. 정상 사용자 198.18.0.0/16, 공격자 198.19.0.0/16(RFC 2544 시험 대역). 실험실 Gateway만 Docker 사설망을 신뢰 프록시로 둔다(`LAB_GATEWAY_TRUSTED_UPSTREAMS`).
+
+### 재측정 결과
+
+**A4 틀린 비밀번호 공격**: Account 2개·각 1 CPU, 정상 로그인 4/s, 공격자 IP 4개, 30초 구간 기준.
+
+| 구간 | 공격/s (처음 / 이후 실행) | 처음: 정상 p95 | 게이트 도입 후: 정상 p95 / 정상 거절 | 시도 제한(고정 구간) | **시도 제한(슬라이딩)** |
+|---|---|---:|---|---|---|
+| 0-30s | 0 / 0 | 142 ms | 123 ms / 0 | 199 ms / 0 | **193 ms / 0** |
+| 60-90s | 7.8 / 7.8 | 144 ms | 178 ms / 0 | 309 ms / 0 | **190 ms / 0** |
+| 90-120s | 12.5 / 12.5 | 336 ms | 323 ms / 0 | 171 ms / 0 | **178 ms / 0** |
+| 120-150s | 17.3 / 17.5 | 407 ms | 536 ms / 0 | 1,247 ms / 0 | **176 ms / 0** |
+| 150-180s | 18.5 / 21.4~22.5 | 5,603 ms | 2,271 ms / 503 16건 | 210 ms / 0 | **157 ms / 0** |
+| 180-210s | 20.0 / 27.4~27.5 | 10,001 ms / 실패 13 | 2,248 ms / 503 38건 | 2,039 ms / 503 2건 | **169 ms / 0** |
+
+처음 실행은 Account가 무너져 공격 요청도 제때 나가지 못해 공격 요청률이 20/s에서 멈췄다. 이후 실행은 같은 설정에서 27.5/s까지 올라갔다.
+
+- 최종 실행에서 정상 로그인 961건 전부 200, 공격 요청 2,609건이 BCrypt 전에 429로 막혔다. Account CPU는 공격 중에도 31~42%였다. k6 임계값을 모두 통과했다.
+- 고정 구간에서는 매분 시작마다 공격자 IP 4개가 각 30회를 한꺼번에 쓰면서 BCrypt가 몰렸고, 그 구간에 정상 p95가 1.2~2.0초로 튀었다. 슬라이딩 구간 근사로 바꾼 뒤 사라졌다.
+- 없는 이메일 공격(고정 구간)에서도 정상 로그인 거절은 0건이었다.
+
+**응답시간 균일화**: 공격 IP 5만 개로 분산해 제한에 걸리지 않게 하고 3/s로 낮게 보낸 실패 응답(401) 분포다.
+
+| 실행 | 없는 이메일 p50 / p90 / p99 | 틀린 비밀번호 p50 / p90 / p99 |
+|---|---|---|
+| 처음(a4-*, 저부하 구간 기준) | **5.2** / 9.7 / 21.5 ms | 약 87~97 ms |
+| 시도 제한 후(rl-timing-*) | **90.9** / 121.0 / 162.7 ms | **92.2** / 118.4 / 167.1 ms |
+
+응답시간으로 가입 여부를 구분할 수 없게 됐다. 대신 없는 이메일 시도도 BCrypt 비용을 쓰며, 그 비용은 IP·계정 기준 제한이 묶는다.
+
+**정상 분산 부하(A1)**: Account 1개·1 CPU, 모의 IP로 분산한 정상 로그인 단계 포화. 포화 뒤 단계의 성공 처리량(/s)이다.
+
+| 실행 | 12/s 단계 | 15/s 단계 | 20/s 단계 | 9/s 단계 p95 |
+|---|---:|---:|---:|---:|
+| 시도 제한 전(after-a1-c1-r1) | 10.53 | 10.56 | 10.31 | 133 ms |
+| 시도 제한 후 1회차(rl-a1-c1-r1) | 10.24 | 9.98 | 8.98 | 596 ms |
+| 시도 제한 후 2회차(rl-a1-c1-r1-b) | 10.49 | 10.69 | 10.33 | 138 ms |
+
+1회차는 3~13% 낮았지만 같은 조건의 2회차는 제한 전과 같았다. 실행 간 편차로 보며, 시도 제한(요청당 Redis 호출 3~4회 추가)에 따른 처리량 감소는 이 측정 해상도에서 관찰되지 않았다. 429는 0건이었다.
+
+**동시 중복 가입(A5)**: 같은 이메일 5건 동시 요청, 2묶음/s, 90초.
+
+| 조건 | 결과 |
+|---|---|
+| Account 2개(이전 A5와 같은 조건) | **PASS**. 181묶음 모두 201 1건 + 409 4건, 503·429 0건. 계정 = Outbox = Kafka 181, 중복 0 |
+| Account 1개 | 계정 181(중복 0)·Kafka 중복 0이지만 묶음 3개에서 503 4건으로 판정 FAIL. 가입 IP 제한(429)은 0건 |
+
+Account 1개 조건의 503은 과부하 거절이다. 같은 묶음의 5건이 모두 첫 중복 확인을 통과해 BCrypt를 계산하므로 초당 약 10건이 필요하고, 1 CPU의 처리 한계와 같다. DB 정합성은 두 조건 모두 유지됐다. 동시 중복 가입 묶음이 해시를 중복 계산하는 비용은 남은 개선 여지다.
+
+### 남은 한계
+
+- **IP 기준 제한은 많은 IP로 분산한 공격(봇넷)을 막지 못한다.** 그런 공격은 계정 기준 제한과 BCrypt 게이트가 상한을 둘 뿐이며, 그 상황에서 정상 사용자 거절이 다시 늘 수 있다. CAPTCHA 등 추가 방어가 필요하다.
+- 계정 기준 차단은 공격자가 남의 이메일로 실패를 쌓아 피해자를 최대 15분씩 막을 수 있다. 영구 잠금보다 피해가 작지만 0은 아니다. 차단 지표(`account_login_locks_total`)를 관찰해 조정한다.
+- 사설망 전체를 신뢰하는 Account 기본값은 같은 사설망의 다른 호스트가 주소를 위조할 수 있다. 운영 배포에서는 `AUTH_TRUSTED_PROXIES`를 Gateway 주소로 좁혀야 한다.
+- Redis 장애 시 로그인은 이전과 같이 실패한다(Refresh 저장도 Redis를 쓴다). 제한 기능만 따로 우회하지 않는다.
+
+## 재배포 중 오류 (개선 후보 5)
+
+### 원인
+
+Gateway 경유로 `GET /account/auth/login`(정상 405, BCrypt 없음)을 초당 20건 보내면서 Account를 교체했다(`account_lab.py redeploy`).
+
+- **무중단 교체**(새 인스턴스를 띄우고 30초 뒤 옛 인스턴스를 SIGTERM)에서도 옛 인스턴스가 내려간 뒤 **약 48초 동안 500이 219건** 났다.
+  Gateway 로그는 사라진 옛 컨테이너 호스트 이름으로 보낸 요청의 `UnresolvedAddressException`(158건)·연결 시간 초과였다.
+- 기본 설정에서 Gateway가 사라진 인스턴스를 알아채는 데 Eureka 서버 읽기 전용 응답 캐시(30초 갱신), Gateway 레지스트리 갱신(30초), 로드밸런서 캐시(35초)가 겹친다.
+- Spring Boot 기본 종료 순서는 웹 서버 graceful shutdown이 Eureka 등록 해제보다 먼저라, 등록이 남은 동안 요청을 받지 못한다.
+- 단일 인스턴스를 새 컨테이너로 바꾸면 중단 자체는 피할 수 없다. 그런데 응답이 503이 아닌 500이었고, 새 인스턴스가 정상이 된 뒤에도 **28.8초** 더 실패했다.
+
+### 바꾼 것
+
+| 위치 | 변경 | 설정(기본값) |
+|---|---|---|
+| Account | `DiscoveryDrainLifecycle`: 종료 신호를 받으면 웹 서버보다 먼저 Eureka에 DOWN을 알리고 drain 동안 요청을 계속 처리한 뒤 종료 | `SHUTDOWN_DISCOVERY_DRAIN`(15s), 0이면 끔 |
+| Compose | `account-service`에 `stop_grace_period: 45s`. Docker 기본 10초면 drain 중 강제 종료된다 | - |
+| Gateway | 레지스트리 갱신 30초 → 5초, 로드밸런서 캐시 35초 → 5초 | `GATEWAY_REGISTRY_FETCH_SECONDS`(5), `GATEWAY_LB_CACHE_TTL`(5s) |
+| Eureka 서버 | 읽기 전용 응답 캐시를 꺼서 DOWN·등록 변경이 조회에 바로 보이게 함 | `EUREKA_USE_READ_ONLY_RESPONSE_CACHE`(false) |
+| Gateway | `UpstreamFailureFilter`: 하류 연결 실패(주소 해석·연결 거부·연결 시간 초과)와 고를 인스턴스가 없을 때를 503 `UPSTREAM_UNAVAILABLE` + `Retry-After: 1`로, 응답 읽기 시간 초과를 504 `UPSTREAM_TIMEOUT`으로 돌려준다. 지표 `gateway_upstream_failures_total` | - |
+
+drain(15초)은 Gateway 레지스트리 갱신(5초) + 로드밸런서 캐시(5초)보다 길게 잡았다. 자동 테스트는 Gateway 28개(신규 5), Account 62개(신규 3)가 통과했다.
+Gateway 테스트에는 연결이 거부되는 하류로 실제 라우팅해 503과 `Retry-After`를 확인하는 경우가 포함된다.
+
+### 전후 비교
+
+| 방식 | 항목 | 개선 전 | 개선 후 |
+|---|---|---|---|
+| 무중단 교체(2개 → 옛 인스턴스 SIGTERM) | 실패 | **500 219건**(약 48초 동안) | **0건**(2회 실행, 2,413·2,541건 모두 정상) |
+| 무중단 교체 | 옛 인스턴스 종료에 걸린 시간 | 3.4초 | 18.5초(drain 15초 포함) |
+| 단일 재생성(1개) | 중단 중 응답 | 500 1,103건 | **503 1,020건**(+ `Retry-After`), 500 0건 |
+| 단일 재생성 | 실패 구간 | 78.1초 | **59.7초** |
+| 단일 재생성 | 새 인스턴스 정상 후 복구 지연 | **28.8초** | **0.5초** |
+
+첫 개선 후 재생성 측정에서는 중단 중 응답이 아직 500이었다(복구 지연은 1.4초). 이번에는 Account가 정상적으로 등록 해제되어 Gateway가 고를 인스턴스가 없었고, Gateway가 이를 응답 대신 503 상태의 예외로 던져 500이 됐다. 이 경우도 503으로 바꾸도록 분류를 추가한 뒤 두 번째 측정에서 확인했다.
+
+### 나머지 업무 서비스 적용
+
+**바꾼 것**
+
+| 위치 | 변경 | 설정(기본값) |
+|---|---|---|
+| shared/service-foundation | `DiscoveryDrainLifecycle`(Account와 같은 동작)과 `DiscoveryDrainAutoConfiguration`. 자동 구성이라 이 모듈을 쓰는 서비스는 `@Import` 없이 적용된다 | `SHUTDOWN_DISCOVERY_DRAIN`(15s), 0이면 끔 |
+| Menus·Disposals·Notices·Bills·Purchase | 기존 service-foundation 의존으로 적용. Dockerfile은 이미 공통 모듈을 복사한다 | `application.yaml` `app.shutdown.discovery-drain` |
+| FoodMaterials | service-foundation을 포함(settings·build.gradle·Dockerfile 복사 추가). 자동 구성만 쓰며 501 셸 컨트롤러·공통 JWT 필터는 가져오지 않는다(명시 `@Import`가 없으면 등록되지 않음) | 같음 |
+| Compose | 6개 서비스에 `stop_grace_period: 45s` | - |
+| Disposals | FoodMaterials 호출용 레지스트리 갱신 30초 → 5초, 로드밸런서 캐시 35초 → 5초. FoodMaterials drain(15초) 안에 종료 중 인스턴스가 목록에서 빠진다 | `DISPOSALS_REGISTRY_FETCH_SECONDS`(5), `DISPOSALS_LB_CACHE_TTL`(5s) |
+| 검사 | `scripts/verify-service-architecture.py`가 업무 서비스 7개의 `stop_grace_period`(45초 이상)와 drain 설정을 확인 | - |
+
+Account는 자기 구현(`com.oopsw.accountservice.config`)을 그대로 둔다. Account는 service-foundation을 쓰지 않는다.
+
+**종료 순서(실험실 컨테이너 로그로 확인)**: Menus·Notices·Disposals를 2개로 늘린 뒤 하나를 `docker stop`하면
+① Spring Cloud `EurekaServiceRegistry`가 종료 시작 시 상태를 DOWN으로 바꾸고, ② `DiscoveryDrainLifecycle`이 DOWN을 알린 뒤 15초 기다리고,
+③ 웹 서버 graceful shutdown, ④ Eureka 등록 취소 순서였다. 종료에 18.3~18.6초가 걸렸다.
+①은 Spring Cloud가 ContextClosedEvent에서 하는 동작이다. drain이 없으면 ①과 거의 동시에 ③이 시작돼 Gateway가 아직 DOWN을 받기 전(최대 갱신 5초 + 캐시 5초)인 동안 요청이 실패한다.
+따라서 이 Lifecycle의 실제 효과는 **웹 서버 종료를 15초 늦추는 것**이고, DOWN 알림은 Spring Cloud 동작에 의존하지 않도록 한 번 더 하는 것이다.
+
+**테스트**: 공통 단위 테스트 4개(phase가 웹 서버 graceful shutdown보다 높음, 종료 시 DOWN 후 drain만큼 대기, Eureka가 없거나 0이면 바로 끝남, 음수 거부)는 service-foundation에 있고, 각 서비스의 `gradlew test`가 함께 실행한다.
+각 서비스 테스트에는 실제 애플리케이션 컨텍스트에서 drain 빈이 등록되고, 웹 서버 graceful shutdown 빈보다 phase가 높고(FoodMaterials는 MockMvc라 상수와 비교), drain이 15초이고, 테스트처럼 Eureka가 꺼져 있으면 바로 끝나는지 확인하는 경우 1개를 더했다.
+결과: Notices 9개, Bills 9개, Purchase 9개, Menus 10개, Disposals 12개, FoodMaterials 49개 모두 통과(각각 drain 관련 5개 포함). Menus·Disposals·FoodMaterials는 Testcontainers MariaDB를 썼다.
+
+**측정(FoodMaterials 무중단 교체)**: 같은 T1-small 실험실(`performance/lab.py`의 erpmsa-sprint4-lab, tmpfs DB)에서 같은 이미지로 `LAB_SHUTDOWN_DISCOVERY_DRAIN`만 `0s`/`15s`로 바꿔 대조했다. Gateway·Eureka 설정은 두 조건 모두 위 개선 후 값이다.
+Gateway 경유 `GET /foodmaterials`(실험실 계정 토큰, 정상 200) 초당 20건과 폐기 `POST /disposals` 초당 2건(수량 1, 매번 새 requestId)을 보내면서 FoodMaterials를 1개 → 2개로 늘리고 30초 뒤 옛 인스턴스를 SIGTERM했다.
+폐기는 끝난 뒤 PENDING을 같은 폐기 식별자로 재시도(`POST /disposals/{id}/retry`)하고, 최종 상태를 FoodMaterials 원장·현재고와 맞췄다(`account_lab.py redeploy --service foodmaterials --disposal-rate 2`).
+
+| 항목 | drain 0s (r1 / r2) | drain 15s (r1 / r2) |
+|---|---|---|
+| Gateway 경유 조회 실패 | **503 30 / 29건**(옛 인스턴스 종료 시작 직후부터 7.7 / 3.5초 동안) | **0 / 0건**(2,105·2,178건 모두 200) |
+| 옛 인스턴스 종료에 걸린 시간 | 3.7 / 3.6초 | 18.7 / 18.7초(drain 15초 포함) |
+| 폐기 첫 응답 | 200 214건 + **PENDING(202) 4건** / 200 228건 + **PENDING 5건** | **200 259 / 261건, PENDING 0** |
+| PENDING 재시도 후 최종 상태 | 모두 COMPLETED(재시도 4 / 5회) | 재시도 없음, 모두 COMPLETED |
+| 원장 대조(완료 폐기 = DISPOSAL 원장 행, 중복 차감 없음, 현재고 = 초기 − 완료 수량) | PASS / PASS | PASS / PASS |
+
+- 조회 실패가 503인 것은 Gateway `UpstreamFailureFilter`가 하류 연결 실패를 503 `UPSTREAM_UNAVAILABLE`로 바꾸기 때문이다. Account 개선 전(500 219건, 약 48초)보다 작은 것은 Gateway·Eureka 갱신 주기를 이미 줄였기 때문이다. drain은 남은 이 3.5~7.7초 구간을 없앴다.
+- drain 0s에서 폐기 4·5건은 옛 FoodMaterials 종료 시작 뒤 약 4초 안에 들어와 Disposals가 차감 결과를 받지 못했고 PENDING(202)이 됐다. 같은 폐기 식별자(`DISPOSAL-<disposalId>`)로 재시도해 한 번씩만 차감됐다. **drain은 폐기 계약(같은 requestId 재시도, 중복 차감 없음, 불명확하면 PENDING)을 바꾸지 않는다.** 종료 중 인스턴스가 drain 동안 요청을 계속 처리해 PENDING이 생길 기회를 줄일 뿐이다.
+- 처음 두 번의 drain 0s 측정은 토큰 없는 `GET /foodmaterials`를 보내 Gateway JWT 필터가 401로 응답했고 FoodMaterials까지 가지 않았다(실패 0건). 측정이 아니므로 결과에서 뺐고(원시 추출본에 `valid: false`로 남김), 탐침을 토큰 요청으로 바꿨다.
+- 각 조건 2회씩만 측정했고 단일 인스턴스 재생성(`--mode recreate`)은 재지 않았다(인스턴스 1개면 중단은 피할 수 없다). Menus·Notices·Bills·Purchase·Disposals의 Gateway 경유 교체 실패는 따로 재지 않았다. 같은 공통 구현과 같은 종료 순서(위 로그)를 근거로 같은 효과를 기대하지만, 측정값으로 쓰지 않는다.
+- 이번 실험도 Maven Central·Docker Hub 요청 제한(429) 때문에 호스트에서 빌드한 JAR로 같은 이름의 실험 이미지를 만들고 빌드 없이 기동했다. Gradle은 실행마다 넘긴 init 스크립트로 Maven Central 미러를 썼고(저장소 설정은 바꾸지 않음), 기반 이미지는 mirror.gcr.io에서 받아 같은 이름으로 붙였다.
+
+### 남은 한계
+
+- ~~**drain은 Account에만 넣었다.**~~ → 나머지 업무 서비스 6개에도 적용했다(위 [나머지 업무 서비스 적용](#나머지-업무-서비스-적용)).
+- **단일 인스턴스 재생성의 중단은 남는다.** 무중단 배포에는 인스턴스 2개 이상과 순차 교체가 필요하다. 인스턴스가 하나면 DOWN 알림 뒤 Gateway가 먼저 라우팅을 끊으므로, drain 시간 일부(이번 측정에서 약 5.7초 뒤부터)는 쓰이지 않는다.
+- **비정상 종료(SIGKILL·호스트 장애)는 다루지 않았다.** 등록 해제가 없으므로 Eureka가 임대 만료로 제거할 때까지(기본 90초 + 제거 주기 60초) Gateway가 죽은 인스턴스로 보낸다. 지금은 503으로 나가지만 실패는 그대로다. 연결 단계 실패만 다른 인스턴스로 재시도하는 방식을 후속으로 검토한다.
+- ~~Disposals→FoodMaterials 내부 호출은 Disposals의 기본 레지스트리 갱신(30초)을 쓴다.~~ → 5초·로드밸런서 캐시 5초로 줄였다. 통신 결과가 불명확하면 PENDING(202)으로 남는 계약은 그대로다.
+- Eureka 서버 읽기 전용 캐시를 끄면 조회마다 쓰기 캐시를 읽는다. 이번 규모(서비스 9개)에서는 문제가 없었지만 인스턴스가 많아지면 다시 판단한다.
+
+## 한계와 다음 단계
+
+- 같은 호스트(4 CPU)에서 서비스·DB·Kafka·k6를 함께 실행했다. 절대 수치는 이 환경의 값이다. T2(앱·DB·부하 발생기 분리)에서 다시 측정해야 한다.
+- 조건마다 1회씩만 측정했다. A1·A2는 3회 반복해야 결론의 강도를 높일 수 있다.
+- Prometheus 수집 주기 15초 때문에 짧은 연결 대기와 메모리 최댓값은 놓칠 수 있다. 메모리 최댓값은 cgroup 값으로 보완했다.
+- A7(Refresh 키 누적)과 장시간 소크는 실행하지 않았다.
+- 개선 후 재측정도 같은 호스트에서 대부분 1회씩만 했다(A1 시도 제한 후만 2회). 같은 조건에서 3~13% 편차가 관찰됐으므로 작은 차이는 결론으로 쓰지 않는다. T2에서 반복 측정해 확인해야 한다.
+- 실행 중 도구를 고쳤다. 세션 재시도 백오프, 경합 판정 세분화, 원시 CSV 기록, 서버 지표 수집, 단계별 집계, 백분위 계산 수정이다. 수정 전에 실행한 `a3-session`은 무효로 표시했다.
+
+## 재현
+
+```bash
+python3 performance/lab.py prepare
+python3 performance/lab.py up
+python3 performance/account_lab.py seed --accounts 1000000
+python3 performance/account_lab.py run --scenario me --label warmup --rate 20 --duration 40s
+python3 performance/account_lab.py run --scenario login --label a1-login-c1-r1 --stages 3:1m,6:1m,9:1m,12:1m,15:1m,20:1m --max-vus 600
+python3 performance/account_report.py a1-login-c1-r1 --baseline-p95 130
+python3 performance/account_lab.py run --scenario register --label a6-reg-r2 --stages 4:1m,8:1m,12:1m,16:1m,16:2m
+python3 performance/account_lab.py check --label a6-reg-r2
+python3 performance/account_lab.py redeploy --service account --mode rolling --label after
+python3 performance/account_lab.py redeploy --service foodmaterials --mode rolling --disposal-rate 2 --label fm-drain15-auth-r1
+```
+
+FoodMaterials drain 대조는 `performance/.env`에 `LAB_SHUTDOWN_DISCOVERY_DRAIN=0s`를 두고 FoodMaterials를 다시 띄운 뒤 같은 명령을 실행한다.
+
+`.env`에 `LAB_ACCOUNT_CPUS=1`을 두고, 증설은 `account_lab.py scale --replicas 2`로 한다. 증설·재생성 뒤에는 Gateway 경로 캐시 때문에 워밍업 실행을 먼저 한다.
+이번 실험은 Maven Central 제한 때문에 `lab.py up` 대신 호스트에서 빌드한 JAR로 같은 이름의 실험 이미지를 만들고 빌드 없이 기동했다.
