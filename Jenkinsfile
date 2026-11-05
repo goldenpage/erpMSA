@@ -78,7 +78,11 @@ pipeline {
                         -f compose.ci.yaml \
                         -p "$CI_PROJECT_NAME" \
                         config --quiet
+                    python3 scripts/verify-service-architecture.py
                     python3 scripts/verify-service-architecture.py --ci
+                    python3 scripts/verify-service-architecture.py --performance
+                    python3 -m unittest discover -s scripts -p 'test_*.py'
+                    python3 -m unittest discover -s performance -p 'test_*.py'
                 '''
             }
         }
@@ -206,7 +210,17 @@ pipeline {
 
         stage('Monitoring Smoke Test') {
             steps {
-                sh 'scripts/ci-stack-smoke.sh monitoring'
+                sh '''
+                    set +x
+                    set -eu
+                    scripts/ci-stack-smoke.sh monitoring
+                    set -a
+                    . ./.env
+                    set +a
+                    python3 scripts/verify-jenkins-unit-metrics.py \
+                        ".verification/spring-tests/ErpMSA/jenkins-$BUILD_NUMBER" \
+                        "http://${CI_PROJECT_NAME}-pushgateway-1:9091"
+                '''
             }
         }
 
