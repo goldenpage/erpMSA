@@ -1,0 +1,8 @@
+# Apply after compose.ci.yaml to expose only the smoke-test endpoints to the Actions runner.
+services:
+  gateway-server:
+    ports: !override ["127.0.0.1::7070"]
+  prometheus:
+    ports: !override ["127.0.0.1::9090"]
+  grafana:
+    ports: !override ["127.0.0.1::3000"]

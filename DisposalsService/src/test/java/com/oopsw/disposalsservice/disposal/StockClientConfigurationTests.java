@@ -12,6 +12,7 @@ import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.ObjectMapper;
 
+@org.junit.jupiter.api.Tag("integration")
 class StockClientConfigurationTests {
     @Test
     void infrastructureRequestsBypassDiscoveryWhileInventoryRequestsUseIt() throws Exception {

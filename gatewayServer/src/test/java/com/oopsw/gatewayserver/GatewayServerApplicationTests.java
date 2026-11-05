@@ -29,6 +29,7 @@ import org.springframework.web.servlet.function.ServerResponse;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(GatewayServerApplicationTests.UnreachableRoute.class)
+@org.junit.jupiter.api.Tag("integration")
 class GatewayServerApplicationTests {
 
     /** 연결이 즉시 거부되는 하류로 보내는 시험 경로. 실제 라우팅·예외 처리 경로를 그대로 탄다. */

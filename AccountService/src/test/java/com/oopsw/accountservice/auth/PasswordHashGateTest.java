@@ -14,6 +14,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
+@org.junit.jupiter.api.Tag("unit")
 class PasswordHashGateTest {
 
     @Test

@@ -18,6 +18,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 @ExtendWith(MockitoExtension.class)
+@org.junit.jupiter.api.Tag("unit")
 class RefreshTokenStoreTest {
 
     private static final String REFRESH_TOKEN = "raw-refresh-token";

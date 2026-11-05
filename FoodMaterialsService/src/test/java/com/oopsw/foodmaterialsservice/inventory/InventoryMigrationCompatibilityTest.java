@@ -20,6 +20,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(properties = {"eureka.client.enabled=false", "spring.cloud.discovery.enabled=false",
     "test.inventory.legacy=true"})
 @Import(TestcontainersConfiguration.class)
+@org.junit.jupiter.api.Tag("integration")
 class InventoryMigrationCompatibilityTest {
     @DynamicPropertySource
     static void keys(DynamicPropertyRegistry registry) {

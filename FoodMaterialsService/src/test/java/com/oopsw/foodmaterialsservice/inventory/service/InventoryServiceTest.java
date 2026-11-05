@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
+@org.junit.jupiter.api.Tag("unit")
 class InventoryServiceTest {
 
     @Mock

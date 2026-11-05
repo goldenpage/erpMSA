@@ -1,0 +1,218 @@
+name: Spring CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: spring-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Tests and monitoring
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      COMPOSE_PROJECT_NAME: erpmsa-actions
+      CI_BRANCH: ${{ github.head_ref || github.ref_name }}
+      EUREKA_DEFAULT_ZONE: http://127.0.0.1:1/eureka
+
+    steps:
+      - name: Check out the commit under test
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Java 21
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Validate architecture and Python tests
+        run: |
+          python3 scripts/verify-service-architecture.py
+          python3 scripts/verify-service-architecture.py --ci
+          python3 scripts/verify-service-architecture.py --performance
+          python3 -m unittest discover -s scripts -p 'test_*.py'
+          python3 -m unittest discover -s performance -p 'test_*.py'
+
+      - name: Start the monitoring stack
+        id: monitoring
+        run: |
+          umask 077
+          password=$(openssl rand -hex 24)
+          secret_key=$(openssl rand -hex 24)
+          echo "::add-mask::$password"
+          echo "::add-mask::$secret_key"
+          {
+            printf 'DB_PASSWORD=compose-config-only\n'
+            printf 'GRAFANA_ADMIN_USER=admin\n'
+            printf 'GRAFANA_ADMIN_PASSWORD=%s\n' "$password"
+            printf 'GRAFANA_SECRET_KEY=%s\n' "$secret_key"
+          } > "$RUNNER_TEMP/erpmsa-monitoring.env"
+          docker compose --env-file "$RUNNER_TEMP/erpmsa-monitoring.env" \
+            up -d --build --no-deps --wait --wait-timeout 180 pushgateway prometheus grafana
+
+      - name: Run unit tests and publish JaCoCo metrics
+        run: |
+          python3 scripts/run-spring-tests.py --suite unit --source github-actions \
+            --branch "$CI_BRANCH" --run-id "actions-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --out "$RUNNER_TEMP/erpmsa-reports/unit" --pushgateway http://127.0.0.1:9091
+
+      - name: Verify Grafana provisioning and metric ingestion
+        run: |
+          . "$RUNNER_TEMP/erpmsa-monitoring.env"
+          grafana=http://127.0.0.1:3000
+          for uid in erpmsa-spring-unit-tests kosta-personal-verification erpmsa-ocr-benchmark; do
+            curl --silent --show-error --fail --max-time 10 \
+              --user "$GRAFANA_ADMIN_USER:$GRAFANA_ADMIN_PASSWORD" \
+              "$grafana/api/dashboards/uid/$uid" | jq -e --arg uid "$uid" \
+                '.meta.provisioned and .dashboard.uid == $uid'
+          done
+
+          summary="$RUNNER_TEMP/erpmsa-reports/unit/summary.json"
+          expected_modules=$(jq -e '.results | length' "$summary")
+          expected_tests=$(jq -e '[.results[].tests.total] | add' "$summary")
+          run_id="actions-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          printf -v metric_query 'sum(erpmsa_unit_test_cases{job="spring_unit_tests",project="ErpMSA",source="github-actions",result="total"} and on (project, source, branch, module) erpmsa_unit_test_info{run_id="%s"})' "$run_id"
+          printf -v module_query 'count(erpmsa_unit_test_info{job="spring_unit_tests",run_id="%s"})' "$run_id"
+          grafana_query() {
+            curl --silent --show-error --fail --max-time 10 \
+              --user "$GRAFANA_ADMIN_USER:$GRAFANA_ADMIN_PASSWORD" \
+              --get --data-urlencode "query=$1" \
+              "$grafana/api/datasources/proxy/uid/prometheus/api/v1/query" \
+              | jq -e --argjson expected "$2" \
+                '.status == "success" and (.data.result | length == 1 and (.[0].value[1] | tonumber) == $expected)' >/dev/null
+          }
+          for attempt in {1..12}; do
+            if grafana_query "$module_query" "$expected_modules" && grafana_query "$metric_query" "$expected_tests"; then
+              echo "Grafana returned $expected_tests unit tests across $expected_modules modules."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo 'Grafana did not return the unit test metrics for this run.' >&2
+          exit 1
+
+      - name: Run integration tests with Testcontainers
+        run: |
+          python3 scripts/run-spring-tests.py --suite integration --source github-actions \
+            --branch "$CI_BRANCH" --run-id "actions-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --out "$RUNNER_TEMP/erpmsa-reports/integration"
+
+      - name: Upload test and coverage reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: spring-ci-reports
+          path: |
+            ${{ runner.temp }}/erpmsa-reports/**/summary.json
+            ${{ runner.temp }}/erpmsa-reports/**/metrics.prom
+            ${{ runner.temp }}/erpmsa-reports/**/TEST-*.xml
+            ${{ runner.temp }}/erpmsa-reports/**/jacoco.xml
+          retention-days: 7
+
+      - name: Remove the temporary monitoring stack
+        if: ${{ always() && steps.monitoring.outcome != 'skipped' }}
+        run: |
+          env_file="$RUNNER_TEMP/erpmsa-monitoring.env"
+          if [[ -f "$env_file" ]]; then
+            docker compose --env-file "$env_file" down --volumes --remove-orphans
+            rm -- "$env_file"
+          fi
+
+  stack-smoke:
+    name: Service images and stack smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      CI_PROJECT_NAME: erpmsa-ci-actions-${{ github.run_id }}-${{ github.run_attempt }}
+      BUILD_NUMBER: ${{ github.run_number }}
+      COMPOSE_FILE: compose.yaml:compose.ci.yaml:compose.actions.yaml
+
+    steps:
+      - name: Check out the commit under test
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Prepare disposable stack credentials
+        run: |
+          umask 077
+          db_password=$(openssl rand -hex 24)
+          grafana_password=$(openssl rand -hex 24)
+          grafana_key=$(openssl rand -hex 24)
+          for secret in "$db_password" "$grafana_password" "$grafana_key"; do
+            echo "::add-mask::$secret"
+          done
+          kid="ci-$BUILD_NUMBER"
+          {
+            printf 'DB_PASSWORD=%s\n' "$db_password"
+            printf 'GRAFANA_ADMIN_USER=admin\n'
+            printf 'GRAFANA_ADMIN_PASSWORD=%s\n' "$grafana_password"
+            printf 'GRAFANA_SECRET_KEY=%s\n' "$grafana_key"
+            printf 'JWT_SIGNING_KEY_ID=%s\n' "$kid"
+            printf 'COOKIE_SECURE=false\n'
+          } > .env
+          key_dir=$(mktemp -d)
+          trap 'rm -rf -- "$key_dir"' EXIT
+          ./scripts/generate-jwt-keys.sh "$kid" "$key_dir"
+          ./scripts/load-ci-jwt-volumes.sh "$kid" "$key_dir"
+
+      - name: Build all service images
+        run: |
+          docker compose -p "$CI_PROJECT_NAME" --parallel 1 build
+          images=$(docker compose -p "$CI_PROJECT_NAME" config --format json \
+            | jq -er '.services[] | select(.build != null) | .image')
+          while IFS= read -r image; do
+            docker image inspect --format '{{index .RepoTags 0}} {{.Id}}' "$image"
+          done <<< "$images"
+
+      - name: Start the isolated ERP stack
+        run: docker compose -p "$CI_PROJECT_NAME" up -d --no-build --wait --wait-timeout 300
+
+      - name: Check Spring monitoring targets
+        run: |
+          prometheus=$(docker compose -p "$CI_PROJECT_NAME" port prometheus 9090)
+          grafana=$(docker compose -p "$CI_PROJECT_NAME" port grafana 3000)
+          PROMETHEUS_URL="http://$prometheus" GRAFANA_URL="http://$grafana" \
+            ./scripts/ci-stack-smoke.sh monitoring
+
+      - name: Smoke test authentication and business APIs
+        run: |
+          gateway=$(docker compose -p "$CI_PROJECT_NAME" port gateway-server 7070)
+          GATEWAY_URL="http://$gateway" ./scripts/ci-stack-smoke.sh api
+
+      - name: Check the outbox and consume the Kafka event
+        run: ./scripts/ci-stack-smoke.sh kafka
+
+      - name: Show stack diagnostics on failure
+        if: ${{ failure() }}
+        run: |
+          if [[ -f .env ]]; then
+            docker compose -p "$CI_PROJECT_NAME" ps --all
+            docker compose -p "$CI_PROJECT_NAME" logs --no-color --tail 60
+          fi
+
+      - name: Remove the temporary ERP stack
+        if: ${{ always() }}
+        run: |
+          if [[ -f .env ]]; then
+            docker compose -p "$CI_PROJECT_NAME" down --volumes --remove-orphans
+            rm -- .env
+          fi

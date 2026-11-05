@@ -42,6 +42,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 })
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
+@org.junit.jupiter.api.Tag("integration")
 class LoginRateLimitIntegrationTest {
 
     @DynamicPropertySource

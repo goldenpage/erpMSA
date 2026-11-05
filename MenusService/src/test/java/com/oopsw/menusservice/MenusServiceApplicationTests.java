@@ -17,6 +17,7 @@ import tools.jackson.databind.ObjectMapper;
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,
  properties={"eureka.client.enabled=false","spring.cloud.discovery.enabled=false"})
 @Import(TestDatabase.class)
+@org.junit.jupiter.api.Tag("integration")
 class MenusServiceApplicationTests {
     @LocalServerPort int port;
     @Autowired MenuRepository repository;

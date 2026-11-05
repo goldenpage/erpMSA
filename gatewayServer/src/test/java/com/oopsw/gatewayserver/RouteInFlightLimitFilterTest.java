@@ -19,6 +19,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+@org.junit.jupiter.api.Tag("unit")
 class RouteInFlightLimitFilterTest {
 
     private static final FilterChain OK = (request, response) -> ((HttpServletResponse) response).setStatus(200);

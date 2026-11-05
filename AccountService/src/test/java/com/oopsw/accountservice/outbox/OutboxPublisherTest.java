@@ -18,6 +18,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 
+@org.junit.jupiter.api.Tag("unit")
 class OutboxPublisherTest {
 
     private static final Instant NOW = Instant.parse("2026-11-04T00:00:00Z");

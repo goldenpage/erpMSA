@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
+@org.junit.jupiter.api.Tag("unit")
 class ClientAddressFilterTest {
 
     private static MockHttpServletRequest request(String remote, String... forwardedFor) {

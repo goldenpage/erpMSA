@@ -35,7 +35,7 @@ def main():
     if args.performance: command += ['-f', str(ROOT / 'compose.performance.yaml')]
     command += ['config', '--format', 'json']
     config = json.loads(subprocess.check_output(command, cwd=ROOT, env=env, text=True))
-    infrastructure = {'mariadb', 'database-init', 'redis', 'kafka', 'prometheus', 'grafana'}
+    infrastructure = {'mariadb', 'database-init', 'redis', 'kafka', 'prometheus', 'grafana', 'pushgateway'}
     allowed_services = spring_runtime | infrastructure | ({'k6'} if args.performance else set())
     assert not set(config['services']) - allowed_services, 'Unapproved Compose services'
     built_apps = {name for name, service in config['services'].items()
@@ -45,7 +45,7 @@ def main():
         assert set(runtime.get('depends_on', {})) <= set(config['services']), name
     monitoring = (ROOT / 'monitoring/prometheus/prometheus.yml').read_text()
     jobs = set(re.findall(r'job_name:\s*(\S+)', monitoring))
-    assert jobs == spring_runtime | {'prometheus'}, 'Prometheus service set'
+    assert jobs == spring_runtime | {'prometheus', 'pushgateway'}, 'Prometheus service set'
     dashboard = json.loads((ROOT / 'monitoring/grafana/dashboards/erpmsa-spring-services.json').read_text())
     job_filter = next(v for v in dashboard['templating']['list'] if v['name'] == 'job')['allValue']
     assert set(job_filter.split('|')) == spring_runtime, 'Grafana service set'

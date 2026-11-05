@@ -84,6 +84,14 @@ docker compose down
 
 `docker compose down -v`는 MariaDB, Redis, Kafka, Prometheus, Grafana 데이터를 삭제하므로 초기화가 필요한 경우에만 사용합니다.
 
+## GitHub Actions CI
+
+`main`을 대상으로 한 PR과 `main` 푸시에서 `Spring CI`가 자동으로 실행됩니다. 워크플로가 기본 브랜치에 등록된 뒤에는 **Actions → Spring CI → Run workflow**에서도 브랜치를 선택해 실행할 수 있습니다.
+
+GitHub의 Ubuntu 러너에서 Java 21로 단위·Testcontainers 통합 테스트, Python 테스트, Compose 구조 검사, Grafana 지표 수집을 검증합니다. **Actions** 실행 페이지의 `spring-ci-reports`에서 JUnit·JaCoCo·지표 파일을 내려받을 수 있습니다. Grafana 수집 확인에는 러너의 임시 모니터링 스택을 사용합니다.
+
+별도 `Service images and stack smoke` 작업에서 Spring 서비스 9개와 Prometheus·Grafana 이미지를 빌드합니다. 격리한 Compose에서 Gateway 인증·업무 API, Spring 모니터링 대상, Outbox 발행과 Kafka 메시지 수신을 확인합니다. Jenkins도 같은 스모크 스크립트를 사용합니다.
+
 ## Jenkins 실행 및 이미지 갱신
 
 Jenkins는 기본 Compose와 분리되어 있으므로 별도로 실행합니다. 최초 실행과
@@ -117,6 +125,7 @@ CI는 체크아웃 전에 작업 폴더를 정리하여 제거된 서비스의 G
 - Eureka: `http://127.0.0.1:8761`
 - Prometheus: `http://127.0.0.1:9090`
 - Grafana: `http://127.0.0.1:3000`
+- Pushgateway: `http://127.0.0.1:9091`
 - MariaDB: `127.0.0.1:3306`
 - Redis: `127.0.0.1:3308`
 - Kafka: `127.0.0.1:9094`
@@ -140,6 +149,45 @@ Prometheus는 15초마다 다음 엔드포인트를 수집합니다.
 Prometheus의 `Status > Target health` 화면에서 9개 Spring 서비스 대상이 `UP`인지 확인할 수 있습니다.
 Grafana에는 `ErpMSA/ErpMSA Spring Services` 대시보드가 자동으로 등록됩니다.
 Grafana 로그인 정보는 `.env`의 `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD`를 사용합니다.
+
+### Spring 단위 테스트와 JaCoCo
+
+`test`/`unitTest`는 단위 테스트, `integrationTest`는 Spring 컨텍스트·HTTP·Testcontainers 테스트를 실행합니다.
+`check`는 두 그룹을 모두 검증합니다. 단위 결과와 커버리지를 Grafana에 갱신하려면 다음 명령을 사용합니다.
+
+```bash
+python3 scripts/run-spring-tests.py --suite unit --pushgateway http://127.0.0.1:9091
+
+# KostaErpServer 본인 작성 단위 테스트 8개 클래스·38건 + JaCoCo
+python3 scripts/run-spring-tests.py --project KostaErpServer --suite unit --pushgateway http://127.0.0.1:9091
+```
+
+[Spring Unit Tests 대시보드](http://127.0.0.1:3000/d/erpmsa-spring-unit-tests)에서 프로젝트를 선택해 모듈별 결과와 줄·분기 커버리지를 볼 수 있습니다.
+통합 테스트 실행법, Jenkins 연결, 측정 범위와 검증 결과는 [테스트 시각화 문서](docs/spring-test-visualization.md)를 참고하세요.
+
+KostaErpServer의 본인 작성 통계 서비스·레포지토리 테스트, 로그인·가입 관련 테스트, Postman API 기록·재검증,
+Swagger 문서는 [본인 검증 내역 대시보드](http://127.0.0.1:3000/d/kosta-personal-verification)에서 구분합니다.
+본인 업무 테스트는 단위 38건·통합 24건으로 분리했습니다. [전체 39개 파일 분류 근거](docs/kosta-test-classification.md)와 격리 실행 결과는 [본인 검증 기록](docs/kosta-personal-verification.md)에 정리했습니다.
+
+### OCR 벤치마크 결과
+
+별도 프로젝트 `ocrserver`의 `eval/benchmark.py`는 일회성 측정 작업이므로 Prometheus가 직접 수집하지 않습니다.
+측정이 끝나면 결과를 Pushgateway로 보내고, Prometheus가 `pushgateway` 작업으로 수집합니다.
+Grafana `ErpMSA/ErpMSA OCR Benchmark` 대시보드에서 실행(`run`)별 지연·정확도를 비교합니다.
+
+```bash
+# ocrserver 프로젝트 루트에서
+python -m eval.benchmark --url http://127.0.0.1:8000 --name before-local-q8 --pushgateway http://127.0.0.1:9091
+python -m eval.push eval/results/<실행 폴더> --pushgateway http://127.0.0.1:9091   # 저장된 결과 재전송
+```
+
+전체 ERP 스택 없이 모니터링만 볼 때는 다음처럼 실행합니다.
+
+```bash
+docker compose up -d --build --no-deps pushgateway prometheus grafana
+```
+
+측정 방법과 지표 정의는 [OCR 측정 설계](docs/ocr-measurement-design.md)를 따릅니다.
 
 Actuator와 모니터링 포트는 로컬 호스트에만 바인딩됩니다. 운영에서는 인터넷에 직접 공개하지 않고 사설 네트워크, 방화벽, TLS 및 접근 제어를 적용해야 합니다.
 
