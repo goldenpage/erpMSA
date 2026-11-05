@@ -84,9 +84,9 @@ docker compose down
 
 `docker compose down -v`는 MariaDB, Redis, Kafka, Prometheus, Grafana 데이터를 삭제하므로 초기화가 필요한 경우에만 사용합니다.
 
-## GitHub Actions CI
+## GitHub Actions 수동 검증
 
-`main`을 대상으로 한 PR과 `main` 푸시에서 `Spring CI`가 자동으로 실행됩니다. 워크플로가 기본 브랜치에 등록된 뒤에는 **Actions → Spring CI → Run workflow**에서도 브랜치를 선택해 실행할 수 있습니다.
+기본 CI는 Jenkins입니다. GitHub 호스팅 러너에서 재검증할 때는 **Actions → Spring CI → Run workflow**에서 브랜치를 선택합니다. PR을 열거나 `main`에 푸시해도 이 워크플로는 자동으로 실행되지 않습니다.
 
 GitHub의 Ubuntu 러너에서 Java 21로 단위·Testcontainers 통합 테스트, Python 테스트, Compose 구조 검사, Grafana 지표 수집을 검증합니다. **Actions** 실행 페이지의 `spring-ci-reports`에서 JUnit·JaCoCo·지표 파일을 내려받을 수 있습니다. Grafana 수집 확인에는 러너의 임시 모니터링 스택을 사용합니다.
 
@@ -94,8 +94,9 @@ GitHub의 Ubuntu 러너에서 Java 21로 단위·Testcontainers 통합 테스트
 
 ## Jenkins 실행 및 이미지 갱신
 
-Jenkins는 기본 Compose와 분리되어 있으므로 별도로 실행합니다. 최초 실행과
-`jenkins/Dockerfile` 변경 후에는 이미지를 다시 빌드해야 합니다.
+기본 CI는 Mac의 Docker에서 실행되는 Jenkins `erpmsa` Job입니다. Job은 GitHub `main` 변경을 주기적으로 확인해 Spring 단위·통합 테스트, Python 테스트, Compose 구조 검사, 서비스 이미지 빌드, 업무 API·모니터링·Kafka 스모크를 실행합니다. 자동 실행에는 Mac과 Docker가 켜져 있어야 합니다.
+
+Jenkins는 기본 Compose와 분리되어 있습니다. 최초 실행과 `jenkins/Dockerfile` 변경 후에는 이미지를 다시 빌드해야 합니다.
 
 ```bash
 docker compose -f compose.jenkins.yaml up -d --build --wait

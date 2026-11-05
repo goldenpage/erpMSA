@@ -85,10 +85,8 @@ KostaErpServer의 현재 브랜치는 `develop`, ErpMSA는 `main`이며 프로�
 JUnit 게시 단계는 두 보고서 경로를 모두 수집하며 HTML·JaCoCo·요약·지표 텍스트를 아티팩트로 보관한다.
 
 Jenkins에서 Grafana로 자동 전송하려면 Jenkins가 접근할 수 있는 **지속 운영 Pushgateway** 주소를
-`SPRING_TEST_PUSHGATEWAY_URL` 환경변수로 설정한다. 미설정이어도 테스트와 Jenkins 보고서는 생성하며 지표 전송만 생략한다.
-예를 들어 Jenkins가 기존 `erpmsa_default` 네트워크에 연결돼 있다면 `http://pushgateway:9091`을 사용할 수 있다.
-임시 CI Compose의 Pushgateway를 지정하면 정리 시 결과가 사라지므로 그 주소는 사용하지 않는다.
-이번 작업에서는 실제 Jenkins 빌드를 실행하지 않았으며, 로컬에서 동일한 Gradle 분리와 실행기를 검증했다.
+`SPRING_TEST_PUSHGATEWAY_URL` 환경변수로 설정한다. 예를 들어 Jenkins가 기존 `erpmsa_default` 네트워크에 연결돼 있다면 `http://pushgateway:9091`을 사용할 수 있다.
+기본 CI는 전체 스택이 준비된 뒤 단위 지표를 빌드 전용 Pushgateway에 재전송하고 Grafana에서 모듈 수와 테스트 합계를 대조한다. 빌드 전용 지표는 스택 정리와 함께 사라진다.
 
 ## 실제 검증 결과: 2026-11-02
 

@@ -1,10 +1,6 @@
 name: Spring CI
 
 on:
-  pull_request:
-    branches: [main]
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -15,7 +11,7 @@ defaults:
     shell: bash
 
 concurrency:
-  group: spring-ci-${{ github.event.pull_request.number || github.ref }}
+  group: spring-ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -25,14 +21,14 @@ jobs:
     timeout-minutes: 25
     env:
       COMPOSE_PROJECT_NAME: erpmsa-actions
-      CI_BRANCH: ${{ github.head_ref || github.ref_name }}
+      CI_BRANCH: ${{ github.ref_name }}
       EUREKA_DEFAULT_ZONE: http://127.0.0.1:1/eureka
 
     steps:
       - name: Check out the commit under test
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Set up Java 21
@@ -148,7 +144,7 @@ jobs:
       - name: Check out the commit under test
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Prepare disposable stack credentials
