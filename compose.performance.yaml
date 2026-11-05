@@ -74,6 +74,8 @@ services:
   grafana:
     image: erpmsa-sprint4/grafana:lab
     ports: !override ["127.0.0.1:13000:3000"]
+  pushgateway:
+    ports: !override ["127.0.0.1:19091:9091"]
 
   k6:
     image: grafana/k6:1.7.1
@@ -134,3 +136,5 @@ volumes:
     name: erpmsa-sprint4-lab-prometheus-data
   grafana-data:
     name: erpmsa-sprint4-lab-grafana-data
+  pushgateway-data:
+    name: erpmsa-sprint4-lab-pushgateway-data

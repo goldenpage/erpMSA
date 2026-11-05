@@ -22,6 +22,7 @@ import tools.jackson.databind.ObjectMapper;
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,
  properties={"eureka.client.enabled=false","spring.cloud.discovery.enabled=false","app.inventory.discovery-enabled=false"})
 @Import(TestDatabase.class)
+@org.junit.jupiter.api.Tag("integration")
 class DisposalsServiceApplicationTests {
     static final ObjectMapper JSON=new ObjectMapper();
     static final AtomicLong quantity=new AtomicLong(20);

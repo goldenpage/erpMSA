@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
+@org.junit.jupiter.api.Tag("unit")
 class LoginAttemptLimiterTest {
 
     @Test

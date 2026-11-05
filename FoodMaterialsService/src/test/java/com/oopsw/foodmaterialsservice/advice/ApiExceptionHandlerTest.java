@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
+@org.junit.jupiter.api.Tag("unit")
 class ApiExceptionHandlerTest {
 
     private record Paging(@Min(0) int page, @Min(1) @Max(100) int size) {}

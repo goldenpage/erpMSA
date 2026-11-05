@@ -37,6 +37,7 @@ import tools.jackson.databind.ObjectMapper;
 })
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
+@org.junit.jupiter.api.Tag("integration")
 class FoodMaterialsServiceIntegrationTest {
     @org.springframework.test.context.DynamicPropertySource
     static void jwtProperties(org.springframework.test.context.DynamicPropertyRegistry registry) {

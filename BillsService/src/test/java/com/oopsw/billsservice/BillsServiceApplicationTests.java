@@ -16,6 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = {"eureka.client.enabled=false", "spring.cloud.discovery.enabled=false"})
+@org.junit.jupiter.api.Tag("integration")
 class BillsServiceApplicationTests {
     @LocalServerPort int port;
     @DynamicPropertySource static void keys(DynamicPropertyRegistry registry) {

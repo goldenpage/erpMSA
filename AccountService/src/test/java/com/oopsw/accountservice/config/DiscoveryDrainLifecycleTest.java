@@ -11,6 +11,7 @@ import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 
+@org.junit.jupiter.api.Tag("unit")
 class DiscoveryDrainLifecycleTest {
 
     private static DiscoveryDrainLifecycle lifecycle(ApplicationInfoManager manager, Duration drain) {

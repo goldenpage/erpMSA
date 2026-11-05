@@ -36,6 +36,7 @@ import org.springframework.transaction.support.TransactionTemplate;
     "spring.jpa.hibernate.ddl-auto=validate"
 })
 @Import(TestcontainersConfiguration.class)
+@org.junit.jupiter.api.Tag("integration")
 class OutboxClaimIntegrationTest {
 
     @DynamicPropertySource

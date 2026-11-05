@@ -85,6 +85,7 @@ python3 scripts/verify-service-architecture.py --performance
 ```
 
 검사기는 정확히 7개 업무 폴더·Compose 구성·서비스 이름·포트·Gateway 경로·공개키 전용 마운트와 9개 Spring 모니터링 대상을 확인한다.
+인프라 서비스로 Pushgateway를 허용한다. OCR 벤치마크(별도 프로젝트 ocrserver)와 Spring 단위 테스트·JaCoCo 결과 수신용이며 업무 서비스가 아니다.
 Compose 기본·CI·실험 설정과 Prometheus/Grafana 대상, Jenkins 테스트/이미지/경로 검증도 새 구성으로 갱신했다.
 Jenkins는 Menus CRUD·Disposals 재고 차감/재시도, 미구현 3개 서비스의 501을 검사한다. 원격 CI 실행 여부는 별도 검증 결과에 표시한다.
 

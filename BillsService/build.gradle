@@ -1,5 +1,6 @@
 plugins {
     id 'java'
+    id 'jacoco'
     id 'org.springframework.boot' version '4.1.0'
     id 'io.spring.dependency-management' version '1.1.7'
 }
@@ -15,4 +16,39 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
-tasks.named('test') { useJUnitPlatform() }
+tasks.named('test') {
+    description = 'Runs isolated unit tests (JUnit tag: unit).'
+    useJUnitPlatform { includeTags 'unit' }
+    failOnNoDiscoveredTests = false
+    finalizedBy tasks.named('jacocoTestReport')
+}
+
+tasks.register('unitTest') {
+    group = 'verification'
+    description = 'Alias for test: unit tests only, with JaCoCo report.'
+    dependsOn tasks.named('test')
+}
+
+tasks.register('integrationTest', Test) {
+    group = 'verification'
+    description = 'Runs Spring context, HTTP and Testcontainers tests (tag: integration).'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform { includeTags 'integration' }
+    failOnNoDiscoveredTests = false
+    shouldRunAfter tasks.named('test')
+    jacoco { enabled = false }
+}
+
+jacoco { toolVersion = '0.8.16' }
+
+tasks.named('jacocoTestReport') {
+    dependsOn tasks.named('test')
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
+    }
+}
+
+tasks.named('check') { dependsOn tasks.named('integrationTest') }

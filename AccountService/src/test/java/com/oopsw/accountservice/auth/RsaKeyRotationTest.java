@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import static org.assertj.core.api.Assertions.*;
 
+@org.junit.jupiter.api.Tag("unit")
 class RsaKeyRotationTest {
     @TempDir Path directory;
 

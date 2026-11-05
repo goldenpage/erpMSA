@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+@org.junit.jupiter.api.Tag("unit")
 class JwtProviderTest {
 
     private static final Long ACCOUNT_ID = 1L;

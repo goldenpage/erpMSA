@@ -79,3 +79,10 @@ scrape_configs:
         type: A
         port: 7077
         refresh_interval: 10s
+
+  # 배치 결과(OCR 벤치마크·Spring 단위 테스트). 발행한 job·실행 구분 라벨을 유지한다.
+  - job_name: pushgateway
+    honor_labels: true
+    static_configs:
+      - targets:
+          - pushgateway:9091

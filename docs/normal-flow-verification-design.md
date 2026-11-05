@@ -56,7 +56,7 @@ runId는 실행마다 새로 생성하는 소문자 16진수 12자리로 제한�
 | 순서 | 수행 설계 | 다음 단계 진입 조건 |
 |---|---|---|
 | S0 | 소스/도구 버전, 변경 파일 목록, 자원 격리 계획 확인. 기존 아키텍처 검사 기본·CI·performance 실행 | 3종 PASS. 향후 임시 override는 별도 렌더 검사로 볼륨/키/포트/정확한 서비스 집합 확인 |
-| S1 / G1 | 9개 Spring 프로젝트의 Gradle test와 NF-13의 독립 migration fixture 검증을 순차 실행 | 해당 실행의 XML에서 프로젝트 누락·실패·오류·필수 SKIP 없음. NF-13 보완 미구현은 통과로 집계하지 않음 |
+| S1 / G1 | 9개 Spring 프로젝트의 Gradle `test`·`integrationTest`와 NF-13의 독립 migration fixture 검증을 순차 실행 | 해당 실행의 XML에서 프로젝트 누락·실패·오류·필수 SKIP 없음. NF-13 보완 미구현은 통과로 집계하지 않음 |
 | S2 / G2 | FoodMaterials/Menus/Disposals bootJar 빌드 후 실제 HTTP·임시 DB 직접 연동 | §4의 G2 대상 사례 PASS. JWT는 전용 서명 fixture, discovery=false라는 실행 범위를 명시 |
 | S3 / G3 준비 | 전용 전체 스택 빌드/기동, API 읽기 readiness, 준비 계정 생성 | 기대 Eureka 7개와 업무 경로 7개의 응답이 안정화 |
 | S4 / G3 | Account 발행 토큰으로 §4의 G3 사례 실행. 재고 호출은 기본 discovery=true 유지 | HTTP·업무 상태·DB·이벤트·관측 증거 모두 일치 |
@@ -64,7 +64,7 @@ runId는 실행마다 새로 생성하는 소문자 16진수 12자리로 제한�
 
 G1 대상은 `eurekaServer`, `gatewayServer`, `AccountService`, `MenusService`, `FoodMaterialsService`, `NoticesService`, `BillsService`, `PurchaseService`, `DisposalsService`다. 각 wrapper와 Java 21 및 현재 build.gradle을 사용하고 라이브러리를 업그레이드하지 않는다. 서비스 Gradle 의존 관계로 공유 모듈도 빌드한다.
 
-G1 구현 시 명령 형태는 `<module>/gradlew -p <module> test --no-daemon --rerun-tasks`다. 정해진 9개 module만 허용하고 실행 전 환경을 제한한다. 기존 XML을 현재 실행으로 오인하지 않도록 시작 시각·실행 task·현재 XML을 함께 기록한다. 기존 테스트의 DB fixture 삭제는 Testcontainers 소유 DB에서만 허용하며 애플리케이션 DB 주소를 주입하지 않는다. 테스트 수는 과거의 고정 숫자 대신 현재 수집된 suite/case 목록과 실행 수로 대조한다.
+G1 구현 시 명령 형태는 `<module>/gradlew -p <module> test integrationTest --no-daemon --rerun-tasks`다. 정해진 9개 module만 허용하고 실행 전 환경을 제한한다. 기존 XML을 현재 실행으로 오인하지 않도록 시작 시각·실행 task·현재 XML을 함께 기록한다. 기존 테스트의 DB fixture 삭제는 Testcontainers 소유 DB에서만 허용하며 애플리케이션 DB 주소를 주입하지 않는다. 테스트 수는 과거의 고정 숫자 대신 현재 수집된 suite/case 목록과 실행 수로 대조한다.
 
 G2/G3 빌드 산출물은 같은 소스 기준이어야 한다. 빌드·의존성 확보·Docker 문제는 BLOCKED, 실행된 테스트의 assertion 실패는 FAIL로 분리하고 선행 단계 실패 시 후행 단계는 NOT_RUN으로 남긴다. 이미 존재하는 JAR/이미지를 이름만 보고 재사용하지 않는다.
 

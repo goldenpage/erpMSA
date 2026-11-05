@@ -24,6 +24,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+@org.junit.jupiter.api.Tag("unit")
 class JwtAuthorizationFilterTest {
 
     private static final String ISSUER = "kosta-erp-account";

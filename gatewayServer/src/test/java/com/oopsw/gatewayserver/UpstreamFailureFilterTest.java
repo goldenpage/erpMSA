@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 
+@org.junit.jupiter.api.Tag("unit")
 class UpstreamFailureFilterTest {
 
     private static ServletException wrapped(Throwable cause) {

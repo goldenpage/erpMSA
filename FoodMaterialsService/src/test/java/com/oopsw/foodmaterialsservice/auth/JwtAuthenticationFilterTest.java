@@ -14,6 +14,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import tools.jackson.databind.ObjectMapper;
 
+@org.junit.jupiter.api.Tag("unit")
 class JwtAuthenticationFilterTest {
 
 

@@ -89,6 +89,22 @@ pipeline {
             }
         }
 
+        stage('Spring Unit Tests') {
+            steps {
+                sh '''
+                    set -eu
+                    set -- --suite unit --source jenkins \
+                        --branch "${BRANCH_NAME:-main}" \
+                        --run-id "jenkins-${BUILD_NUMBER}"
+                    # Optional persistent Pushgateway; do not publish to the disposable CI stack.
+                    if [ -n "${SPRING_TEST_PUSHGATEWAY_URL:-}" ]; then
+                        set -- "$@" --pushgateway "$SPRING_TEST_PUSHGATEWAY_URL"
+                    fi
+                    python3 scripts/run-spring-tests.py "$@"
+                '''
+            }
+        }
+
         stage('Start Test Infrastructure') {
             steps {
                 sh '''
@@ -106,20 +122,20 @@ pipeline {
             }
         }
 
-        stage('Gradle Test') {
+        stage('Spring Integration Tests') {
             // Keep one Gradle build active when CI shares Docker Desktop with ERP.
             stages {
-                stage('Eureka Test') {
+                stage('Eureka Integration Test') {
                     steps {
                         sh '''
                             ./eurekaServer/gradlew \
                                 -p eurekaServer \
-                                test --no-daemon
+                                integrationTest --no-daemon
                         '''
                     }
                 }
 
-                stage('Gateway Test') {
+                stage('Gateway Integration Test') {
                     steps {
                         sh '''
                             set +x
@@ -130,37 +146,37 @@ pipeline {
                             EUREKA_DEFAULT_ZONE=http://eureka-server:8761/eureka \
                             ./gatewayServer/gradlew \
                                 -p gatewayServer \
-                                test --no-daemon
+                                integrationTest --no-daemon
                         '''
                     }
                 }
 
-                stage('Account Test') {
+                stage('Account Integration Test') {
                     steps {
                         sh '''
                             COOKIE_SECURE=false \
                             ./AccountService/gradlew \
                                 -p AccountService \
-                                test --no-daemon
+                                integrationTest --no-daemon
                         '''
                     }
                 }
 
-                stage('FoodMaterials Test') {
+                stage('FoodMaterials Integration Test') {
                     steps {
                         sh '''
                             ./FoodMaterialsService/gradlew \
                                 -p FoodMaterialsService \
-                                test --no-daemon
+                                integrationTest --no-daemon
                         '''
                     }
                 }
 
-                stage('Designed Services Test') {
+                stage('Designed Services Integration Test') {
                     steps {
                         sh '''
                             for SERVICE in MenusService NoticesService BillsService PurchaseService DisposalsService; do
-                                ./$SERVICE/gradlew -p "$SERVICE" test --no-daemon
+                                ./$SERVICE/gradlew -p "$SERVICE" integrationTest --no-daemon
                             done
                         '''
                     }
@@ -661,7 +677,7 @@ pipeline {
     post {
         always {
             junit(
-                testResults: '**/build/test-results/test/*.xml',
+                testResults: '**/build/test-results/test/*.xml,**/build/test-results/integrationTest/*.xml',
                 allowEmptyResults: true
             )
 
@@ -680,7 +696,7 @@ pipeline {
             '''
 
             archiveArtifacts(
-                artifacts: 'compose-ps.txt,compose.log',
+                artifacts: 'compose-ps.txt,compose.log,**/build/reports/tests/**,**/build/reports/jacoco/test/**,.verification/spring-tests/**/summary.json,.verification/spring-tests/**/metrics.prom',
                 allowEmptyArchive: true
             )
 

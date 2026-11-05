@@ -45,6 +45,7 @@ import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @ExtendWith(MockitoExtension.class)
+@org.junit.jupiter.api.Tag("unit")
 class AccountServiceTest {
 
     private static final Long ACCOUNT_ID = 1L;

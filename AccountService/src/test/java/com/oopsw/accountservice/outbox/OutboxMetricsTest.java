@@ -7,6 +7,7 @@ import org.springframework.dao.DataAccessResourceFailureException;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+@org.junit.jupiter.api.Tag("unit")
 class OutboxMetricsTest {
     @Test
     void 적체와_지연을_측정하고_DB장애를_정상값으로_숨기지_않는다() {

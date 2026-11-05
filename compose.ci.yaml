@@ -60,6 +60,10 @@ services:
     restart: "no"
     ports: !reset []
 
+  pushgateway:
+    restart: "no"
+    ports: !reset []
+
   menus-service:
     volumes: !override
       - ci-jwt-public:/run/jwt-public:ro
@@ -115,5 +119,8 @@ volumes:
 
   grafana-data:
     name: "${CI_PROJECT_NAME:-erpmsa-ci}-grafana-data"
+
+  pushgateway-data:
+    name: "${CI_PROJECT_NAME:-erpmsa-ci}-pushgateway-data"
 
 secrets: !reset {}
