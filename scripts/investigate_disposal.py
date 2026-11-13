@@ -18,7 +18,7 @@ import time
 import warnings
 
 from disposal_a2a import DELEGATE_TOOL, TOKEN_ENV as A2A_TOKEN_ENV, MetricsA2AClient, access_token as a2a_access_token
-from disposal_mcp import DISPOSAL_TOOLS, InvestigationError, ReadOnlyMcp
+from disposal_mcp import DISPOSAL_TOOLS, MCP_TOKEN_ENV, InvestigationError, ReadOnlyMcp
 from disposal_metrics import METRICS_AGENT, METRICS_INSTRUCTIONS, METRICS_TOOLS, RETRY_METRICS_INSTRUCTIONS, MetricsInvestigation
 
 
@@ -532,6 +532,7 @@ def run_scoped_agent(investigation, model, *, agent, instructions, tools, steps,
         config_dir.mkdir(parents=True)
         (config_dir / "opencode.json").write_text(json.dumps(config), encoding="utf-8")
         env["XDG_CONFIG_HOME"] = str(config_home)
+        env[MCP_TOKEN_ENV] = endpoint.secret
         try:
             result = execute_opencode(workdir, env, model, agent, prompt, timeout)
         except (OSError, subprocess.SubprocessError) as error:

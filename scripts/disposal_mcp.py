@@ -7,6 +7,9 @@ import secrets
 from threading import Thread
 
 
+MCP_TOKEN_ENV = "ERPMSA_MCP_TOKEN"
+
+
 class InvestigationError(Exception):
     pass
 
@@ -95,7 +98,7 @@ class ReadOnlyMcp:
         return {
             "type": "remote", "url": f"http://127.0.0.1:{self.server.server_port}/mcp",
             "oauth": False, "codemode": False,
-            "headers": {"Authorization": f"Bearer {self.secret}"},
+            "headers": {"Authorization": f"Bearer {{env:{MCP_TOKEN_ENV}}}"},
         }
 
     def dispatch(self, message):

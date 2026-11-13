@@ -14,6 +14,7 @@ from urllib.parse import urlencode
 
 import investigate_disposal as cli
 from disposal_metrics import JOBS, QUERIES
+from disposal_mcp import MCP_TOKEN_ENV
 
 
 CLI = Path(__file__).with_name("investigate_disposal.py")
@@ -132,6 +133,8 @@ class DisposalCliTest(unittest.TestCase):
         self.assertEqual(["get_disposal", "get_stock_movements"], record["tools"])
         self.assertTrue(Path(record["cwd"]).name.startswith("erpmsa-opencode-"))
         rules = record["config"]["agents"][cli.AGENT]["permissions"]
+        self.assertEqual(f"Bearer {{env:{MCP_TOKEN_ENV}}}",
+                         record["config"]["mcp"]["servers"]["erp"]["headers"]["Authorization"])
         self.assertEqual({"action": "*", "resource": "*", "effect": "deny"}, rules[0])
         self.assertEqual({"erp_get_disposal", "erp_get_stock_movements"}, {rule["action"] for rule in rules[1:]})
         for sensitive in (TOKEN, REASON, DISPOSAL_ID, "user-input-request-id"):
@@ -423,6 +426,9 @@ record = {"config": config, "args": sys.argv[1:], "cwd": os.getcwd(),
 def rpc(method, params=None):
     connection = http.client.HTTPConnection(url.hostname, url.port, timeout=3)
     headers = dict(server["headers"])
+    headers["Authorization"] = headers["Authorization"].replace(
+        "{env:ERPMSA_MCP_TOKEN}", os.environ["ERPMSA_MCP_TOKEN"]
+    )
     headers["Content-Type"] = "application/json"
     if mode == "wrong_capability":
         headers["Authorization"] = "Bearer invalid"

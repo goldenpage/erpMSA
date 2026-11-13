@@ -221,31 +221,36 @@ def start_database(stack, directory, mysql_bin):
     socket_path = directory / "db.sock"
     port = free_port()
     password = secrets.token_hex(24)
-    options = directory / "mysql.cnf"
-    options.touch(mode=0o600, exist_ok=False)
-    options.write_text(f"[client]\nuser=root\npassword={password}\nsocket={socket_path}\n")
-    init = directory / "mysql-init.sql"
-    init.touch(mode=0o600, exist_ok=False)
-    init.write_text(f"ALTER USER 'root'@'localhost' IDENTIFIED BY '{password}';\n")
     command(mysqld, "--no-defaults", "--initialize-insecure", f"--basedir={basedir}", f"--datadir={data}")
-    process = start_process(stack, directory, "db", [
+    server = [
         mysqld, "--no-defaults", f"--basedir={basedir}", f"--datadir={data}",
         f"--socket={socket_path}", f"--port={port}", f"--pid-file={directory / 'db.pid'}",
-        f"--init-file={init}", "--bind-address=127.0.0.1", "--mysqlx=OFF", "--skip-log-bin",
+        "--bind-address=127.0.0.1", "--mysqlx=OFF", "--skip-log-bin",
         "--local-infile=OFF", "--secure-file-priv=NULL", "--performance-schema=ON",
         "--default-authentication-plugin=mysql_native_password",
-    ])
+    ]
     client = [
-        mysql, f"--defaults-file={options}", "--protocol=SOCKET", f"--socket={socket_path}", "--user=root",
+        mysql, "--no-defaults", "--protocol=SOCKET", f"--socket={socket_path}", "--user=root",
         "--batch", "--skip-column-names", "--raw", "--binary-mode", "--local-infile=0",
         "--default-character-set=utf8mb4",
     ]
-    client_env = {**os.environ, "MYSQL_TEST_LOGIN_FILE": str(directory / "unused-login.cnf")}
+    bootstrap_env = {**os.environ, "MYSQL_TEST_LOGIN_FILE": str(directory / "unused-login.cnf")}
+    client_env = {**bootstrap_env, "MYSQL_PWD": password}
+
+    def database_ready(args, env):
+        return subprocess.run(
+            [*client, *args, "-e", "SELECT 1"], env=env, capture_output=True, timeout=3,
+        ).returncode == 0
+
     command(*client, "--version", env=client_env)
-    wait_for("격리 MySQL", lambda: subprocess.run(
-        [*client, "-e", "SELECT 1"], env=client_env, capture_output=True, timeout=3
-    ).returncode == 0, process)
-    init.unlink()
+    # Set the root password over the private socket before the server accepts TCP.
+    with ExitStack() as bootstrap:
+        process = start_process(bootstrap, directory, "db-bootstrap", [*server, "--skip-networking"])
+        wait_for("격리 MySQL 초기화", lambda: database_ready(["--skip-password"], bootstrap_env), process)
+        command(*client, "--skip-password", env=bootstrap_env,
+                input=f"ALTER USER 'root'@'localhost' IDENTIFIED BY '{password}';\n".encode())
+    process = start_process(stack, directory, "db", server)
+    wait_for("격리 MySQL", lambda: database_ready([], client_env), process)
 
     def sql(statement):
         return command(*client, input=statement.encode(), env=client_env).decode()

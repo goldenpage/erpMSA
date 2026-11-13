@@ -37,13 +37,13 @@ class LegacyDisposalMigrationTest(unittest.TestCase):
         self.addCleanup(temp.cleanup)
         self.folder = Path(temp.name).resolve()
         self.container = "erpmsa-legacy-disposal-" + secrets.token_hex(6)
-        password = secrets.token_hex(20)
-        self.write("db.env", f"MARIADB_ROOT_PASSWORD={password}\n")
+        self.password = secrets.token_hex(20)
         self.command(
             "docker", "run", "-d", "--rm", "--pull", "never", "--network", "none", "--name", self.container,
             "--label", "erpmsa.test=legacy-disposal", "--tmpfs", "/var/lib/mysql:rw",
             "--mount", f"type=bind,source={self.folder},target=/fixture,readonly",
-            "--env-file", str(self.folder / "db.env"), "mariadb:10.11",
+            "--env", "MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=1",
+            "--env", "MARIADB_ROOT_HOST=localhost", "mariadb:10.11",
         )
         self.addCleanup(subprocess.run, ["docker", "rm", "-f", self.container], capture_output=True)
         inspected = json.loads(self.command("docker", "inspect", self.container).stdout)[0]
@@ -58,21 +58,24 @@ class LegacyDisposalMigrationTest(unittest.TestCase):
             time.sleep(.5)
         else:
             self.fail("isolated MariaDB did not become ready")
+        # The container has no network. Protect root before running fixture queries.
+        self.command("docker", "exec", "-i", self.container, "mariadb", "-uroot", "--skip-password",
+                     input=f"ALTER USER 'root'@'localhost' IDENTIFIED BY '{self.password}';\n")
         wrapper = f"""#!/bin/sh
 config=${{1##*/}}
 shift
-exec docker exec -i {shlex.quote(self.container)} mariadb "--defaults-file=/fixture/$config" "$@"
+exec docker exec -i --env MYSQL_PWD {shlex.quote(self.container)} mariadb "--defaults-file=/fixture/$config" "$@"
 """
         self.client = self.write("test-mariadb", wrapper, mode=0o700)
-        self.source = self.write("source.cnf", f"[client]\nuser=exporter\npassword={password}\n")
-        self.target = self.write("target.cnf", f"[client]\nuser=importer\npassword={password}\n")
+        self.source = self.write("source.cnf", "[client]\nuser=exporter\n")
+        self.target = self.write("target.cnf", "[client]\nuser=importer\n")
         self.sql(f"""
 CREATE DATABASE legacy;
 CREATE DATABASE itemdb;
 CREATE DATABASE inventorydb;
 CREATE DATABASE disposalsdb;
-CREATE USER 'exporter'@'localhost' IDENTIFIED BY '{password}';
-CREATE USER 'importer'@'localhost' IDENTIFIED BY '{password}';
+CREATE USER 'exporter'@'localhost' IDENTIFIED BY '{self.password}';
+CREATE USER 'importer'@'localhost' IDENTIFIED BY '{self.password}';
 CREATE TABLE legacy.FOODM (foodMaterial_Id VARCHAR(50) PRIMARY KEY, bId VARCHAR(50), totalWeight INT);
 CREATE TABLE legacy.REASON (reason_Id VARCHAR(50) PRIMARY KEY, reason VARCHAR(255));
 CREATE TABLE legacy.DISPOSALS (
@@ -120,9 +123,9 @@ GRANT SELECT (id, account_id) ON itemdb.item TO 'importer'@'localhost';
 
     def sql(self, sql):
         return self.command(
-            "docker", "exec", "-i", self.container, "sh", "-ec",
-            'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" exec mariadb -uroot -BN --raw --default-character-set=utf8mb4',
-            input=sql,
+            "docker", "exec", "-i", "--env", "MYSQL_PWD", self.container,
+            "mariadb", "-uroot", "-BN", "--raw", "--default-character-set=utf8mb4",
+            input=sql, env={**os.environ, "MYSQL_PWD": self.password},
         ).stdout
 
     def schema(self, database, path):
@@ -139,7 +142,7 @@ GRANT SELECT (id, account_id) ON itemdb.item TO 'importer'@'localhost';
 
     def cli(self, *args, check=True):
         return self.command(sys.executable, str(CLI), "--client", str(self.client),
-                            *map(str, args), check=check)
+                            *map(str, args), check=check, env={**os.environ, "MYSQL_PWD": self.password})
 
     def apply(self, snapshot, mapping=None, check=True):
         return self.cli("import", snapshot, mapping or self.mapping, "--apply", "--config", self.target, check=check)
