@@ -1,0 +1,12 @@
+[Unit]
+Description=ErpMSA MariaDB backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+Environment=BACKUP_DIR=/var/backups/erpmsa
+Environment=KEEP_DAYS=14
+ExecStart=/usr/local/sbin/erpmsa-db-backup
+Nice=10
+IOSchedulingClass=idle
