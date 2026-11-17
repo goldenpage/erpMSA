@@ -1,0 +1,35 @@
+# 미니PC 외부 공개용 Cloudflare Tunnel. compose.minipc.yaml 위에 겹쳐 사용한다.
+#
+#   docker compose -f compose.yaml -f compose.minipc.yaml -f compose.tunnel.yaml up -d --wait
+#
+# 공개 도메인과 경로는 Cloudflare 대시보드(원격 관리 터널)에서 정한다. 설정 순서는
+# docs/minipc-public-access.md를 따른다. 업무 서비스가 아닌 진입 경로 구성이다.
+#
+# 터널 전용 네트워크(172.30.250.0/24)에는 cloudflared와 Gateway만 붙인다.
+# Gateway는 이 대역에서 온 연결만 믿을 수 있는 프록시로 보고 X-Forwarded-For에서 실제 접속자 주소를 읽는다.
+# 그래야 로그인·가입 시도 제한이 모든 사용자를 터널 주소 하나로 묶어 세지 않는다.
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.7
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: "${CLOUDFLARE_TUNNEL_TOKEN:?CLOUDFLARE_TUNNEL_TOKEN must be set in .env}"
+    networks:
+      - tunnel
+    depends_on:
+      gateway-server:
+        condition: service_healthy
+
+  gateway-server:
+    environment:
+      GATEWAY_TRUSTED_UPSTREAMS: 172.30.250.0/24
+    networks:
+      - default
+      - tunnel
+
+networks:
+  tunnel:
+    ipam:
+      config:
+        - subnet: 172.30.250.0/24
