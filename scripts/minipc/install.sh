@@ -30,14 +30,23 @@ install_logs() {
     exit 1
   fi
   [[ -f "$ERP_DIR/compose.minipc.yaml" ]] || { echo "ERP 폴더를 찾지 못했습니다: $ERP_DIR" >&2; exit 1; }
+  # 평소 실행과 같은 파일 조합으로 재생성한다. 조합이 다르면 터널(compose.tunnel.yaml)이 빠져 외부 접속이 끊긴다.
+  # .env에 COMPOSE_FILE이 있으면 그대로 쓰고, 없으면 미니PC 기본 조합에 터널 토큰이 있을 때만 터널을 더한다.
+  local files=()
+  if ! grep -q '^COMPOSE_FILE=' "$ERP_DIR/.env" 2>/dev/null; then
+    files=(-f compose.yaml -f compose.minipc.yaml)
+    if grep -q '^CLOUDFLARE_TUNNEL_TOKEN=.' "$ERP_DIR/.env" 2>/dev/null; then
+      files+=(-f compose.tunnel.yaml)
+    fi
+  fi
+  echo "== Compose 파일: ${files[*]:-.env의 COMPOSE_FILE}"
+  (cd "$ERP_DIR" && docker compose "${files[@]}" config -q)
   install -m 0644 -o root -g root "$HERE/docker-daemon.json" "$target"
   dockerd --validate --config-file "$target"
   echo '== Docker 재시작'
   systemctl restart docker
   echo '== ERP 컨테이너 재생성(데이터 볼륨 유지)'
-  docker compose --project-directory "$ERP_DIR" \
-    -f "$ERP_DIR/compose.yaml" -f "$ERP_DIR/compose.minipc.yaml" \
-    up -d --force-recreate --wait
+  (cd "$ERP_DIR" && docker compose "${files[@]}" up -d --force-recreate --wait)
   echo '== 적용 확인'
   docker ps --format '{{.Names}}' | while read -r name; do
     printf '%-40s %s\n' "$name" "$(docker inspect --format '{{.HostConfig.LogConfig.Config}}' "$name")"

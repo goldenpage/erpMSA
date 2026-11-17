@@ -1,6 +1,6 @@
 # 미니PC 운영 설정
 
-`compose.minipc.yaml`로 실행 중인 미니PC(Ubuntu)에 DB 백업과 Docker 로그 제한을 설치한다.
+`compose.minipc.yaml`(외부 공개 시 `compose.tunnel.yaml` 포함)로 실행 중인 미니PC(Ubuntu)에 DB 백업과 Docker 로그 제한을 설치한다.
 이 폴더를 미니PC에 복사한 뒤 그 폴더에서 실행한다.
 
 ```bash
@@ -37,4 +37,4 @@ sudo gunzip -c /var/backups/erpmsa/erpmsa-<시각>.sql.gz \
 
 `docker-daemon.json` → `/etc/docker/daemon.json` (컨테이너당 20MB × 3개).
 기존 `daemon.json`이 다르면 덮어쓰지 않고 중단한다. 새 컨테이너에만 적용되므로 Docker 재시작 후
-ERP 컨테이너를 `--force-recreate`로 다시 만든다. 이름 있는 데이터 볼륨은 유지된다.
+ERP 컨테이너를 `--force-recreate`로 다시 만든다. `.env`의 `COMPOSE_FILE`이 있으면 그 조합을, 없으면 `compose.yaml`+`compose.minipc.yaml`(터널 토큰이 있으면 `compose.tunnel.yaml` 추가)을 쓴다. 이름 있는 데이터 볼륨은 유지된다.
